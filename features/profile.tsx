@@ -1,0 +1,348 @@
+'use client';
+
+import { useMemo } from 'react';
+import { motion } from 'motion/react';
+import {
+  AlertTriangle,
+  BarChart3,
+  BookOpen,
+  Building2,
+  Calendar,
+  CheckCircle,
+  Focus,
+  LogOut,
+  Mail,
+  ShieldCheck,
+  Trophy,
+  UserRound,
+} from 'lucide-react';
+import { useAtomValue } from 'jotai';
+
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
+import { useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
+import { getRoleLabel, isTeachingRole } from '@/lib/roles';
+import {
+  getEffectiveScore,
+  subjectSummariesAtom,
+} from '@/lib/study-data';
+
+function getScoreColor(score: number): string {
+  if (score >= 70) return 'bg-[#186636]';
+  if (score >= 50) return 'bg-[#EAA93C]';
+  return 'bg-red-500';
+}
+
+function getScoreBgColor(score: number): string {
+  if (score >= 70) return 'bg-[#186636]/10';
+  if (score >= 50) return 'bg-[#EAA93C]/10';
+  return 'bg-red-500/10';
+}
+
+function getLastReviewedLabel(value: string | null): string {
+  if (!value) return 'Not reviewed yet';
+  const days = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / (24 * 60 * 60 * 1000)),
+  );
+  if (days === 0) return 'Reviewed today';
+  if (days === 1) return 'Last reviewed yesterday';
+  return `Last reviewed ${days} days ago`;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'EN';
+}
+
+function TeacherProfilePage({
+  account,
+  signOut,
+}: {
+  account: CurrentAccount;
+  signOut: (destination?: string) => Promise<boolean>;
+}) {
+  const profile = account.profile;
+  const fullName = account.user.name;
+  const email = account.user.email;
+  const roleLabel = getRoleLabel(profile?.role);
+
+  const profileDetails = [
+    {
+      icon: Building2,
+      label: 'School',
+      value: profile?.schoolName ?? 'Not provided',
+    },
+    {
+      icon: BookOpen,
+      label: 'Teaching Subject',
+      value: profile?.subjectName ?? 'Not provided',
+    },
+    {
+      icon: Focus,
+      label: 'Primary Topic / Teaching Focus',
+      value: profile?.topicName ?? 'Not provided',
+    },
+  ] as const;
+
+  return (
+    <div className="min-h-full bg-[#06101f] px-4 py-5 text-[#edf3ff] sm:px-6 lg:min-h-screen lg:px-8 lg:py-7">
+      <div className="mx-auto max-w-[1240px]">
+        <motion.header
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[26px] border border-[#243856] bg-[#0c1b31] px-5 py-6 shadow-2xl shadow-black/20 sm:px-8 sm:py-7"
+        >
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#f7cf5d] px-3.5 py-1.5 text-xs font-black text-[#071324]">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            My Profile
+          </span>
+          <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            Your teaching profile
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-sm font-medium leading-relaxed text-[#9fb1cb]">
+            Review the account and teaching details connected to your EduNets workspace.
+          </p>
+        </motion.header>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(18rem,5fr)_minmax(0,7fr)]">
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className="flex flex-col rounded-[24px] border border-[#243856] bg-[#0c1b31] p-5 shadow-2xl shadow-black/20 sm:p-6"
+          >
+            <div className="flex flex-col items-center text-center">
+              <Avatar className="h-24 w-24 border-4 border-[#1a2d49] shadow-[0_18px_45px_rgba(0,0,0,0.24)]">
+                <AvatarImage src={account.user.image ?? undefined} alt={fullName} />
+                <AvatarFallback className="bg-[#4f75aa] text-2xl font-black text-white">
+                  {getInitials(fullName)}
+                </AvatarFallback>
+              </Avatar>
+              <h2 className="mt-4 text-2xl font-black text-white">{fullName}</h2>
+              <span className="mt-2 rounded-full bg-[#f7cf5d]/15 px-3 py-1 text-xs font-black text-[#ffe17d]">
+                {roleLabel}
+              </span>
+            </div>
+
+            <dl className="mt-6 space-y-3 border-t border-[#243856] pt-5">
+              <div className="rounded-2xl bg-[#101f35] px-4 py-3">
+                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">
+                  <UserRound className="h-4 w-4" aria-hidden="true" /> Full Name
+                </dt>
+                <dd className="mt-1 break-words text-sm font-bold text-white">{fullName}</dd>
+              </div>
+              <div className="rounded-2xl bg-[#101f35] px-4 py-3">
+                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">
+                  <Mail className="h-4 w-4" aria-hidden="true" /> Email Address
+                </dt>
+                <dd className="mt-1 break-all text-sm font-bold text-white">{email}</dd>
+              </div>
+            </dl>
+
+            <Button
+              type="button"
+              onClick={() => void signOut('/login')}
+              className="mt-5 h-11 w-full rounded-xl bg-[#4f75aa] font-black text-white hover:bg-[#6087bd]"
+            >
+              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+              Log Out
+            </Button>
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14 }}
+            className="rounded-[24px] border border-[#243856] bg-[#0c1b31] p-5 shadow-2xl shadow-black/20 sm:p-6"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7cf5d]/15 text-[#f7cf5d]">
+                <BookOpen className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="text-lg font-black text-white">Teaching details</h2>
+                <p className="text-xs font-semibold text-[#91a4c1]">Saved from your EduNets onboarding profile.</p>
+              </div>
+            </div>
+
+            <dl className="mt-5 grid gap-3">
+              {profileDetails.map(({ icon: Icon, label, value }, index) => (
+                <motion.div
+                  key={label}
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 + index * 0.06 }}
+                  className="flex items-start gap-4 rounded-2xl border border-[#243856] bg-[#101f35] px-4 py-4 sm:px-5"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1a2d49] text-[#f7cf5d]">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">{label}</dt>
+                    <dd className="mt-1 break-words text-base font-black text-white">{value}</dd>
+                  </div>
+                </motion.div>
+              ))}
+            </dl>
+
+            <div className="mt-5 rounded-2xl border border-[#f7cf5d]/20 bg-[#f7cf5d]/[0.07] px-4 py-4 text-sm font-semibold leading-relaxed text-[#c5d1e2]">
+              These details identify your teaching workspace and help EduNets connect relevant student enquiries.
+            </div>
+          </motion.section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ProfilePage() {
+  const { data: account } = useCurrentAccount();
+  const subjectSummaries = useAtomValue(subjectSummariesAtom);
+  const signOut = useSafeSignOut();
+
+  const subjectOverview = useMemo(
+    () => subjectSummaries
+      .map((subject) => {
+        const reviewedTopics = subject.topics.filter((topic) => topic.memoryScore !== null);
+        const latestReview = reviewedTopics
+          .map((topic) => topic.lastReviewedAt)
+          .filter((value): value is string => Boolean(value))
+          .sort()
+          .at(-1) ?? null;
+        return {
+          ...subject,
+          score: subject.avgScore,
+          latestReview,
+          attempts: subject.topics.reduce((sum, topic) => sum + topic.quizAttempts, 0),
+        };
+      })
+      .filter((subject) => subject.score !== null),
+    [subjectSummaries],
+  );
+
+  const stats = useMemo(() => {
+    const scores = subjectSummaries
+      .flatMap((subject) => subject.topics)
+      .map((topic) => getEffectiveScore(topic))
+      .filter((score): score is number => score !== null);
+    const sortedSubjects = [...subjectOverview].sort(
+      (first, second) => (second.score ?? 0) - (first.score ?? 0),
+    );
+    const atRiskSubject = [...subjectOverview]
+      .filter((subject) => (subject.score ?? 100) < 42)
+      .sort((first, second) => (first.score ?? 0) - (second.score ?? 0))[0];
+    return {
+      topicsReviewed: scores.length,
+      average: scores.length
+        ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+        : null,
+      highest: sortedSubjects[0]?.name ?? 'Not started',
+      atRisk: atRiskSubject?.name ?? 'None',
+      attempts: subjectOverview.reduce((sum, subject) => sum + subject.attempts, 0),
+    };
+  }, [subjectOverview, subjectSummaries]);
+
+  const fullName = account?.user.name ?? 'EduNets learner';
+  const schoolName = account?.profile?.schoolName ?? 'School not set';
+  const role = account?.profile?.role
+    ? account.profile.role.charAt(0).toUpperCase() + account.profile.role.slice(1)
+    : 'Learner';
+  const memberSince = account?.profile?.completedAt
+    ? new Intl.DateTimeFormat('en-SG', { month: 'short', year: 'numeric' }).format(
+        new Date(account.profile.completedAt),
+      )
+    : 'New account';
+
+  if (isTeachingRole(account?.profile?.role)) {
+    return <TeacherProfilePage account={account} signOut={signOut} />;
+  }
+
+  return (
+    <div className="min-h-screen p-6 pattern-overlay lg:p-8">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="h-full rounded-2xl border-0 card-shadow">
+            <CardContent className="flex flex-col items-center px-6 pb-6 pt-8">
+              <div className="mb-4 flex h-32 w-32 items-center justify-center rounded-[2rem] bg-secondary text-secondary-foreground shadow-[0_18px_45px_rgba(29,58,98,0.16)]">
+                <UserRound className="h-16 w-16" />
+              </div>
+              <h2 className="mb-1 text-2xl font-bold text-studynow-dark">{fullName}</h2>
+              <p className="mb-4 text-sm text-muted-foreground">{schoolName}</p>
+              <Badge className="mb-6 bg-secondary px-4 py-1 text-sm font-semibold text-secondary-foreground hover:bg-secondary">
+                {role}
+              </Badge>
+              <div className="mb-6 h-px w-full bg-[#186636]/20" />
+              <div className="flex flex-wrap justify-center gap-3">
+                <span className="flex items-center gap-2 rounded-full bg-secondary/60 px-3 py-2 text-sm font-medium">
+                  <CheckCircle className="h-4 w-4 text-[#186636]" />
+                  {stats.topicsReviewed} topics
+                </span>
+                <span className="flex items-center gap-2 rounded-full bg-secondary/60 px-3 py-2 text-sm font-medium">
+                  <Calendar className="h-4 w-4 text-[#EAA93C]" />
+                  {memberSince}
+                </span>
+              </div>
+              <Button type="button" variant="outline" onClick={() => void signOut('/login')} className="mt-6 rounded-xl">
+                <LogOut className="mr-2 h-4 w-4" />
+                Log Out
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card className="h-full rounded-2xl border-0 card-shadow">
+            <CardHeader><CardTitle className="text-lg font-bold text-studynow-dark">Subject Overview</CardTitle></CardHeader>
+            <CardContent className="max-h-[400px] space-y-3 overflow-y-auto">
+              {subjectOverview.length === 0 ? (
+                <p className="rounded-xl bg-muted/30 p-5 text-sm text-muted-foreground">
+                  Complete a quiz to start building your subject overview.
+                </p>
+              ) : subjectOverview.map((subject, index) => {
+                const score = subject.score ?? 0;
+                return (
+                  <motion.div key={subject.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + index * 0.06 }} className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2"><span className="text-xl">{subject.icon}</span><span className="font-semibold text-studynow-dark">{subject.name}</span></div>
+                      <span className={`text-lg font-bold ${score >= 70 ? 'text-[#186636]' : score >= 50 ? 'text-[#EAA93C]' : 'text-red-500'}`}>{score}%</span>
+                    </div>
+                    <div className={`mb-2 h-2 overflow-hidden rounded-full ${getScoreBgColor(score)}`}><motion.div initial={{ width: 0 }} animate={{ width: `${score}%` }} className={`h-full rounded-full ${getScoreColor(score)}`} /></div>
+                    <p className="text-xs text-muted-foreground">{getLastReviewedLabel(subject.latestReview)}</p>
+                  </motion.div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mt-6">
+        <Card className="rounded-2xl border-0 card-shadow">
+          <CardHeader><CardTitle className="text-lg font-bold text-studynow-dark">My Study Stats</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              { icon: BarChart3, value: stats.average === null ? '--' : `${stats.average}%`, label: 'Average Memory Score' },
+              { icon: Trophy, value: stats.highest, label: 'Highest Scoring Subject' },
+              { icon: AlertTriangle, value: stats.atRisk, label: 'Most At-Risk Subject' },
+              { icon: CheckCircle, value: String(stats.attempts), label: 'Completed Quiz Attempts' },
+            ].map(({ icon: Icon, value, label }, index) => (
+              <motion.div key={label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 + index * 0.08 }} className="rounded-xl border border-border/50 bg-white p-5 text-center shadow-sm">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#186636]/10"><Icon className="h-6 w-6 text-[#186636]" /></div>
+                <p className="mb-1 text-xl font-bold text-[#EAA93C]">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </motion.div>
+            ))}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+}

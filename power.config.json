@@ -1,0 +1,51 @@
+{
+  "appDisplayName": "EduNets",
+  "description": "Used by students to access quizzes, concept webs, captured notes and personalised study tools.",
+  "buildPath": "./out",
+  "buildEntryPoint": "index.html",
+  "logoPath": "Default",
+  "localAppUrl": "http://localhost:3000/",
+  "appId": "a11a4c8a-9625-4631-bfd3-9e3265a235e4",
+  "connectionReferences": {},
+  "databaseReferences": {
+    "default.cds": {
+      "state": "Configured",
+      "instanceUrl": "https://orgd0a131ec.crm5.dynamics.com",
+      "webApiVersion": "v9.0",
+      "dataSources": {
+        "cree0_student": {
+          "entitySetName": "cree0_students",
+          "logicalName": "cree0_student",
+          "isHidden": false
+        },
+        "cree0_notecapture": {
+          "entitySetName": "cree0_notecaptures",
+          "logicalName": "cree0_notecapture",
+          "isHidden": false
+        },
+        "cree0_conceptweb": {
+          "entitySetName": "cree0_conceptwebs",
+          "logicalName": "cree0_conceptweb",
+          "isHidden": false
+        },
+        "cree0_teacher": {
+          "entitySetName": "cree0_teachers",
+          "logicalName": "cree0_teacher",
+          "isHidden": false
+        },
+        "cree0_quizquestion": {
+          "entitySetName": "cree0_quizquestions",
+          "logicalName": "cree0_quizquestion",
+          "isHidden": false
+        },
+        "cree0_quizhistory": {
+          "entitySetName": "cree0_quizhistories",
+          "logicalName": "cree0_quizhistory",
+          "isHidden": false
+        }
+      },
+      "version": "v9.0",
+      "environmentVariableName": ""
+    }
+  }
+}
