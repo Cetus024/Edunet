@@ -8,7 +8,7 @@ import ErrorBoundary from '@/components/system/error-boundary';
 import { Toaster } from '@/components/ui/sonner';
 import { GlobalMascot } from '@/features/mascot';
 import { queryClient } from '@/lib/query-client';
-import { hasPowerAppsHost } from '../../app-gen-sdk/constants';
+import { hasPowerAppsHost } from '@/app-gen-sdk/constants';
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
