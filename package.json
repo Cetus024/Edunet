@@ -2,6 +2,7 @@
   "name": "edunets",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,yellow \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "next dev",
