@@ -15,6 +15,13 @@
       "when": 1786177192374,
       "tag": "0001_mixed_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786178462315,
+      "tag": "0002_broad_lord_hawal",
+      "breakpoints": true
     }
   ]
 }
