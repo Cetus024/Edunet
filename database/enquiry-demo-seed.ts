@@ -52,8 +52,8 @@ export function buildDemoEnquiries(
   return demoTopics.slice(0, 3).map((topic, index) => ({
     thread: {
       requesterUserId: null,
-      requesterDisplayName: names[index],
-      requesterClassSnapshot: threadSnapshots[index],
+      requesterDisplayName: names[index]!,
+      requesterClassSnapshot: threadSnapshots[index] ?? null,
       topicId: topic.id,
       topicNameSnapshot: topic.name,
       isDemo: true,

@@ -10,6 +10,6 @@ export const subjectSeed = Array.from({ length: 8 }, (_, index) => ({
 
 export const topicSeed = Array.from({ length: 51 }, (_, index) => ({
   id: `topic-${index + 1}`,
-  subjectId: subjectSeed[Math.floor(index / 7)]?.id ?? subjectSeed[0].id,
+  subjectId: subjectSeed[Math.floor(index / 7)]?.id ?? subjectSeed[0]!.id,
   name: `Topic ${index + 1}`,
 }));

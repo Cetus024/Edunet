@@ -3,17 +3,21 @@ import { pgTable, text, integer, primaryKey } from 'drizzle-orm/pg-core';
 export const schools = pgTable('schools', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  position: integer('position').notNull().default(0),
 });
 
 export const subjects = pgTable('subjects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  icon: text('icon'),
+  position: integer('position').notNull().default(0),
 });
 
 export const topics = pgTable('topics', {
   id: text('id').primaryKey(),
   subjectId: text('subject_id').notNull().references(() => subjects.id),
   name: text('name').notNull(),
+  position: integer('position').notNull().default(0),
 });
 
 export const topicAliases = pgTable('topic_aliases', {
