@@ -1,2 +1,23 @@
+# dependencies
 node_modules
+services/edunets-api/node_modules
+
+# next.js build output
+.next/
+out/
+
+# api build output
+services/edunets-api/dist/
+
+# env files (never commit secrets)
 .env.local
+.env.api.local
+.env*.local
+
+# logs / debug output
+*.log
+full-tsc-output.txt
+
+# misc
+.DS_Store
+*.tsbuildinfo
