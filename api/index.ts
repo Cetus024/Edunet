@@ -1,6 +1,6 @@
 import { attachDatabasePool } from '@vercel/functions';
 
-import { pool } from '../database/client';
+import { pool } from '../database/client.js';
 import { app } from '../services/edunets-api/src/app.js';
 
 attachDatabasePool(pool);
