@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { SubjectData } from '@/lib/study-data';
 import { apiRequest } from '@/lib/api/client';
-import { getDemoStudyState } from '@/lib/demo-auth';
 
 export type CatalogSchool = {
   id: string;
@@ -67,25 +66,7 @@ export function studyStateQueryKeyForUser(userId: string) {
 }
 
 export function getCatalog() {
-  const subjects = getDemoStudyState().subjects.map((subject) => ({
-    id: subject.id,
-    name: subject.name,
-    icon: subject.icon,
-    topics: subject.topics.map((topic) => ({
-      id: topic.id,
-      subjectId: topic.subjectId,
-      name: topic.name,
-      aliases: [],
-    })),
-  }));
-  return Promise.resolve({
-    schools: [
-      { id: 'school-admiralty-secondary-school', name: 'Admiralty Secondary School' },
-      { id: 'school-ahmad-ibrahim-secondary-school', name: 'Ahmad Ibrahim Secondary School' },
-      { id: 'school-other', name: 'Other' },
-    ],
-    subjects,
-  } satisfies CatalogResponse);
+  return apiRequest<CatalogResponse>('/api/v1/catalog');
 }
 
 export function useCatalog() {
@@ -97,7 +78,7 @@ export function useCatalog() {
 }
 
 export function getStudyState() {
-  return Promise.resolve(getDemoStudyState());
+  return apiRequest<StudyStateResponse>('/api/v1/me/study-state');
 }
 
 export function useStudyState({

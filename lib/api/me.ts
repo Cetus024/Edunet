@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getDemoCurrentAccount } from '@/lib/demo-auth';
+import { apiRequest, isApiError } from '@/lib/api/client';
 
 export type CurrentUser = {
   id: string;
@@ -34,7 +34,12 @@ export type CurrentAccount = {
 export const currentAccountQueryKey = ['current-account'] as const;
 
 export async function getCurrentAccount(): Promise<CurrentAccount | null> {
-  return getDemoCurrentAccount();
+  try {
+    return await apiRequest<CurrentAccount>('/api/v1/me');
+  } catch (error) {
+    if (isApiError(error) && error.status === 401) return null;
+    throw error;
+  }
 }
 
 export function useCurrentAccount() {

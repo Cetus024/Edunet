@@ -5,7 +5,7 @@ import { useSetAtom } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { signOutOfDemo } from '@/lib/demo-auth';
+import { authClient } from '@/lib/api/auth-client';
 import { useNavigate } from '@/lib/navigation';
 import { subjectsAtom } from '@/lib/study-data';
 
@@ -20,7 +20,7 @@ export function useSafeSignOut() {
     requestInFlight.current = true;
 
     try {
-      signOutOfDemo();
+      await authClient.signOut();
 
       setSubjects([]);
       queryClient.clear();

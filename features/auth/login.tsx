@@ -5,8 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Brain, Check, LockKeyhole, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { currentAccountQueryKey } from '@/lib/api/me';
-import { DEMO_LOGIN_OPTIONS, signInToDemo } from '@/lib/demo-auth';
+import { authClient, getAuthErrorMessage } from '@/lib/api/auth-client';
+import { currentAccountQueryKey, getCurrentAccount } from '@/lib/api/me';
+import { DEMO_LOGIN_OPTIONS } from '@/lib/demo-auth';
 import { useNavigate } from '@/lib/navigation';
 import { getAuthenticatedHome } from '@/lib/roles';
 
@@ -35,10 +36,20 @@ export default function EduNetsLogin() {
 
     setIsSubmitting(true);
     try {
-      const account = signInToDemo(normalizedEmail, password);
-      if (!account) {
-        toast.error('Email or password is incorrect.');
+      const result = await authClient.signIn.email({
+        email: normalizedEmail,
+        password,
+      });
+      if (result.error) {
+        toast.error(
+          getAuthErrorMessage(result.error, 'Email or password is incorrect.'),
+        );
         return;
+      }
+
+      const account = await getCurrentAccount();
+      if (!account) {
+        throw new Error('The account session could not be confirmed. Please try again.');
       }
 
       queryClient.setQueryData(currentAccountQueryKey, account);
@@ -49,8 +60,10 @@ export default function EduNetsLogin() {
           : '/onboarding',
         { replace: true },
       );
-    } catch {
-      toast.error('EduNets could not log you in. Please try again.');
+    } catch (error) {
+      toast.error(
+        getAuthErrorMessage(error, 'EduNets could not log you in. Please try again.'),
+      );
     } finally {
       setIsSubmitting(false);
     }

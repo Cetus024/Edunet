@@ -48,7 +48,10 @@ export function AppSidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-sidebar text-sidebar-foreground h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border shadow-[18px_0_50px_rgba(29,58,98,0.10)] overflow-hidden">
+      <aside className={cn(
+        'hidden lg:flex flex-col w-64 text-sidebar-foreground h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border shadow-[18px_0_50px_rgba(29,58,98,0.10)] overflow-hidden',
+        usesTeachingWorkspace ? 'teacher-sidebar-gradient' : 'bg-sidebar',
+      )}>
         <div className="absolute -left-20 top-12 h-52 w-52 rounded-full bg-secondary blob-soft" />
         <div className="absolute -right-24 bottom-24 h-56 w-56 rounded-full bg-accent blob-soft" />
         <div className="relative z-10 h-full">
@@ -131,7 +134,10 @@ function SidebarContent({
             <Brain className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-primary">EduNets</h1>
+            <h1 className={cn(
+              'text-2xl font-black tracking-tight',
+              isTeachingRole(role) ? 'text-sidebar-accent' : 'text-primary',
+            )}>EduNets</h1>
             <p className="text-xs font-semibold text-muted-foreground">Weave stronger bonds, retain every lesson</p>
           </div>
         </motion.div>
@@ -147,7 +153,10 @@ function SidebarContent({
         <div className="flex items-center gap-3">
           <Avatar className="w-11 h-11 border-2 border-white shadow-sm">
             <AvatarImage src={user?.image ?? undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
+            <AvatarFallback className={cn(
+              'text-sm font-bold',
+              isTeachingRole(role) ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'bg-primary text-primary-foreground',
+            )}>
               {initials}
             </AvatarFallback>
           </Avatar>

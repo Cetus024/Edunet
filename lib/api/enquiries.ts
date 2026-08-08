@@ -2,13 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  createDemoEnquiry,
-  getDemoEnquiries,
-  getDemoQuestionRecipients,
-  markDemoEnquiryRead,
-  sendDemoEnquiryMessage,
-} from '@/lib/demo-enquiries';
+import { apiRequest } from '@/lib/api/client';
 
 export type EnquiryRole = 'student' | 'parent' | 'teacher' | 'tutor';
 
@@ -116,7 +110,7 @@ export function useEnquiries({
 }) {
   return useQuery({
     queryKey: [...enquiriesQueryKey, userId ?? 'anonymous'],
-    queryFn: getDemoEnquiries,
+    queryFn: () => apiRequest<EnquiriesResponse>('/api/v1/me/enquiries'),
     enabled: enabled && Boolean(userId),
     staleTime: 5_000,
     refetchInterval: visiblePollingInterval,
@@ -161,7 +155,9 @@ export function useQuestionRecipients({
 }) {
   return useQuery({
     queryKey: [...questionRecipientsQueryKey, userId ?? 'anonymous', subjectId],
-    queryFn: () => getDemoQuestionRecipients(subjectId),
+    queryFn: () => apiRequest<QuestionRecipientsResponse>(
+      `/api/v1/me/question-recipients?subjectId=${encodeURIComponent(subjectId)}`,
+    ),
     enabled: enabled && Boolean(userId && subjectId),
     staleTime: 30_000,
     refetchInterval: visiblePollingInterval,
@@ -172,13 +168,23 @@ export function useQuestionRecipients({
 }
 
 export function createEnquiry(input: CreateEnquiryInput) {
-  return createDemoEnquiry(input);
+  return apiRequest<CreateEnquiryResponse>('/api/v1/me/enquiries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }
 
 export function sendEnquiryMessage(threadId: string, input: SendEnquiryMessageInput) {
-  return sendDemoEnquiryMessage(threadId, input);
+  return apiRequest<SendEnquiryMessageResponse>(`/api/v1/me/enquiries/${threadId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }
 
 export function markEnquiryRead(threadId: string) {
-  return markDemoEnquiryRead(threadId);
+  return apiRequest<MarkEnquiryReadResponse>(`/api/v1/me/enquiries/${threadId}/read`, {
+    method: 'PUT',
+  });
 }

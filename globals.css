@@ -184,6 +184,13 @@
     radial-gradient(circle at 90% 10%, rgba(82, 120, 173, 0.14), transparent 32%);
 }
 
+/* Teacher/Tutor sidebar: a warm-to-navy diagonal wash instead of a flat
+   panel, echoing the public site's gradient while staying dark enough for
+   the teaching workspace. */
+.teacher-sidebar-gradient {
+  background: linear-gradient(165deg, #5f7a4a 0%, #37605f 28%, #1c3a52 58%, #102036 100%);
+}
+
 .teacher-scrollbar {
   scrollbar-color: #526b8d transparent;
   scrollbar-width: thin;

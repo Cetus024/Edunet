@@ -128,8 +128,8 @@ export async function ensureDemoEnquiryThreads(
   const executor = db as EnquiryDemoExecutor;
 
   const onboardingRows = await (executor.select().from(onboardingProfiles) as {
-    limit: (limit: number) => Promise<Array<{ subjectId: string; topicId: string }>>;
-  }).limit(1);
+    where: (...args: unknown[]) => { limit: (limit: number) => Promise<Array<{ subjectId: string; topicId: string }>> };
+  }).where(eq(onboardingProfiles.userId, recipient.userId)).limit(1);
   const preferred = onboardingRows[0];
   if (!preferred) return { createdThreads: 0, createdMessages: 0 };
 

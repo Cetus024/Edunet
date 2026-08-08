@@ -7,6 +7,17 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+const SUBJECT_ICONS: Readonly<Record<string, string>> = {
+  Biology: '🧬',
+  Chemistry: '⚗️',
+  Physics: '⚛️',
+  History: '🏛️',
+  Geography: '🌍',
+  English: '📚',
+  'A-Math': '📐',
+  'E-Math': '🔢',
+};
+
 export const schoolSeed = Array.from({ length: 151 }, (_, index) => ({
   id: `school-${index + 1}`,
   name: `School ${index + 1}`,
@@ -15,6 +26,7 @@ export const schoolSeed = Array.from({ length: 151 }, (_, index) => ({
 export const subjectSeed = Object.keys(CATALOG_SUBJECT_TOPIC_NAMES).map((name, index) => ({
   id: slugify(name),
   name,
+  icon: SUBJECT_ICONS[name] ?? null,
   position: index,
 }));
 
