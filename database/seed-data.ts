@@ -1,15 +1,31 @@
+import { CATALOG_SUBJECT_TOPIC_NAMES } from '../lib/quiz-question-bank.js';
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export const schoolSeed = Array.from({ length: 151 }, (_, index) => ({
   id: `school-${index + 1}`,
   name: `School ${index + 1}`,
 }));
 
-export const subjectSeed = Array.from({ length: 8 }, (_, index) => ({
-  id: `subject-${index + 1}`,
-  name: `Subject ${index + 1}`,
+export const subjectSeed = Object.keys(CATALOG_SUBJECT_TOPIC_NAMES).map((name, index) => ({
+  id: slugify(name),
+  name,
+  position: index,
 }));
 
-export const topicSeed = Array.from({ length: 51 }, (_, index) => ({
-  id: `topic-${index + 1}`,
-  subjectId: subjectSeed[Math.floor(index / 7)]?.id ?? subjectSeed[0]!.id,
-  name: `Topic ${index + 1}`,
-}));
+export const topicSeed = Object.entries(CATALOG_SUBJECT_TOPIC_NAMES).flatMap(
+  ([, topicNames], subjectIndex) => {
+    const subjectId = subjectSeed[subjectIndex]!.id;
+    return topicNames.map((topicName, topicIndex) => ({
+      id: `${subjectId}-${slugify(topicName)}`,
+      subjectId,
+      name: topicName,
+      position: topicIndex,
+    }));
+  },
+);

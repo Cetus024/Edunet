@@ -454,3 +454,13 @@ export function getQuestionsForSelection(subject: string, topic: string): QuizQu
     ...draft,
   }));
 }
+
+/**
+ * The full catalog structure (subject name -> ordered topic names) backing the
+ * static question bank above. This is the single source of truth other parts
+ * of the app (the database catalog seed) derive their subject/topic list from,
+ * so a topic can never be seeded without a matching question set.
+ */
+export const CATALOG_SUBJECT_TOPIC_NAMES: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.entries(topicQuestionDrafts).map(([subject, topics]) => [subject, Object.keys(topics)]),
+);

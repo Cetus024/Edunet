@@ -34,7 +34,7 @@ export const quizAttempts = pgTable('quiz_attempt', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: text('subject_id').notNull(),
   topicId: text('topic_id').notNull(),
-  quizMode: text('quiz_mode').notNull(),
+  quizMode: text('quiz_mode', { enum: ['past-paper', 'concept-check', 'speed-round'] as const }).notNull(),
   questionSetVersion: text('question_set_version').notNull(),
   correctAnswers: integer('correct_answers').notNull(),
   totalQuestions: integer('total_questions').notNull(),
@@ -48,7 +48,7 @@ export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
   attemptId: text('attempt_id').notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
   questionKey: text('question_key').notNull(),
   questionIndex: integer('question_index').notNull(),
-  submittedAnswer: text('submitted_answer').notNull(),
+  submittedAnswer: text('submitted_answer').$type<string | number>().notNull(),
   isCorrect: boolean('is_correct').notNull(),
 }, (table) => [
   primaryKey({ columns: [table.attemptId, table.questionKey] }),

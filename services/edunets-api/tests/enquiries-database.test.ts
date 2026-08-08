@@ -88,7 +88,7 @@ describe('enquiry database schema', () => {
 
   it('has a strictly additive committed migration', () => {
     const migrationPath = fileURLToPath(new URL(
-      '../../../database/migrations/0001_teacher_tutor_enquiries.sql',
+      '../../../database/migrations/0004_teacher_tutor_enquiries.sql',
       import.meta.url,
     ));
     const migration = readFileSync(migrationPath, 'utf8');

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { db } from '../../../../database/index.js';
@@ -443,6 +444,7 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     }
 
     const [attempt] = await transaction.insert(quizAttempts).values({
+      id: randomUUID(),
       submissionId: input.submissionId,
       userId,
       subjectId: selectedTopic.subjectId,

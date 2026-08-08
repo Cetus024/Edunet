@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
@@ -339,6 +341,7 @@ export async function createEnquiry(
 
     const now = new Date();
     const [createdThread] = await transaction.insert(enquiryThreads).values({
+      id: randomUUID(),
       requesterUserId: actor.userId,
       recipientUserId: selectedRecipient.userId,
       requesterRole,
@@ -362,6 +365,7 @@ export async function createEnquiry(
     if (!createdThread) throw new Error('Enquiry thread insert returned no row.');
 
     await transaction.insert(enquiryMessages).values({
+      id: randomUUID(),
       threadId: createdThread.id,
       senderUserId: actor.userId,
       senderRole: requesterRole,
@@ -426,6 +430,7 @@ export async function sendEnquiryMessage(
 
     const now = new Date();
     const [message] = await transaction.insert(enquiryMessages).values({
+      id: randomUUID(),
       threadId,
       senderUserId: actor.userId,
       senderRole: actor.role,
