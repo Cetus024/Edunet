@@ -1,4 +1,6 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:8787';
+// Falls back to current origin in browser (same-domain API on Vercel), or localhost for dev
+const DEFAULT_API_BASE_URL =
+  typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8787';
 
 function normalizeBaseUrl(value: string) {
   return value.trim().replace(/\/+$/, '');
