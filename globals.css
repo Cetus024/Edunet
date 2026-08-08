@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -106,14 +107,15 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: Lato, system-ui, -apple-system, sans-serif;
+    font-family: 'Canva Sans', 'DM Sans', system-ui, sans-serif;
     font-size: 14pt;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: Lato, system-ui, -apple-system, sans-serif;
+    font-family: 'Canva Sans', 'DM Sans', system-ui, sans-serif;
     @apply font-bold tracking-tight;
   }
 }
+.font-display { font-family: Anton, Impact, sans-serif; letter-spacing: .015em; }
 
 /* Floaty product cards */
 .card-shadow {

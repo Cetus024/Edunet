@@ -24,5 +24,7 @@ export default defineConfig([
     'src/generated/**',
     '.internal/**',
     '.power/**',
+    'services/edunets-api/dist/**',
+    'database/migrations/**',
   ]),
 ]);
