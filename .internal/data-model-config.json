@@ -1,0 +1,9 @@
+{
+  "id": "placeholder",
+  "iterationId": "placeholder",
+  "updateInProgress": false,
+  "tableMappings": [],
+  "useLocalData": false,
+  "enableInMemoryDataAtRuntime": false,
+  "dataSdkVersion": "1.0.0"
+}

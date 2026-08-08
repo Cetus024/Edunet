@@ -184,7 +184,7 @@ type StoredMessage = BuiltDemoEnquiry['message'] & {
 class FakeDemoExecutor {
   readonly threadRows: StoredThread[] = [];
   readonly messageRows: StoredMessage[] = [];
-  private lastThreadLookup: { recipientUserId: string; demoKey: string } | null = null;
+  private lastThreadLookup: { recipientUserId: string | null; demoKey: string } | null = null;
 
   select(): { from: (table: unknown) => FakeSelectChain } {
     return {

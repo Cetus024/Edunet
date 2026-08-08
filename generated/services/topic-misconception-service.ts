@@ -1,6 +1,6 @@
-import { getClient } from '../../../app-gen-sdk/data';
+import { getClient } from '../../app-gen-sdk/data';
 import type { TopicMisconception } from '../models/topic-misconception-model';
-import type { IOperationOptions } from '../../../app-gen-sdk/data/common/types';
+import type { IOperationOptions } from '../../app-gen-sdk/data/common/types';
 
 const DATA_SOURCE_NAME = 'TopicMisconception';
 

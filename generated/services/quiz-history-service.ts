@@ -1,6 +1,6 @@
-import { getClient } from '../../../app-gen-sdk/data';
+import { getClient } from '../../app-gen-sdk/data';
 import type { QuizHistory } from '../models/quiz-history-model';
-import type { IOperationOptions } from '../../../app-gen-sdk/data/common/types';
+import type { IOperationOptions } from '../../app-gen-sdk/data/common/types';
 
 const DATA_SOURCE_NAME = 'QuizHistory';
 

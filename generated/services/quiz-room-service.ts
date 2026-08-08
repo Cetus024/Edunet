@@ -1,6 +1,6 @@
-import { getClient } from '../../../app-gen-sdk/data';
+import { getClient } from '../../app-gen-sdk/data';
 import type { QuizRoom } from '../models/quiz-room-model';
-import type { IOperationOptions } from '../../../app-gen-sdk/data/common/types';
+import type { IOperationOptions } from '../../app-gen-sdk/data/common/types';
 
 const DATA_SOURCE_NAME = 'QuizRoom';
 

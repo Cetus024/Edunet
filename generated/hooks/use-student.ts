@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StudentService } from "../services/student-service";
 import type { Student } from "../models/student-model";
-import type { IOperationOptions } from '../../../app-gen-sdk/data/common/types';
-import { hasPowerAppsHost } from '../../../app-gen-sdk/constants';
+import type { IOperationOptions } from '../../app-gen-sdk/data/common/types';
+import { hasPowerAppsHost } from '../../app-gen-sdk/constants';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -86,3 +86,4 @@ export const Student_DATA_SOURCE_TYPE = 'Dataverse' as const;
 
 export { StudentSchema, CreateStudentSchema, UpdateStudentSchema } from "../validators/student-validator";
 export type { StudentInput, CreateStudentInput, UpdateStudentInput } from "../validators/student-validator";
+

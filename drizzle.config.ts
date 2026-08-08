@@ -1,9 +1,6 @@
 import { defineConfig } from 'drizzle-kit';
 
 import { EDUNETS_SCHEMA_NAME } from './database/constants';
-import { loadDatabaseEnvironment } from './database/env';
-
-loadDatabaseEnvironment();
 
 // A deliberately unusable fallback lets schema-only generation run without
 // credentials. Commands that connect to PostgreSQL must provide DATABASE_URL.

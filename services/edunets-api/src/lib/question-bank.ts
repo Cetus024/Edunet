@@ -3,7 +3,7 @@ import {
   getQuizQuestionKey,
   isQuizAnswerCorrect,
   type QuizQuestion,
-} from '../../../../src/lib/quiz-question-bank.js';
+} from '../../../../lib/quiz-question-bank.js';
 
 export interface KeyedQuizQuestion extends QuizQuestion {
   questionKey: string;
