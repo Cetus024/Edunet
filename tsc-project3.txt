@@ -1,0 +1,10 @@
+services/edunets-api/src/lib/question-bank.ts(6,8): error TS2307: Cannot find module '../../../lib/quiz-question-bank.js' or its corresponding type declarations.
+services/edunets-api/src/lib/question-bank.ts(28,25): error TS7006: Parameter 'question' implicitly has an 'any' type.
+services/edunets-api/src/lib/question-bank.ts(28,35): error TS7006: Parameter 'index' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(120,43): error TS2339: Property 'requesterUserId' does not exist on type '{ requesterDisplayName: string; requesterClassSnapshot: string | null; topicId: string; topicNameSnapshot?: string | undefined; isDemo: boolean; demoKey: string; recipientUserId: string | null; }'.
+services/edunets-api/tests/enquiries-database.test.ts(123,58): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+services/edunets-api/tests/enquiries-database.test.ts(159,7): error TS2554: Expected 2 arguments, but got 3.
+services/edunets-api/tests/enquiries-database.test.ts(164,7): error TS2554: Expected 2 arguments, but got 3.
+services/edunets-api/tests/enquiries-database.test.ts(230,13): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.

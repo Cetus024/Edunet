@@ -13,6 +13,8 @@
     "api:start": "npm --prefix services/edunets-api run start",
     "api:test": "npm --prefix services/edunets-api run test",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx database/seed-quiz.ts",
     "db:create": "tsx database/createDB.ts",
     "db:initialize": "tsx database/initializeDB.ts",
     "db:delete": "tsx database/deleteDB.ts",
