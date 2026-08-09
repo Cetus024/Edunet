@@ -73,7 +73,7 @@ function getRecognitionError(error: string): string {
     case 'network':
       return 'The browser speech recognition service is unavailable. Check your connection.';
     case 'language-not-supported':
-      return 'English speech recognition is not supported by this browser.';
+      return 'That language is not supported by this browser\'s speech recognition.';
     default:
       return 'Browser speech recognition stopped unexpectedly.';
   }
@@ -160,10 +160,10 @@ export function useBrowserLiveTranscription() {
     if (mountedRef.current) setFinalTranscript(nextTranscript);
   }, []);
 
-  const configureRecognition = useCallback((recognition: BrowserSpeechRecognition) => {
+  const configureRecognition = useCallback((recognition: BrowserSpeechRecognition, lang: string) => {
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-SG';
+    recognition.lang = lang;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -209,7 +209,7 @@ export function useBrowserLiveTranscription() {
     };
   }, [appendFinal, fail, finish, updateStatus]);
 
-  const start = useCallback(async (): Promise<void> => {
+  const start = useCallback(async (lang: string = 'en-SG'): Promise<void> => {
     if (!['idle', 'error'].includes(statusRef.current)) {
       throw new Error('A transcription session is already active.');
     }
@@ -232,7 +232,7 @@ export function useBrowserLiveTranscription() {
 
     const recognition = new Recognition();
     recognitionRef.current = recognition;
-    configureRecognition(recognition);
+    configureRecognition(recognition, lang);
     const started = new Promise<void>((resolve, reject) => {
       startDeferredRef.current = { resolve, reject };
     });

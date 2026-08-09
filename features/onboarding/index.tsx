@@ -42,6 +42,7 @@ import {
   type OnboardingRole,
 } from '@/features/onboarding/types';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
+import { useBrowserLiveTranscription } from '@/hooks/use-browser-live-transcription';
 import { getCurrentAccount, currentAccountQueryKey } from '@/lib/api/me';
 import {
   getStudyState,
@@ -146,6 +147,16 @@ function formatDuration(seconds: number) {
   const remainingSeconds = seconds % 60;
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
+
+// Live transcript is powered by the browser's own (free) speech recognition
+// engine - no transcription API or cost involved. It only supports one
+// spoken language per session, so the recorder offers a choice of two.
+type TranscriptLanguage = 'en' | 'zh';
+
+const transcriptLanguageOptions: { value: TranscriptLanguage; label: string; recognitionLang: string }[] = [
+  { value: 'en', label: 'English', recognitionLang: 'en-SG' },
+  { value: 'zh', label: '中文', recognitionLang: 'zh-CN' },
+];
 
 type StepHeadingProps = {
   eyebrow: string;
@@ -333,6 +344,12 @@ type MaterialStepProps = {
   onChooseNone: () => void;
   reduceMotion: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
+  transcriptSupported: boolean;
+  transcriptLanguage: TranscriptLanguage;
+  onSelectTranscriptLanguage: (language: TranscriptLanguage) => void;
+  transcriptFinalText: string;
+  transcriptInterimText: string;
+  transcriptError: string | null;
 };
 
 function MaterialStep({
@@ -346,6 +363,12 @@ function MaterialStep({
   onStartRecording,
   onStopRecording,
   onChooseNone,
+  transcriptSupported,
+  transcriptLanguage,
+  onSelectTranscriptLanguage,
+  transcriptFinalText,
+  transcriptInterimText,
+  transcriptError,
   reduceMotion,
   headingRef,
 }: MaterialStepProps) {
@@ -445,6 +468,53 @@ function MaterialStep({
             {recordingStatus === 'ready' && recording && `Recorded ${formatDuration(recording.durationSeconds)}`}
             {recordingStatus === 'idle' && 'Ready to record'}
           </div>
+
+          {transcriptSupported && (
+            <>
+              <div className="mt-2 flex items-center justify-center gap-1 rounded-full bg-[#f4f6f9] p-1" role="radiogroup" aria-label="Live transcript language">
+                {transcriptLanguageOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={transcriptLanguage === option.value}
+                    disabled={recordingStatus === 'recording' || recordingStatus === 'requesting'}
+                    onClick={() => onSelectTranscriptLanguage(option.value)}
+                    className={cn(
+                      'flex-1 rounded-full px-2 py-1 text-[11px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      transcriptLanguage === option.value
+                        ? 'bg-white text-[var(--edunets-dark-blue)] shadow-sm'
+                        : 'text-[var(--edunets-ink)]/55',
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {transcriptError && (
+                <p className="mt-2 text-center text-[11px] font-bold text-[var(--edunets-coral)]" role="alert">
+                  {transcriptError}
+                </p>
+              )}
+
+              {(transcriptFinalText || transcriptInterimText) && (
+                <div className="mt-2 max-h-24 overflow-y-auto rounded-xl bg-[#f4f6f9] p-2.5 text-left">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-[var(--edunets-ink)]/50">
+                    Live transcript
+                  </p>
+                  <p className="text-xs leading-relaxed text-[var(--edunets-ink)]">
+                    {transcriptFinalText}
+                    {transcriptInterimText && (
+                      <span className="text-[var(--edunets-ink)]/50 italic">
+                        {transcriptFinalText ? ' ' : ''}{transcriptInterimText}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <button
@@ -707,6 +777,17 @@ export default function OnboardingPage() {
   const [recording, setRecording] = useState<OnboardingRecordingMetadata | null>(null);
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'requesting' | 'recording' | 'ready'>('idle');
   const [recordingElapsed, setRecordingElapsed] = useState(0);
+  const [transcriptLanguage, setTranscriptLanguage] = useState<TranscriptLanguage>('en');
+  const [transcriptSupported, setTranscriptSupported] = useState(false);
+  const {
+    status: transcriptStatus,
+    finalTranscript: transcriptFinalText,
+    interimTranscript: transcriptInterimText,
+    error: transcriptError,
+    start: startTranscript,
+    stop: stopTranscript,
+    reset: resetTranscript,
+  } = useBrowserLiveTranscription();
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [familiarity, setFamiliarity] = useState<OnboardingFamiliarity | null>(null);
@@ -720,6 +801,10 @@ export default function OnboardingPage() {
   const submissionInFlightRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setTranscriptSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+  }, []);
 
   const subjects = useMemo<SubjectData[]>(() => (
     catalogQuery.data?.subjects.map((subject) => ({
@@ -786,7 +871,12 @@ export default function OnboardingPage() {
     setRecording(null);
     setRecordingElapsed(0);
     setRecordingStatus('idle');
-  }, [releaseRecordingResources]);
+    if (transcriptStatus === 'recording' || transcriptStatus === 'connecting') {
+      void stopTranscript().catch(() => {});
+    } else {
+      resetTranscript();
+    }
+  }, [releaseRecordingResources, resetTranscript, stopTranscript, transcriptStatus]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -837,6 +927,20 @@ export default function OnboardingPage() {
         if (startedAt === null) return;
         setRecordingElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
       }, 500);
+
+      // Live transcript is a nice-to-have on top of the recording itself, and
+      // only works in Chrome/Edge (the browser's own free speech recognition
+      // engine) - a failure here should never interrupt the actual recording.
+      if (transcriptSupported) {
+        const recognitionLang = transcriptLanguageOptions.find(
+          (option) => option.value === transcriptLanguage,
+        )?.recognitionLang ?? 'en-SG';
+        try {
+          await startTranscript(recognitionLang);
+        } catch {
+          // Ignored - the recording continues via MediaRecorder regardless.
+        }
+      }
     } catch (error) {
       if (recordingRequestIdRef.current !== requestId) return;
       releaseRecordingResources();
@@ -861,6 +965,9 @@ export default function OnboardingPage() {
     setRecordingElapsed(durationSeconds);
     setRecordingStatus('ready');
     setLearningSource('recording');
+    if (transcriptStatus === 'recording' || transcriptStatus === 'connecting') {
+      void stopTranscript().catch(() => {});
+    }
   };
 
   const chooseNoMaterial = () => {
@@ -1120,6 +1227,12 @@ export default function OnboardingPage() {
                     onChooseNone={chooseNoMaterial}
                     reduceMotion={Boolean(reduceMotion)}
                     headingRef={headingRef}
+                    transcriptSupported={transcriptSupported}
+                    transcriptLanguage={transcriptLanguage}
+                    onSelectTranscriptLanguage={setTranscriptLanguage}
+                    transcriptFinalText={transcriptFinalText}
+                    transcriptInterimText={transcriptInterimText}
+                    transcriptError={transcriptError}
                   />
                 )}
                 {currentStepKey === 'topic' && learningSource && (
