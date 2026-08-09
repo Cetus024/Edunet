@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { notInArray, sql } from 'drizzle-orm';
 
 import { EDUNETS_SCHEMA_NAME, EXPECTED_CATALOG_COUNTS, SCHEMA_OWNER_KEY, SCHEMA_OWNER_VALUE } from './constants.js';
 import { db, pool } from './index.js';
@@ -23,24 +23,55 @@ async function ensureOwnershipMarker(): Promise<void> {
 /**
  * The catalog (schools/subjects/topics) is fixed, deterministic reference
  * data derived from source code (see seed-data.ts), not user-generated
- * content - so it is safe to fully replace on every run rather than merely
- * upserted, which also clears out any stale exploratory data left over from
- * earlier ad-hoc seeding. Quiz questions and topic aliases are cleared too
- * since both are catalog-derived and foreign-key onto topics; neither holds
- * user data. Actual user data (accounts, sessions, enquiries, quiz attempt
- * history, learning progress) lives in unrelated tables and is untouched.
+ * content, so it is meant to be fully replaced on every run rather than
+ * merely upserted - which also clears out any stale exploratory data left
+ * over from earlier ad-hoc seeding.
+ *
+ * Schools have no incoming foreign keys, so they are safe to delete and
+ * reinsert outright. Subjects and topics, however, are referenced by real
+ * user data (onboarding_profile.subjectId/topicId, quiz_attempt, and
+ * user_topic_progress) once anyone has onboarded, so a blind delete-all
+ * violates those foreign keys. They are upserted instead, and only rows no
+ * longer present in the current seed are deleted (which still fails loudly,
+ * as it should, if a genuinely-removed topic is still referenced by
+ * existing user data - that is a real conflict, not a bug in this script).
+ *
+ * Quiz questions and topic aliases are catalog-derived, hold no user data,
+ * and have no incoming foreign keys, so they are cleared outright; run
+ * `npm run db:seed` afterward to repopulate quiz questions.
  */
 async function replaceCatalog(): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(quizQuestions);
     await tx.delete(topicAliases);
-    await tx.delete(topics);
-    await tx.delete(subjects);
-    await tx.delete(schools);
 
+    // Subjects before topics: topics.subjectId references subjects.id.
+    if (subjectSeed.length > 0) {
+      await tx.delete(subjects).where(notInArray(subjects.id, subjectSeed.map((subject) => subject.id)));
+      await tx.insert(subjects).values(subjectSeed).onConflictDoUpdate({
+        target: subjects.id,
+        set: {
+          name: sql`excluded.name`,
+          icon: sql`excluded.icon`,
+          position: sql`excluded.position`,
+        },
+      });
+    }
+
+    if (topicSeed.length > 0) {
+      await tx.delete(topics).where(notInArray(topics.id, topicSeed.map((topic) => topic.id)));
+      await tx.insert(topics).values(topicSeed).onConflictDoUpdate({
+        target: topics.id,
+        set: {
+          subjectId: sql`excluded.subject_id`,
+          name: sql`excluded.name`,
+          position: sql`excluded.position`,
+        },
+      });
+    }
+
+    await tx.delete(schools);
     if (schoolSeed.length > 0) await tx.insert(schools).values(schoolSeed);
-    if (subjectSeed.length > 0) await tx.insert(subjects).values(subjectSeed);
-    if (topicSeed.length > 0) await tx.insert(topics).values(topicSeed);
   });
 }
 
