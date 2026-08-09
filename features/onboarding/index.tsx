@@ -127,14 +127,18 @@ const roleSubjectPrompts: Record<OnboardingRole, string> = {
 // learning map. Teachers, tutors, and parents aren't studying a topic
 // themselves, so they only need enough to scope their workspace: role,
 // school, and one subject. The topic and familiarity backend requires are
-// filled in automatically (see finishOnboarding).
-type StepKey = 'role' | 'school' | 'material' | 'topic' | 'subject' | 'familiarity';
+// filled in automatically (see finishOnboarding). Parents additionally
+// provide their child's name and email, so their dashboard can show the
+// child's real progress instead of their own (empty) one.
+type StepKey = 'role' | 'school' | 'material' | 'topic' | 'subject' | 'familiarity' | 'child';
 
 const studentStepKeys: readonly StepKey[] = ['role', 'school', 'material', 'topic', 'familiarity'];
 const staffStepKeys: readonly StepKey[] = ['role', 'school', 'subject'];
+const parentStepKeys: readonly StepKey[] = ['role', 'school', 'subject', 'child'];
 
 const studentStepLabels = ['About you', 'School', 'Starting point', 'First topic', 'Familiarity'] as const;
 const staffStepLabels = ['About you', 'School', 'Subject'] as const;
+const parentStepLabels = ['About you', 'School', 'Subject', 'Your child'] as const;
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -146,6 +150,10 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 // Live transcript is powered by the browser's own (free) speech recognition
@@ -699,6 +707,57 @@ function SubjectStep({ role, subjects, selectedSubjectId, onSelectSubject, headi
   );
 }
 
+type ChildStepProps = {
+  childName: string;
+  childEmail: string;
+  onChangeChildName: (value: string) => void;
+  onChangeChildEmail: (value: string) => void;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+};
+
+function ChildStep({ childName, childEmail, onChangeChildName, onChangeChildEmail, headingRef }: ChildStepProps) {
+  return (
+    <div>
+      <StepHeading
+        eyebrow="Follow their progress"
+        title="Who would you like to follow?"
+        description="EduNets links your dashboard to your child's real progress once they have their own account with this email. You can add this before or after they sign up."
+        headingRef={headingRef}
+      />
+      <div className="mx-auto mt-5 flex max-w-md flex-col gap-4 sm:mt-6">
+        <label className="block text-left">
+          <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-[var(--edunets-ink)]/65">
+            Child&apos;s name
+          </span>
+          <input
+            type="text"
+            value={childName}
+            onChange={(event) => onChangeChildName(event.target.value)}
+            placeholder="e.g. Aisha Rahman"
+            className="w-full rounded-2xl border-2 border-[#e2e7ee] bg-white px-4 py-3 text-sm font-semibold text-[var(--edunets-ink)] outline-none transition-colors focus:border-[var(--edunets-light-blue)] focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/20"
+          />
+        </label>
+        <label className="block text-left">
+          <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-[var(--edunets-ink)]/65">
+            Child&apos;s email
+          </span>
+          <input
+            type="email"
+            value={childEmail}
+            onChange={(event) => onChangeChildEmail(event.target.value)}
+            placeholder="e.g. aisha@student.edu.sg"
+            className="w-full rounded-2xl border-2 border-[#e2e7ee] bg-white px-4 py-3 text-sm font-semibold text-[var(--edunets-ink)] outline-none transition-colors focus:border-[var(--edunets-light-blue)] focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/20"
+          />
+        </label>
+        <p className="text-xs font-semibold leading-relaxed text-[var(--edunets-ink)]/55">
+          Must match the email your child uses to sign in to EduNets. If they haven&apos;t joined yet, your
+          dashboard will show as pending until they do.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 type FamiliarityStepProps = {
   subjectName: string;
   topicName: string;
@@ -791,6 +850,8 @@ export default function OnboardingPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [familiarity, setFamiliarity] = useState<OnboardingFamiliarity | null>(null);
+  const [childName, setChildName] = useState('');
+  const [childEmail, setChildEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -830,8 +891,8 @@ export default function OnboardingPage() {
   const selectedTopic = selectedSubject?.topics.find((topic) => topic.id === selectedTopicId) ?? null;
 
   const isSimplifiedFlow = role !== null && role !== 'student';
-  const activeStepKeys = isSimplifiedFlow ? staffStepKeys : studentStepKeys;
-  const activeStepLabels = isSimplifiedFlow ? staffStepLabels : studentStepLabels;
+  const activeStepKeys = role === 'parent' ? parentStepKeys : isSimplifiedFlow ? staffStepKeys : studentStepKeys;
+  const activeStepLabels = role === 'parent' ? parentStepLabels : isSimplifiedFlow ? staffStepLabels : studentStepLabels;
   const totalSteps = activeStepKeys.length;
   const currentStepKey = activeStepKeys[Math.min(step, activeStepKeys.length - 1)];
 
@@ -986,8 +1047,9 @@ export default function OnboardingPage() {
     }
     if (currentStepKey === 'topic') return selectedSubject !== null && selectedTopic !== null;
     if (currentStepKey === 'subject') return selectedSubject !== null;
+    if (currentStepKey === 'child') return childName.trim().length > 0 && isValidEmail(childEmail);
     return familiarity !== null;
-  }, [currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTopic]);
+  }, [childEmail, childName, currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTopic]);
 
   const handleBack = async () => {
     if (recordingStatus === 'recording' || recordingStatus === 'requesting') {
@@ -1021,6 +1083,10 @@ export default function OnboardingPage() {
       toast.error('Complete each onboarding step before continuing.');
       return;
     }
+    if (role === 'parent' && (!childName.trim() || !isValidEmail(childEmail))) {
+      toast.error("Enter your child's name and email before continuing.");
+      return;
+    }
 
     const selectedSchool = catalogQuery.data?.schools.find(
       (catalogSchool) => catalogSchool.name === school,
@@ -1042,6 +1108,7 @@ export default function OnboardingPage() {
         subjectId: selectedSubject.id,
         topicId: effectiveTopic.id,
         familiarity: effectiveFamiliarity,
+        child: role === 'parent' ? { name: childName.trim(), email: childEmail.trim().toLowerCase() } : null,
       });
 
       const account = await getCurrentAccount();
@@ -1255,6 +1322,15 @@ export default function OnboardingPage() {
                     subjects={subjects}
                     selectedSubjectId={selectedSubjectId}
                     onSelectSubject={handleSelectSubject}
+                    headingRef={headingRef}
+                  />
+                )}
+                {currentStepKey === 'child' && (
+                  <ChildStep
+                    childName={childName}
+                    childEmail={childEmail}
+                    onChangeChildName={setChildName}
+                    onChangeChildEmail={setChildEmail}
                     headingRef={headingRef}
                   />
                 )}

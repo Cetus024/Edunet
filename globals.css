@@ -142,6 +142,41 @@
   opacity: 0.65;
 }
 
+/* Site-wide dark mode, toggled via next-themes adding/removing `.dark` on
+   <html>. Adapted from the teaching workspace's already-shipped dark
+   palette below, so light and dark stay visually consistent with the rest
+   of the brand instead of introducing a third, unrelated color scheme. */
+.dark {
+  --background: #0f1c2e;
+  --foreground: #f7f3e8;
+  --card: #1b2a40;
+  --card-foreground: #fffaf0;
+  --popover: #1b2a40;
+  --popover-foreground: #fffaf0;
+  --primary: #f2cb55;
+  --primary-foreground: #142238;
+  --secondary: #2a405e;
+  --secondary-foreground: #f7f3e8;
+  --muted: #263850;
+  --muted-foreground: #b6c2d3;
+  --accent: #6486B5;
+  --accent-foreground: #ffffff;
+  --skeleton: #263850;
+  --destructive: #E8735F;
+  --border: #31445e;
+  --input: #31445e;
+  --ring: #6486B5;
+  --sidebar: #102036;
+  --sidebar-foreground: #f7f3e8;
+  --sidebar-primary: #f2cb55;
+  --sidebar-primary-foreground: #142238;
+  --sidebar-accent: #6486B5;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2c405a;
+  --sidebar-ring: #f2cb55;
+  color-scheme: dark;
+}
+
 /* Role-scoped teaching workspace. These variables intentionally live below
    the app shell so public, auth, student, and parent pages keep the warm theme. */
 .teacher-workspace {

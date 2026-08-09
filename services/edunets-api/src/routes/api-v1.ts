@@ -25,6 +25,8 @@ import {
   familiarityScore,
 } from '../lib/scoring.js';
 import { loadSession, requireSession } from '../middleware/session.js';
+import { getChildForParent } from '../services/parent-child.js';
+import { getStudyStateForUser } from '../services/study-state.js';
 import { getStudentConceptWebForTeacher, listStudentsForTeacher } from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
@@ -253,6 +255,8 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       topicId: selectedTopic.id,
       familiarity: input.familiarity,
       initialMemoryScore,
+      childName: input.child?.name ?? null,
+      childEmail: input.child?.email ?? null,
       completedAt: now,
       updatedAt: now,
     }).onConflictDoUpdate({
@@ -269,6 +273,8 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
         topicId: selectedTopic.id,
         familiarity: input.familiarity,
         initialMemoryScore,
+        childName: input.child?.name ?? null,
+        childEmail: input.child?.email ?? null,
         completedAt: now,
         updatedAt: now,
       },
@@ -310,54 +316,14 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
 
 api.get('/me/study-state', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const [subjectRows, topicRows, progressRows] = await Promise.all([
-    db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
-      .from(subjects)
-      .orderBy(asc(subjects.position)),
-    db.select({ id: topics.id, subjectId: topics.subjectId, name: topics.name })
-      .from(topics)
-      .orderBy(asc(topics.subjectId), asc(topics.position)),
-    db.select({
-      topicId: userTopicProgress.topicId,
-      memoryScore: userTopicProgress.memoryScore,
-      lastReviewedAt: userTopicProgress.lastReviewedAt,
-      nextReviewAt: userTopicProgress.nextReviewAt,
-      quizAttempts: userTopicProgress.quizAttempts,
-    })
-      .from(userTopicProgress)
-      .where(eq(userTopicProgress.userId, userId)),
-  ]);
+  const state = await getStudyStateForUser(userId);
+  return context.json(state);
+});
 
-  const progressByTopic = new Map(progressRows.map((progress) => [progress.topicId, progress]));
-  const topicsBySubject = new Map<string, Array<{
-    id: string;
-    subjectId: string;
-    name: string;
-    memoryScore: number | null;
-    lastReviewedAt: Date | null;
-    nextReviewAt: Date | null;
-    quizAttempts: number;
-  }>>();
-
-  for (const topic of topicRows) {
-    const progress = progressByTopic.get(topic.id);
-    const list = topicsBySubject.get(topic.subjectId) ?? [];
-    list.push({
-      ...topic,
-      memoryScore: progress?.memoryScore ?? null,
-      lastReviewedAt: progress?.lastReviewedAt ?? null,
-      nextReviewAt: progress?.nextReviewAt ?? null,
-      quizAttempts: progress?.quizAttempts ?? 0,
-    });
-    topicsBySubject.set(topic.subjectId, list);
-  }
-
-  return context.json({
-    subjects: subjectRows.map((subject) => ({
-      ...subject,
-      topics: topicsBySubject.get(subject.id) ?? [],
-    })),
-  });
+api.get('/me/child', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await getChildForParent(userId);
+  return context.json(result);
 });
 
 api.get('/me/students', loadSession, requireSession, async (context) => {

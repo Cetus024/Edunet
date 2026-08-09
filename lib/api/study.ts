@@ -50,6 +50,8 @@ export type OnboardingInput = {
   subjectId: string;
   topicId: string;
   familiarity: 'new' | 'some' | 'well';
+  // Parent role only.
+  child?: { name: string; email: string } | null;
 };
 
 export type OnboardingResponse = {

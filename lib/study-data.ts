@@ -90,11 +90,16 @@ export function calculateDecay(lastReviewedAt: string | null): number {
     (now.getTime() - lastReview.getTime()) / (1000 * 60 * 60 * 24)
   );
   
-  if (daysSinceReview === 0) return 0;
+  // daysSinceReview can come out slightly negative for a review that just
+  // happened seconds ago, if the client clock lags the server timestamp
+  // stored in lastReviewedAt - treat that (and day 0) as "no decay yet"
+  // rather than falling through to the day-4+ branch, which would produce
+  // a negative decay and inflate the effective score above 100%.
+  if (daysSinceReview <= 0) return 0;
   if (daysSinceReview === 1) return 4;   // Day 1: -4 points
   if (daysSinceReview === 2) return 11;  // Day 2: -4 + -7 = -11 cumulative
   if (daysSinceReview === 3) return 22;  // Day 3: -11 + -11 = -22 cumulative
-  
+
   // Day 4+: accelerating at -15 per day
   const extraDays = daysSinceReview - 3;
   return 22 + (extraDays * 15);
@@ -103,9 +108,9 @@ export function calculateDecay(lastReviewedAt: string | null): number {
 // Calculate effective memory score (base score minus decay)
 export function getEffectiveScore(topic: TopicData): number | null {
   if (topic.memoryScore === null) return null;
-  
+
   const decay = calculateDecay(topic.lastReviewedAt);
-  return Math.max(0, topic.memoryScore - decay);
+  return Math.min(100, Math.max(0, topic.memoryScore - decay));
 }
 
 // Check if topic is "at risk" (below 42%)

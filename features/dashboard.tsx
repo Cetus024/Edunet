@@ -9,6 +9,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrentAccount } from '@/lib/api/me';
+import { isTeachingRole } from '@/lib/roles';
+import TeacherDashboardPage from '@/features/teacher-dashboard';
+import ParentDashboardPage from '@/features/parent-dashboard';
 import {
   subjectSummariesAtom,
   priorityQueueAtom,
@@ -441,7 +444,7 @@ function getDynamicInsight(priorityQueue: PriorityQueueItem[], subjectSummaries:
   return "All topics are in great shape! Keep up the excellent study habits.";
 }
 
-export default function DashboardPage() {
+function StudentDashboard() {
   const { data: account } = useCurrentAccount();
   const firstName = account?.user.name.split(/\s+/)[0] || 'Student';
 
@@ -684,4 +687,13 @@ export default function DashboardPage() {
       </motion.section>
     </div>
   );
+}
+
+export default function DashboardPage() {
+  const { data: account } = useCurrentAccount();
+  const role = account?.profile?.role ?? null;
+
+  if (isTeachingRole(role)) return <TeacherDashboardPage />;
+  if (role === 'parent') return <ParentDashboardPage />;
+  return <StudentDashboard />;
 }

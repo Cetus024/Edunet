@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from '@/lib/navigation';
+import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useAtom } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -1020,6 +1020,7 @@ export default function QuizPage() {
 function StudentQuizPage() {
   const { notify } = useMascotFeedback();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   // URL params for auto-selection from concept web
   const [searchParams, setSearchParams] = useSearchParams();
   const urlMode = searchParams.get('mode');
@@ -1263,9 +1264,19 @@ function StudentQuizPage() {
     setQuizState('active');
   };
 
-  // Handle view concept web
+  // Handle view concept web - deep-links into the concept web with this
+  // quiz's subject/topic pre-selected and highlighted (concept-web/
+  // student-view.tsx reads these same ?subject=&topic= params).
   const handleViewConceptWeb = () => {
-    toast.info('Concept Web connection coming soon');
+    if (!selectedSubject) {
+      toast.error('Select a subject before viewing the concept web.');
+      return;
+    }
+    const subject = subjects.find((entry) => entry.name === selectedSubject);
+    const params = new URLSearchParams();
+    params.set('subject', subject?.id ?? selectedSubject);
+    if (selectedTopicId || selectedTopic) params.set('topic', selectedTopicId || selectedTopic);
+    navigate(`/concept-web?${params.toString()}`);
   };
 
   return (

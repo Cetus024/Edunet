@@ -25,6 +25,7 @@ const learnerNavItems: NavItem[] = [
 ];
 
 const teachingNavItems: NavItem[] = [
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/quiz', label: 'Smart Quiz', icon: Brain },
   { path: '/concept-web', label: 'Concept Web', icon: Share2 },
   { path: '/ask-teacher', label: "Students' Enquiries", icon: MessageCircle },

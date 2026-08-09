@@ -19,6 +19,11 @@ export const recordingMetadataSchema = z.strictObject({
   mimeType: z.string().trim().min(1).max(127),
 });
 
+export const childInfoSchema = z.strictObject({
+  name: z.string().trim().min(1).max(120),
+  email: z.email().trim().toLowerCase().max(255),
+});
+
 export const onboardingRequestSchema = z.strictObject({
   role: z.enum(['student', 'teacher', 'tutor', 'parent']),
   schoolId: z.string().trim().min(1).max(128).optional(),
@@ -31,6 +36,8 @@ export const onboardingRequestSchema = z.strictObject({
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
   familiarity: z.enum(['new', 'some', 'well']),
+  // Parent role only: who they want to follow.
+  child: optionalNullable(childInfoSchema),
 }).superRefine((value, context) => {
   if (!value.schoolId && !value.school) {
     context.addIssue({ code: 'custom', path: ['schoolId'], message: 'Select a school.' });
@@ -47,6 +54,13 @@ export const onboardingRequestSchema = z.strictObject({
   }
   if (value.learningSource === 'none' && (value.material || value.recording)) {
     context.addIssue({ code: 'custom', path: ['learningSource'], message: 'No metadata is allowed for this source.' });
+  }
+
+  if (value.role === 'parent' && !value.child) {
+    context.addIssue({ code: 'custom', path: ['child'], message: "A parent must provide their child's name and email." });
+  }
+  if (value.role !== 'parent' && value.child) {
+    context.addIssue({ code: 'custom', path: ['child'], message: 'Only parents provide child details.' });
   }
 });
 

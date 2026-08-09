@@ -24,6 +24,11 @@ export const onboardingProfiles = pgTable('onboarding_profile', {
   topicId: text('topic_id').notNull().references(() => topics.id),
   familiarity: text('familiarity').notNull(),
   initialMemoryScore: real('initial_memory_score').notNull(),
+  // Parent role only: the child they want to follow, linked by email once
+  // the child has their own account. Nullable - every other role leaves
+  // these unset, same as the material/recording columns above.
+  childName: text('child_name'),
+  childEmail: text('child_email'),
   completedAt: timestamp('completed_at').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
