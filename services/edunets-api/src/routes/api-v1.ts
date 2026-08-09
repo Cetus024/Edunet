@@ -25,6 +25,7 @@ import {
   familiarityScore,
 } from '../lib/scoring.js';
 import { loadSession, requireSession } from '../middleware/session.js';
+import { getStudentConceptWebForTeacher, listStudentsForTeacher } from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
   onboardingRequestSchema,
@@ -357,6 +358,19 @@ api.get('/me/study-state', loadSession, requireSession, async (context) => {
       topics: topicsBySubject.get(subject.id) ?? [],
     })),
   });
+});
+
+api.get('/me/students', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const students = await listStudentsForTeacher(userId);
+  return context.json({ students });
+});
+
+api.get('/me/students/:studentId/concept-web', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const studentId = context.req.param('studentId');
+  const result = await getStudentConceptWebForTeacher(userId, studentId);
+  return context.json(result);
 });
 
 api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {

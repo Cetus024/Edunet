@@ -54,8 +54,6 @@ import { getAuthenticatedHome, isTeachingRole } from '@/lib/roles';
 import { subjectsAtom, type SubjectData } from '@/lib/study-data';
 import { cn } from '@/lib/utils';
 
-const TOTAL_STEPS = 5;
-
 const roleOptions = [
   {
     value: 'student',
@@ -117,7 +115,25 @@ const roleSchoolPrompts: Record<OnboardingRole, string> = {
   parent: 'Which secondary school does your child attend?',
 };
 
-const stepLabels = ['About you', 'School', 'Starting point', 'First topic', 'Familiarity'] as const;
+const roleSubjectPrompts: Record<OnboardingRole, string> = {
+  student: 'Which subject do you want to start with?',
+  teacher: 'Which subject do you mainly teach?',
+  tutor: 'Which subject do you mainly tutor?',
+  parent: "Which subject is your child's main focus?",
+};
+
+// Students walk through all five steps to place their first topic on the
+// learning map. Teachers, tutors, and parents aren't studying a topic
+// themselves, so they only need enough to scope their workspace: role,
+// school, and one subject. The topic and familiarity backend requires are
+// filled in automatically (see finishOnboarding).
+type StepKey = 'role' | 'school' | 'material' | 'topic' | 'subject' | 'familiarity';
+
+const studentStepKeys: readonly StepKey[] = ['role', 'school', 'material', 'topic', 'familiarity'];
+const staffStepKeys: readonly StepKey[] = ['role', 'school', 'subject'];
+
+const studentStepLabels = ['About you', 'School', 'Starting point', 'First topic', 'Familiarity'] as const;
+const staffStepLabels = ['About you', 'School', 'Subject'] as const;
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -563,6 +579,56 @@ function TopicStep({
   );
 }
 
+type SubjectStepProps = {
+  role: OnboardingRole;
+  subjects: SubjectData[];
+  selectedSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+};
+
+function SubjectStep({ role, subjects, selectedSubjectId, onSelectSubject, headingRef }: SubjectStepProps) {
+  return (
+    <div>
+      <StepHeading
+        eyebrow="Scope your workspace"
+        title={roleSubjectPrompts[role]}
+        description="This connects your workspace to the right topics and students - no upload or familiarity check needed."
+        headingRef={headingRef}
+      />
+
+      <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-4" role="radiogroup" aria-label="O-Level subject">
+        {subjects.map((subject) => {
+          const isSelected = subject.id === selectedSubjectId;
+          return (
+            <button
+              key={subject.id}
+              type="button"
+              onClick={() => onSelectSubject(subject.id)}
+              role="radio"
+              aria-checked={isSelected}
+              className={cn(
+                'flex min-h-24 flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 bg-white px-3 py-4 text-center outline-none transition-all hover:-translate-y-0.5 hover:border-[var(--edunets-light-blue)]/55 focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/20 sm:min-h-28',
+                isSelected
+                  ? 'border-[var(--edunets-light-blue)] bg-[#f3f7fc] shadow-[0_16px_36px_rgba(100,134,181,0.16)]'
+                  : 'border-[#e2e7ee]',
+              )}
+            >
+              <span className="text-2xl" aria-hidden="true">{subject.icon}</span>
+              <span className="text-sm font-black text-[var(--edunets-ink)]">{subject.name}</span>
+              {isSelected && (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--edunets-dark-blue)] text-white">
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type FamiliarityStepProps = {
   subjectName: string;
   topicName: string;
@@ -677,6 +743,12 @@ export default function OnboardingPage() {
   );
   const selectedSubject = subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
   const selectedTopic = selectedSubject?.topics.find((topic) => topic.id === selectedTopicId) ?? null;
+
+  const isSimplifiedFlow = role !== null && role !== 'student';
+  const activeStepKeys = isSimplifiedFlow ? staffStepKeys : studentStepKeys;
+  const activeStepLabels = isSimplifiedFlow ? staffStepLabels : studentStepLabels;
+  const totalSteps = activeStepKeys.length;
+  const currentStepKey = activeStepKeys[Math.min(step, activeStepKeys.length - 1)];
 
   useEffect(() => {
     if (!catalogQuery.isSuccess) return;
@@ -798,16 +870,17 @@ export default function OnboardingPage() {
   };
 
   const canContinue = useMemo(() => {
-    if (step === 0) return role !== null;
-    if (step === 1) return Boolean(school);
-    if (step === 2) {
+    if (currentStepKey === 'role') return role !== null;
+    if (currentStepKey === 'school') return Boolean(school);
+    if (currentStepKey === 'material') {
       if (learningSource === 'material') return material !== null;
       if (learningSource === 'recording') return recording !== null && recordingStatus === 'ready';
       return learningSource === 'none';
     }
-    if (step === 3) return selectedSubject !== null && selectedTopic !== null;
+    if (currentStepKey === 'topic') return selectedSubject !== null && selectedTopic !== null;
+    if (currentStepKey === 'subject') return selectedSubject !== null;
     return familiarity !== null;
-  }, [familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTopic, step]);
+  }, [currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTopic]);
 
   const handleBack = async () => {
     if (recordingStatus === 'recording' || recordingStatus === 'requesting') {
@@ -829,7 +902,15 @@ export default function OnboardingPage() {
 
   const finishOnboarding = async () => {
     if (submissionInFlightRef.current) return;
-    if (!role || !school || !learningSource || !selectedSubject || !selectedTopic || !familiarity) {
+
+    // Teachers, tutors, and parents skip the material and familiarity steps
+    // (see isSimplifiedFlow) - fill in values the backend still requires with
+    // sensible defaults instead of asking for them.
+    const effectiveLearningSource = isSimplifiedFlow ? 'none' : learningSource;
+    const effectiveTopic = isSimplifiedFlow ? selectedSubject?.topics[0] ?? null : selectedTopic;
+    const effectiveFamiliarity = isSimplifiedFlow ? 'well' : familiarity;
+
+    if (!role || !school || !effectiveLearningSource || !selectedSubject || !effectiveTopic || !effectiveFamiliarity) {
       toast.error('Complete each onboarding step before continuing.');
       return;
     }
@@ -848,12 +929,12 @@ export default function OnboardingPage() {
       await saveOnboarding({
         role,
         schoolId: selectedSchool.id,
-        learningSource,
-        material: learningSource === 'material' ? material : null,
-        recording: learningSource === 'recording' ? recording : null,
+        learningSource: effectiveLearningSource,
+        material: effectiveLearningSource === 'material' ? material : null,
+        recording: effectiveLearningSource === 'recording' ? recording : null,
         subjectId: selectedSubject.id,
-        topicId: selectedTopic.id,
-        familiarity,
+        topicId: effectiveTopic.id,
+        familiarity: effectiveFamiliarity,
       });
 
       const account = await getCurrentAccount();
@@ -890,7 +971,7 @@ export default function OnboardingPage() {
 
   const handleContinue = () => {
     if (!canContinue || submissionInFlightRef.current) return;
-    if (step === TOTAL_STEPS - 1) {
+    if (step === totalSteps - 1) {
       void finishOnboarding();
       return;
     }
@@ -976,14 +1057,14 @@ export default function OnboardingPage() {
           </div>
 
           <span className="rounded-xl border border-white/40 bg-white/15 px-3 py-2 text-xs font-black text-white backdrop-blur-xl sm:px-4 sm:text-sm">
-            {step + 1} / {TOTAL_STEPS}
+            {step + 1} / {totalSteps}
           </span>
         </header>
 
         <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.5rem] border border-white/75 bg-[#fbfbfd]/96 shadow-[0_28px_90px_rgba(10,28,66,0.26)] backdrop-blur-xl sm:mt-4 sm:rounded-[2rem] lg:rounded-[2.25rem]">
           <div className="shrink-0 border-b border-[#e4e8ef] px-4 py-3 sm:px-7">
-            <div className="mx-auto flex max-w-4xl items-center gap-2" aria-label={`Step ${step + 1} of ${TOTAL_STEPS}: ${stepLabels[step]}`}>
-              {stepLabels.map((label, index) => (
+            <div className="mx-auto flex max-w-4xl items-center gap-2" aria-label={`Step ${step + 1} of ${totalSteps}: ${activeStepLabels[step]}`}>
+              {activeStepLabels.map((label, index) => (
                 <div key={label} className="flex min-w-0 flex-1 items-center gap-2">
                   <span
                     className={cn(
@@ -1000,7 +1081,7 @@ export default function OnboardingPage() {
                   <span className={cn('hidden truncate text-xs font-black lg:block', index === step ? 'text-[var(--edunets-dark-blue)]' : 'text-[#8a94a3]')}>
                     {label}
                   </span>
-                  {index < stepLabels.length - 1 && <span className="h-px min-w-2 flex-1 bg-[#dce2e9]" aria-hidden="true" />}
+                  {index < activeStepLabels.length - 1 && <span className="h-px min-w-2 flex-1 bg-[#dce2e9]" aria-hidden="true" />}
                 </div>
               ))}
             </div>
@@ -1015,8 +1096,8 @@ export default function OnboardingPage() {
                 exit={reduceMotion ? undefined : { opacity: 0, x: -20 }}
                 transition={{ duration: reduceMotion ? 0 : 0.25, ease: 'easeOut' }}
               >
-                {step === 0 && <RoleStep role={role} onSelect={setRole} headingRef={headingRef} />}
-                {step === 1 && role && (
+                {currentStepKey === 'role' && <RoleStep role={role} onSelect={setRole} headingRef={headingRef} />}
+                {currentStepKey === 'school' && role && (
                   <SchoolStep
                     role={role}
                     school={school}
@@ -1025,7 +1106,7 @@ export default function OnboardingPage() {
                     headingRef={headingRef}
                   />
                 )}
-                {step === 2 && (
+                {currentStepKey === 'material' && (
                   <MaterialStep
                     source={learningSource}
                     material={material}
@@ -1041,7 +1122,7 @@ export default function OnboardingPage() {
                     headingRef={headingRef}
                   />
                 )}
-                {step === 3 && learningSource && (
+                {currentStepKey === 'topic' && learningSource && (
                   <TopicStep
                     source={learningSource}
                     subjects={subjects}
@@ -1055,7 +1136,16 @@ export default function OnboardingPage() {
                     headingRef={headingRef}
                   />
                 )}
-                {step === 4 && selectedSubject && selectedTopic && (
+                {currentStepKey === 'subject' && role && (
+                  <SubjectStep
+                    role={role}
+                    subjects={subjects}
+                    selectedSubjectId={selectedSubjectId}
+                    onSelectSubject={handleSelectSubject}
+                    headingRef={headingRef}
+                  />
+                )}
+                {currentStepKey === 'familiarity' && selectedSubject && selectedTopic && (
                   <FamiliarityStep
                     subjectName={selectedSubject.name}
                     topicName={selectedTopic.name}
@@ -1078,7 +1168,7 @@ export default function OnboardingPage() {
               disabled={!canContinue || isSaving}
               className="group inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--edunets-dark-blue)] via-[#4f75a8] to-[#98751a] px-6 text-sm font-black text-white shadow-[0_12px_28px_rgba(29,58,98,0.2)] outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 sm:w-auto sm:min-h-11"
             >
-              {isSaving ? 'Saving…' : step === TOTAL_STEPS - 1 ? 'Finish setup' : 'Continue'}
+              {isSaving ? 'Saving…' : step === totalSteps - 1 ? 'Finish setup' : 'Continue'}
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
             </button>
           </footer>
