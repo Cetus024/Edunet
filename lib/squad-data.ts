@@ -40,6 +40,10 @@ export interface StrugglingFriend {
   score: number;
 }
 
+// Topic names below intentionally mirror the real, seeded O-Level catalog
+// (Biology/Chemistry/Physics, see database/seed) so getStrugglingFriendsForTopic
+// can match them against a signed-in student's authenticated concept web
+// nodes. Keep these in sync with the catalog if topic names ever change there.
 export const squadMembers: SquadMember[] = [
   {
     id: 'maya',
@@ -51,9 +55,9 @@ export const squadMembers: SquadMember[] = [
     streak: 18,
     color: 'yellow',
     subjects: [
-      { subject: 'Biology', score: 94, topics: ['Cell Biology', 'Denaturation'] },
-      { subject: 'Chemistry', score: 86, topics: ['Chemical Bonding', 'Molten Electrolysis'] },
-      { subject: 'History', score: 82 },
+      { subject: 'Biology', score: 88, topics: ['Nutrition', 'Ecology'] },
+      { subject: 'Chemistry', score: 85, topics: ['Stoichiometry', 'Organic Chemistry'] },
+      { subject: 'Physics', score: 90, topics: ['Electricity'] },
     ],
   },
   {
@@ -66,9 +70,9 @@ export const squadMembers: SquadMember[] = [
     streak: 14,
     color: 'blue',
     subjects: [
-      { subject: 'Biology', score: 62, topics: ['Cell Biology', 'Denaturation'] },
-      { subject: 'Chemistry', score: 74, topics: ['Chemical Bonding', 'Ionic Bonding', 'Molten Electrolysis'] },
-      { subject: 'Physics', score: 88, topics: ['Terminal Velocity'] },
+      { subject: 'Biology', score: 62, topics: ['Cell Division (Mitosis)', 'Reproduction'] },
+      { subject: 'Chemistry', score: 74, topics: ['Covalent Bonding', 'Atomic Structure'] },
+      { subject: 'Physics', score: 78, topics: ['Dynamics', 'Waves'] },
     ],
   },
   {
@@ -81,9 +85,9 @@ export const squadMembers: SquadMember[] = [
     streak: 11,
     color: 'white',
     subjects: [
-      { subject: 'Biology', score: 84, topics: ['Cell Biology', 'Denaturation'] },
-      { subject: 'Chemistry', score: 69, topics: ['Ionic Bonding', 'Aqueous Electrolysis'] },
-      { subject: 'Physics', score: 72, topics: ['Refraction'] },
+      { subject: 'Biology', score: 84, topics: ['Genetics', 'Respiration'] },
+      { subject: 'Chemistry', score: 69, topics: ['Acids & Bases', 'Redox Reactions'] },
+      { subject: 'Physics', score: 72, topics: ['Electromagnetism', 'Nuclear Physics'] },
     ],
   },
   {
@@ -96,9 +100,9 @@ export const squadMembers: SquadMember[] = [
     streak: 8,
     color: 'blue',
     subjects: [
-      { subject: 'Biology', score: 61, topics: ['Mitosis', 'Stomata'] },
-      { subject: 'Chemistry', score: 54, topics: ['Chemical Bonding', 'Covalent Bonding', 'Molten Electrolysis'] },
-      { subject: 'Physics', score: 76, topics: ['Refraction'] },
+      { subject: 'Biology', score: 61, topics: ['Cell Division (Mitosis)', 'Transport'] },
+      { subject: 'Chemistry', score: 54, topics: ['Covalent Bonding', 'Rate of Reaction'] },
+      { subject: 'Physics', score: 76, topics: ['Waves', 'Electricity'] },
     ],
   },
   {
@@ -111,49 +115,53 @@ export const squadMembers: SquadMember[] = [
     streak: 6,
     color: 'yellow',
     subjects: [
-      { subject: 'Biology', score: 52, topics: ['Mitosis', 'Stomata'] },
-      { subject: 'Chemistry', score: 63, topics: ['Chemical Bonding', 'Covalent Bonding', 'Aqueous Electrolysis'] },
-      { subject: 'Physics', score: 68, topics: ['Terminal Velocity'] },
+      { subject: 'Biology', score: 52, topics: ['Respiration', 'Genetics'] },
+      { subject: 'Chemistry', score: 63, topics: ['Redox Reactions', 'Atomic Structure'] },
+      { subject: 'Physics', score: 68, topics: ['Nuclear Physics', 'Speed & Acceleration'] },
     ],
   },
 ];
 
 export const squadMemberTopicScores: SquadMemberTopicScore[] = [
-  { memberId: 'maya', subject: 'Biology', topic: 'Cell Biology', memoryScore: 34 },
-  { memberId: 'ben', subject: 'Biology', topic: 'Cell Biology', memoryScore: 31 },
-  { memberId: 'aisha', subject: 'Biology', topic: 'Cell Biology', memoryScore: 43 },
-  { memberId: 'leo', subject: 'Biology', topic: 'Mitosis', memoryScore: 28 },
-  { memberId: 'nora', subject: 'Biology', topic: 'Mitosis', memoryScore: 36 },
-  { memberId: 'maya', subject: 'Biology', topic: 'Denaturation', memoryScore: 29 },
-  { memberId: 'ben', subject: 'Biology', topic: 'Denaturation', memoryScore: 35 },
-  { memberId: 'aisha', subject: 'Biology', topic: 'Denaturation', memoryScore: 37 },
-  { memberId: 'leo', subject: 'Biology', topic: 'Stomata', memoryScore: 32 },
-  { memberId: 'nora', subject: 'Biology', topic: 'Stomata', memoryScore: 30 },
-  { memberId: 'maya', subject: 'Chemistry', topic: 'Chemical Bonding', memoryScore: 24 },
-  { memberId: 'ben', subject: 'Chemistry', topic: 'Chemical Bonding', memoryScore: 33 },
-  { memberId: 'leo', subject: 'Chemistry', topic: 'Chemical Bonding', memoryScore: 42 },
-  { memberId: 'nora', subject: 'Chemistry', topic: 'Chemical Bonding', memoryScore: 38 },
-  { memberId: 'ben', subject: 'Chemistry', topic: 'Ionic Bonding', memoryScore: 31 },
-  { memberId: 'aisha', subject: 'Chemistry', topic: 'Ionic Bonding', memoryScore: 37 },
+  // Biology
+  { memberId: 'maya', subject: 'Biology', topic: 'Nutrition', memoryScore: 34 },
+  { memberId: 'maya', subject: 'Biology', topic: 'Ecology', memoryScore: 29 },
+  { memberId: 'ben', subject: 'Biology', topic: 'Cell Division (Mitosis)', memoryScore: 31 },
+  { memberId: 'ben', subject: 'Biology', topic: 'Reproduction', memoryScore: 35 },
+  { memberId: 'aisha', subject: 'Biology', topic: 'Genetics', memoryScore: 37 },
+  { memberId: 'aisha', subject: 'Biology', topic: 'Respiration', memoryScore: 33 },
+  { memberId: 'leo', subject: 'Biology', topic: 'Cell Division (Mitosis)', memoryScore: 28 },
+  { memberId: 'leo', subject: 'Biology', topic: 'Transport', memoryScore: 36 },
+  { memberId: 'nora', subject: 'Biology', topic: 'Respiration', memoryScore: 30 },
+  { memberId: 'nora', subject: 'Biology', topic: 'Genetics', memoryScore: 38 },
+  // Chemistry
+  { memberId: 'maya', subject: 'Chemistry', topic: 'Stoichiometry', memoryScore: 24 },
+  { memberId: 'maya', subject: 'Chemistry', topic: 'Organic Chemistry', memoryScore: 31 },
+  { memberId: 'ben', subject: 'Chemistry', topic: 'Covalent Bonding', memoryScore: 33 },
+  { memberId: 'ben', subject: 'Chemistry', topic: 'Atomic Structure', memoryScore: 29 },
+  { memberId: 'aisha', subject: 'Chemistry', topic: 'Acids & Bases', memoryScore: 37 },
+  { memberId: 'aisha', subject: 'Chemistry', topic: 'Redox Reactions', memoryScore: 33 },
   { memberId: 'leo', subject: 'Chemistry', topic: 'Covalent Bonding', memoryScore: 26 },
-  { memberId: 'nora', subject: 'Chemistry', topic: 'Covalent Bonding', memoryScore: 32 },
-  { memberId: 'aisha', subject: 'Chemistry', topic: 'Covalent Bonding', memoryScore: 59 },
-  { memberId: 'ben', subject: 'Chemistry', topic: 'Molten Electrolysis', memoryScore: 29 },
-  { memberId: 'maya', subject: 'Chemistry', topic: 'Molten Electrolysis', memoryScore: 31 },
-  { memberId: 'leo', subject: 'Chemistry', topic: 'Molten Electrolysis', memoryScore: 39 },
-  { memberId: 'nora', subject: 'Chemistry', topic: 'Aqueous Electrolysis', memoryScore: 36 },
-  { memberId: 'aisha', subject: 'Chemistry', topic: 'Aqueous Electrolysis', memoryScore: 33 },
-  { memberId: 'nora', subject: 'Physics', topic: 'Terminal Velocity', memoryScore: 29 },
-  { memberId: 'ben', subject: 'Physics', topic: 'Terminal Velocity', memoryScore: 34 },
-  { memberId: 'aisha', subject: 'Physics', topic: 'Refraction', memoryScore: 38 },
-  { memberId: 'leo', subject: 'Physics', topic: 'Refraction', memoryScore: 32 },
+  { memberId: 'leo', subject: 'Chemistry', topic: 'Rate of Reaction', memoryScore: 39 },
+  { memberId: 'nora', subject: 'Chemistry', topic: 'Redox Reactions', memoryScore: 36 },
+  { memberId: 'nora', subject: 'Chemistry', topic: 'Atomic Structure', memoryScore: 32 },
+  // Physics
+  { memberId: 'maya', subject: 'Physics', topic: 'Electricity', memoryScore: 31 },
+  { memberId: 'ben', subject: 'Physics', topic: 'Dynamics', memoryScore: 34 },
+  { memberId: 'ben', subject: 'Physics', topic: 'Waves', memoryScore: 38 },
+  { memberId: 'aisha', subject: 'Physics', topic: 'Electromagnetism', memoryScore: 38 },
+  { memberId: 'aisha', subject: 'Physics', topic: 'Nuclear Physics', memoryScore: 32 },
+  { memberId: 'leo', subject: 'Physics', topic: 'Waves', memoryScore: 32 },
+  { memberId: 'leo', subject: 'Physics', topic: 'Electricity', memoryScore: 35 },
+  { memberId: 'nora', subject: 'Physics', topic: 'Nuclear Physics', memoryScore: 29 },
+  { memberId: 'nora', subject: 'Physics', topic: 'Speed & Acceleration', memoryScore: 34 },
 ];
 
 export const weakTopics: WeakTopic[] = [
-  { id: 'cell-biology', topic: 'Cell Biology', subject: 'Biology', memberId: 'ben', score: 31 },
-  { id: 'denaturation', topic: 'Denaturation', subject: 'Biology', memberId: 'aisha', score: 37 },
+  { id: 'cell-division-mitosis', topic: 'Cell Division (Mitosis)', subject: 'Biology', memberId: 'ben', score: 31 },
+  { id: 'genetics', topic: 'Genetics', subject: 'Biology', memberId: 'aisha', score: 37 },
   { id: 'covalent-bonding', topic: 'Covalent Bonding', subject: 'Chemistry', memberId: 'leo', score: 26 },
-  { id: 'terminal-velocity', topic: 'Terminal Velocity', subject: 'Physics', memberId: 'nora', score: 29 },
+  { id: 'dynamics', topic: 'Dynamics', subject: 'Physics', memberId: 'ben', score: 34 },
 ];
 
 export function getInitials(name: string): string {

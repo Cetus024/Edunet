@@ -192,7 +192,7 @@ export default function TeacherConceptWebView() {
           onValueChange={(value: string) => { setStudentId(value); setPopup(null); setPan({ x: 0, y: 0, zoom: 1 }); }}
         >
           <SelectTrigger className="w-full rounded-full bg-card sm:w-[230px]"><SelectValue placeholder="Select a student" /></SelectTrigger>
-          <SelectContent className="border-[#31445e] bg-[#1b2a40] text-[#fffaf0]">
+          <SelectContent>
             {students.map((student) => <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>)}
           </SelectContent>
         </Select>

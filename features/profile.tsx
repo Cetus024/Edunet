@@ -93,21 +93,21 @@ function TeacherProfilePage({
   ] as const;
 
   return (
-    <div className="min-h-full bg-[#06101f] px-4 py-5 text-[#edf3ff] sm:px-6 lg:min-h-screen lg:px-8 lg:py-7">
+    <div className="min-h-full bg-[#f4f1e4] px-4 py-5 text-[#12213a] sm:px-6 lg:min-h-screen lg:px-8 lg:py-7">
       <div className="mx-auto max-w-[1240px]">
         <motion.header
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-[26px] border border-[#243856] bg-[#0c1b31] px-5 py-6 shadow-2xl shadow-black/20 sm:px-8 sm:py-7"
+          className="rounded-[26px] border border-white/70 bg-gradient-to-r from-[#dce9fa] via-white to-[#fff0b6] px-5 py-6 shadow-xl shadow-[#17365f]/10 sm:px-8 sm:py-7"
         >
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#f7cf5d] px-3.5 py-1.5 text-xs font-black text-[#071324]">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-[#35547d] shadow-sm">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
             My Profile
           </span>
-          <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
+          <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
             Your teaching profile
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm font-medium leading-relaxed text-[#9fb1cb]">
+          <p className="mt-1.5 max-w-2xl text-sm font-medium leading-relaxed text-[#53657e]">
             Review the account and teaching details connected to your EduNets workspace.
           </p>
         </motion.header>
@@ -117,40 +117,40 @@ function TeacherProfilePage({
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08 }}
-            className="flex flex-col rounded-[24px] border border-[#243856] bg-[#0c1b31] p-5 shadow-2xl shadow-black/20 sm:p-6"
+            className="flex flex-col rounded-[24px] border border-white/80 bg-white/90 p-5 shadow-xl shadow-[#17365f]/10 sm:p-6"
           >
             <div className="flex flex-col items-center text-center">
-              <Avatar className="h-24 w-24 border-4 border-[#1a2d49] shadow-[0_18px_45px_rgba(0,0,0,0.24)]">
+              <Avatar className="h-24 w-24 border-4 border-[#dce7f8] shadow-[0_18px_45px_rgba(29,58,98,0.16)]">
                 <AvatarImage src={account.user.image ?? undefined} alt={fullName} />
-                <AvatarFallback className="bg-[#4f75aa] text-2xl font-black text-white">
+                <AvatarFallback className="bg-[#17365f] text-2xl font-black text-white">
                   {getInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
-              <h2 className="mt-4 text-2xl font-black text-white">{fullName}</h2>
-              <span className="mt-2 rounded-full bg-[#f7cf5d]/15 px-3 py-1 text-xs font-black text-[#ffe17d]">
+              <h2 className="mt-4 text-2xl font-black">{fullName}</h2>
+              <span className="mt-2 rounded-full bg-[#f7cf5d]/30 px-3 py-1 text-xs font-black text-[#7a5c08]">
                 {roleLabel}
               </span>
             </div>
 
-            <dl className="mt-6 space-y-3 border-t border-[#243856] pt-5">
-              <div className="rounded-2xl bg-[#101f35] px-4 py-3">
-                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">
+            <dl className="mt-6 space-y-3 border-t border-slate-200 pt-5">
+              <div className="rounded-2xl bg-[#f7f9fc] px-4 py-3">
+                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
                   <UserRound className="h-4 w-4" aria-hidden="true" /> Full Name
                 </dt>
-                <dd className="mt-1 break-words text-sm font-bold text-white">{fullName}</dd>
+                <dd className="mt-1 break-words text-sm font-bold">{fullName}</dd>
               </div>
-              <div className="rounded-2xl bg-[#101f35] px-4 py-3">
-                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">
+              <div className="rounded-2xl bg-[#f7f9fc] px-4 py-3">
+                <dt className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
                   <Mail className="h-4 w-4" aria-hidden="true" /> Email Address
                 </dt>
-                <dd className="mt-1 break-all text-sm font-bold text-white">{email}</dd>
+                <dd className="mt-1 break-all text-sm font-bold">{email}</dd>
               </div>
             </dl>
 
             <Button
               type="button"
               onClick={() => void signOut('/login')}
-              className="mt-5 h-11 w-full rounded-xl bg-[#4f75aa] font-black text-white hover:bg-[#6087bd]"
+              className="mt-5 h-11 w-full rounded-xl bg-[#17365f] font-black text-white hover:bg-[#234b7e]"
             >
               <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
               Log Out
@@ -161,15 +161,15 @@ function TeacherProfilePage({
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.14 }}
-            className="rounded-[24px] border border-[#243856] bg-[#0c1b31] p-5 shadow-2xl shadow-black/20 sm:p-6"
+            className="rounded-[24px] border border-white/80 bg-white/90 p-5 shadow-xl shadow-[#17365f]/10 sm:p-6"
           >
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7cf5d]/15 text-[#f7cf5d]">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7cf5d]/25 text-[#8a6a0a]">
                 <BookOpen className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <h2 className="text-lg font-black text-white">Teaching details</h2>
-                <p className="text-xs font-semibold text-[#91a4c1]">Saved from your EduNets onboarding profile.</p>
+                <h2 className="text-lg font-black">Teaching details</h2>
+                <p className="text-xs font-semibold text-slate-500">Saved from your EduNets onboarding profile.</p>
               </div>
             </div>
 
@@ -180,20 +180,20 @@ function TeacherProfilePage({
                   initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 + index * 0.06 }}
-                  className="flex items-start gap-4 rounded-2xl border border-[#243856] bg-[#101f35] px-4 py-4 sm:px-5"
+                  className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-[#f7f9fc] px-4 py-4 sm:px-5"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1a2d49] text-[#f7cf5d]">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#dce7f8] text-[#8a6a0a]">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <dt className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7185a3]">{label}</dt>
-                    <dd className="mt-1 break-words text-base font-black text-white">{value}</dd>
+                    <dt className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</dt>
+                    <dd className="mt-1 break-words text-base font-black">{value}</dd>
                   </div>
                 </motion.div>
               ))}
             </dl>
 
-            <div className="mt-5 rounded-2xl border border-[#f7cf5d]/20 bg-[#f7cf5d]/[0.07] px-4 py-4 text-sm font-semibold leading-relaxed text-[#c5d1e2]">
+            <div className="mt-5 rounded-2xl border border-[#f7cf5d]/40 bg-[#f7cf5d]/[0.12] px-4 py-4 text-sm font-semibold leading-relaxed text-[#53657e]">
               These details identify your teaching workspace and help EduNets connect relevant student enquiries.
             </div>
           </motion.section>

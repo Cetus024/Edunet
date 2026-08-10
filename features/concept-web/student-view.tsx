@@ -126,18 +126,6 @@ const subjectTemplates: Record<string, SubjectEntry> = {
   },
 };
 
-const crossTopicConnections: Record<string, { from: string; to: string }[]> = {
-  Biology: [
-    { from: 'mitosis', to: 'dna' }, { from: 'organelles', to: 'chlorophyll' }, { from: 'denaturation', to: 'limiting-factors' }, { from: 'stomata', to: 'aerobic' }, { from: 'mitochondria', to: 'cell-membrane' },
-  ],
-  Chemistry: [
-    { from: 'electron-shells', to: 'ionic-bonding' }, { from: 'isotopes', to: 'avogadro' }, { from: 'neutralisation', to: 'salts' }, { from: 'electrodes', to: 'collision-theory' }, { from: 'catalysts', to: 'yield' },
-  ],
-  Physics: [
-    { from: 'acceleration', to: 'gpe' }, { from: 'newtons-second', to: 'efficiency' }, { from: 'frequency', to: 'em-spectrum' }, { from: 'resistance', to: 'efficiency' }, { from: 'half-life', to: 'alpha-beta-gamma' },
-  ],
-};
-
 const topicTemplateIds: Record<string, string> = {
   'bio-cell': 'cell-biology',
   'chem-bonding': 'chemical-bonding',
@@ -227,20 +215,20 @@ export default function StudentConceptWebView() {
       ? Math.round(startedScores.reduce((sum: number, score: number) => sum + score, 0) / startedScores.length)
       : null;
     const firstTopic = entry.topics[0];
+    // Every real topic sits on a single even ring around the subject — no
+    // second "subconcept" ring. The old template data had a two-tier layout,
+    // but it only ever expanded for topics whose name happened to collide
+    // with a legacy template name (e.g. real catalog topics called "Genetics"
+    // or "Respiration"), so most subjects rendered as an inconsistent mix of
+    // bare topic bubbles and a few with an extra fan of children. A single
+    // ring is the layout that's actually true for every subject.
     const nodes: GraphNode[] = [{ id: normalize(subject), name: subject, memoryScore: average, description: `${subject} concept map built from your authenticated O-Level learning progress.`, keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` }, kind: 'subject', subject, x: 500, y: 400, r: 60, index: 0 }];
     const links: GraphLink[] = [];
     entry.topics.forEach((topic: Topic, topicIndex: number) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / entry.topics.length);
-      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 170), y: roundCoordinate(400 + Math.sin(angle) * 170), r: 42, index: nodes.length };
+      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 230), y: roundCoordinate(400 + Math.sin(angle) * 230), r: 46, index: nodes.length };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
-      topic.subConcepts.forEach((concept: SubConcept, conceptIndex: number) => {
-        const spread = Math.PI / 3.2;
-        const subAngle = angle - spread / 2 + (spread / Math.max(1, topic.subConcepts.length - 1)) * conceptIndex;
-        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 310), y: roundCoordinate(400 + Math.sin(subAngle) * 310), r: 30, index: nodes.length };
-        nodes.push(subNode);
-        links.push({ from: topicNode, to: subNode });
-      });
     });
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator: Record<string, GraphNode>, node: GraphNode) => ({ ...accumulator, [node.id]: node }), {});
     entry.topics.forEach((topic: Topic, topicIndex: number) => {
@@ -248,9 +236,6 @@ export default function StudentConceptWebView() {
       if (entry.topics.length > 2 && nextTopic && byId[topic.id] && byId[nextTopic.id]) {
         links.push({ from: byId[topic.id], to: byId[nextTopic.id], dashed: true });
       }
-    });
-    (crossTopicConnections[subject] ?? []).forEach((connection: { from: string; to: string }) => {
-      if (byId[connection.from] && byId[connection.to]) links.push({ from: byId[connection.from], to: byId[connection.to], dashed: true });
     });
     return { nodes, links };
   }, [subject, subjectsData]);
@@ -332,7 +317,21 @@ export default function StudentConceptWebView() {
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
-    setPan((current: PanState) => ({ ...current, zoom: clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.4, 2.5) }));
+    const canvas = canvasRef.current;
+    setPan((current: PanState) => {
+      const nextZoom = clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.4, 2.5);
+      if (!canvas || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
+      // Keep the point under the cursor fixed on screen while zooming, in the
+      // SVG's 1000x800 viewBox space, instead of always zooming toward the
+      // fixed top-left origin — that made scrolling feel like it jumped to
+      // the wrong spot the further the cursor was from the corner.
+      const rect = canvas.getBoundingClientRect();
+      const svgX = ((event.clientX - rect.left) / rect.width) * 1000;
+      const svgY = ((event.clientY - rect.top) / rect.height) * 800;
+      const contentX = (svgX - current.x) / current.zoom;
+      const contentY = (svgY - current.y) / current.zoom;
+      return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
+    });
   };
 
   const selectedPopupTier = popup ? tierForScore(popup.node.memoryScore) : null;

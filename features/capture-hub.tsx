@@ -45,6 +45,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -276,6 +283,26 @@ function FeatureIcon({ feature }: { feature: string }) {
   );
 }
 
+// O-level style key-point summary for a saved material. Capture Hub content
+// isn't persisted to a real backend (see known-gaps notes), so this is
+// generated on the fly from the material's own metadata rather than stored -
+// it exists so "View Summary" opens something real instead of doing nothing.
+function buildMaterialSummary(material: (typeof materialsSample)[number]): string[] {
+  const subject = subjects.find((candidate) => candidate.id === material.subject);
+  const subjectLabel = subject ? `${subject.icon} ${subject.name}` : 'this subject';
+  return [
+    `${material.topic} is the focus topic captured in "${material.name}".`,
+    `Covers ${subjectLabel} content uploaded on ${format(new Date(material.dateUploaded), 'dd MMM yyyy')}.`,
+    material.features.includes('quiz')
+      ? 'A Smart Quiz set was generated from this material to test recall.'
+      : 'Generate a Smart Quiz from this material to test recall.',
+    material.features.includes('web')
+      ? 'Key terms from this material were linked into your Concept Web.'
+      : 'Add this material to your Concept Web to connect its key terms.',
+    'Revisit this summary before your next revision session to refresh the key ideas quickly.',
+  ];
+}
+
 // Get type icon
 function getTypeIcon(type: string) {
   switch (type) {
@@ -327,6 +354,7 @@ export default function CaptureHubPage() {
   // Materials library
   const [materials, setMaterials] = useState(materialsSample);
   const [libraryFilter, setLibraryFilter] = useState('all');
+  const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
 
   // File input refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1127,15 +1155,23 @@ export default function CaptureHubPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Summary
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => toast.info('Re-processing is not available for saved materials yet.')}
+                              >
                                 <RefreshCw className="w-4 h-4 mr-2" />
                                 Re-process
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  setMaterials((prev) => prev.filter((item) => item.id !== material.id));
+                                  toast.success(`Removed "${material.name}"`);
+                                }}
+                              >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete
                               </DropdownMenuItem>
@@ -1165,6 +1201,27 @@ export default function CaptureHubPage() {
           </motion.div>
         )}
       </motion.section>
+
+      <Dialog open={summaryMaterial !== null} onOpenChange={(open) => !open && setSummaryMaterial(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{summaryMaterial?.name}</DialogTitle>
+            <DialogDescription>
+              {subjects.find((subject) => subject.id === summaryMaterial?.subject)?.icon}{' '}
+              {subjects.find((subject) => subject.id === summaryMaterial?.subject)?.name}
+              {summaryMaterial ? ` · ${summaryMaterial.topic}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2.5 text-sm leading-relaxed text-studynow-dark">
+            {summaryMaterial && buildMaterialSummary(summaryMaterial).map((point) => (
+              <li key={point} className="flex gap-2.5">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6486B5]" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
