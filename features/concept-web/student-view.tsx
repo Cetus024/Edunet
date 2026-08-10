@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { motion, useReducedMotion } from 'motion/react';
-import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, X } from 'lucide-react';
+import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ConceptNodeFriendMarkers } from '@/features/concept-web/friend-markers';
 import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
-import { getStrugglingFriendsForTopic, type StrugglingFriend } from '@/lib/squad-data';
+import {
+  getStrugglingFriendsForTopic,
+  getWeakestTopicForMember,
+  squadMembers,
+  type StrugglingFriend,
+} from '@/lib/squad-data';
 import { subjectsAtom, type SubjectData, type TopicData } from '@/lib/study-data';
 
 type KeyConnection = { topic: string; explanation: string };
@@ -136,6 +141,36 @@ const topicTemplateIds: Record<string, string> = {
   'phys-nuclear': 'radioactivity',
 };
 
+// Real syllabus relationships between real catalog topic ids (not the old
+// hardcoded template's ids), used for the dashed cross-topic links. Subjects
+// without a curated list here fall back to connecting neighbouring topics on
+// the ring, so every subject still shows some cross-topic links.
+const realisticTopicConnections: Record<string, { from: string; to: string }[]> = {
+  Biology: [
+    { from: 'biology-cell-division-mitosis', to: 'biology-genetics' }, // mitosis copies the genetic material genetics studies
+    { from: 'biology-genetics', to: 'biology-reproduction' }, // inheritance happens through reproduction
+    { from: 'biology-respiration', to: 'biology-nutrition' }, // respiration releases energy from digested nutrients
+    { from: 'biology-respiration', to: 'biology-transport' }, // blood transports oxygen and glucose for respiration
+    { from: 'biology-transport', to: 'biology-nutrition' }, // transport carries absorbed nutrients around the body
+    { from: 'biology-ecology', to: 'biology-nutrition' }, // food chains and nutrient cycling
+  ],
+  Chemistry: [
+    { from: 'chemistry-atomic-structure', to: 'chemistry-covalent-bonding' }, // electron arrangement determines bonding
+    { from: 'chemistry-covalent-bonding', to: 'chemistry-organic-chemistry' }, // organic molecules are covalently bonded
+    { from: 'chemistry-stoichiometry', to: 'chemistry-acids-bases' }, // titration calculations use mole ratios
+    { from: 'chemistry-redox-reactions', to: 'chemistry-atomic-structure' }, // electron transfer relates to electron shells
+    { from: 'chemistry-rate-of-reaction', to: 'chemistry-redox-reactions' }, // rate experiments are often redox reactions
+  ],
+  Physics: [
+    { from: 'physics-speed-acceleration', to: 'physics-dynamics' }, // kinematics underpins Newton's laws
+    { from: 'physics-dynamics', to: 'physics-energy' }, // work done by a force transfers energy
+    { from: 'physics-energy', to: 'physics-electricity' }, // electrical energy and power
+    { from: 'physics-electricity', to: 'physics-electromagnetism' }, // current creates magnetic effects
+    { from: 'physics-waves', to: 'physics-electromagnetism' }, // EM waves are part of the wave family
+    { from: 'physics-nuclear-physics', to: 'physics-energy' }, // radioactive decay releases energy
+  ],
+};
+
 const tierForScore = (score: number | null) => {
   if (score === null) return { fill: '#9CA3AF', stroke: '#6B7280', text: '#FFFFFF', label: 'Not Started' };
   if (score >= 70) return { fill: '#186636', stroke: '#0F4A24', text: '#FFFFFF', label: 'Strong' };
@@ -231,12 +266,24 @@ export default function StudentConceptWebView() {
       links.push({ from: nodes[0], to: topicNode });
     });
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator: Record<string, GraphNode>, node: GraphNode) => ({ ...accumulator, [node.id]: node }), {});
-    entry.topics.forEach((topic: Topic, topicIndex: number) => {
-      const nextTopic = entry.topics[(topicIndex + 1) % entry.topics.length];
-      if (entry.topics.length > 2 && nextTopic && byId[topic.id] && byId[nextTopic.id]) {
-        links.push({ from: byId[topic.id], to: byId[nextTopic.id], dashed: true });
-      }
-    });
+    const curatedConnections = realisticTopicConnections[subject];
+    if (curatedConnections?.length) {
+      curatedConnections.forEach((connection: { from: string; to: string }) => {
+        if (byId[connection.from] && byId[connection.to]) {
+          links.push({ from: byId[connection.from], to: byId[connection.to], dashed: true });
+        }
+      });
+    } else {
+      // No curated syllabus links for this subject yet — fall back to
+      // connecting neighbouring topics on the ring so it still reads as a
+      // connected map rather than isolated spokes.
+      entry.topics.forEach((topic: Topic, topicIndex: number) => {
+        const nextTopic = entry.topics[(topicIndex + 1) % entry.topics.length];
+        if (entry.topics.length > 2 && nextTopic && byId[topic.id] && byId[nextTopic.id]) {
+          links.push({ from: byId[topic.id], to: byId[nextTopic.id], dashed: true });
+        }
+      });
+    }
     return { nodes, links };
   }, [subject, subjectsData]);
 
@@ -248,6 +295,17 @@ export default function StudentConceptWebView() {
     });
     navigate(`/study-squad?${params.toString()}`);
   }, [navigate]);
+
+  // Jumps the map straight to a squad friend's single weakest topic,
+  // switching subject first if it's not the one currently open. Reuses the
+  // exact same ?subject=&topic= deep-link handling the quiz page already
+  // drives (see the effect below), just triggered from a friend pick
+  // instead of an external link.
+  const handleFindFriend = useCallback((memberId: string) => {
+    const weakest = getWeakestTopicForMember(memberId);
+    if (!weakest) return;
+    setSearchParams(new URLSearchParams({ subject: weakest.subject, topic: weakest.topic }));
+  }, [setSearchParams]);
 
   const friendMarkersByNodeId = useMemo<Record<string, StrugglingFriend[]>>(() => {
     return graph.nodes.reduce<Record<string, StrugglingFriend[]>>((accumulator: Record<string, StrugglingFriend[]>, node: GraphNode) => {
@@ -354,6 +412,17 @@ export default function StudentConceptWebView() {
           </SelectContent>
         </Select>
         <div className="flex-1" />
+        <Select value="" onValueChange={handleFindFriend}>
+          <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Find your friend">
+            <Users className="h-4 w-4 shrink-0" />
+            <SelectValue placeholder="Find your friend" />
+          </SelectTrigger>
+          <SelectContent>
+            {squadMembers.map((member) => (
+              <SelectItem key={member.id} value={member.id}>{member.fullName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-3 rounded-full bg-card px-4 py-2 shadow-sm">
           {weakOnly ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           <Label htmlFor="weak-toggle" className="font-semibold">Show weak topics only</Label>

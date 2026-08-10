@@ -182,6 +182,18 @@ export function getWeakTopicsForMember(memberId: string): WeakTopic[] {
   return weakTopics.filter((topic) => topic.memberId === memberId);
 }
 
+/**
+ * A member's single weakest tracked topic across every subject - used by the
+ * concept web's "Find your friend" search to jump straight to wherever that
+ * friend needs the most help, regardless of which subject map is currently
+ * open (switching subject first if needed).
+ */
+export function getWeakestTopicForMember(memberId: string): SquadMemberTopicScore | null {
+  const rows = squadMemberTopicScores.filter((row) => row.memberId === memberId);
+  if (rows.length === 0) return null;
+  return rows.reduce((weakest, row) => (row.memoryScore < weakest.memoryScore ? row : weakest));
+}
+
 export function getStrugglingFriendsForTopic(subject: string, topic: string): StrugglingFriend[] {
   const normalizedTopic = normalizeTopic(topic);
 

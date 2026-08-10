@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Copy, Crown, Flame, Flag, Instagram, Loader2, Mail, Medal, Send, Sparkles, Timer, Users, Zap } from 'lucide-react';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,12 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { quizRoomParticipantsAtom, quizRoomsAtom, rescueNudgeLogsAtom, type AvatarColor, type QuizRoomDraft, type QuizRoomParticipantDraft, type RescueNudgeLog } from '@/lib/study-data';
+import { getEffectiveScore, quizRoomParticipantsAtom, quizRoomsAtom, rescueNudgeLogsAtom, subjectSummariesAtom, type AvatarColor, type QuizRoomDraft, type QuizRoomParticipantDraft, type RescueNudgeLog } from '@/lib/study-data';
 import { Textarea } from '@/components/ui/textarea';
 import { useUser } from '@/hooks/use-user';
+import { useCurrentAccount } from '@/lib/api/me';
 import {
   getAvatarClass,
-  getSquadMember,
+  getInitials,
   normalizeTopic,
   squadMembers,
   weakTopics,
@@ -61,6 +62,63 @@ export default function StudySquadPage() {
   const hostAvatarColor: AvatarColor = 'Yellow';
   const [sendState, setSendState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
+  // The 5 squad members above are display-only demo data (no backend table
+  // for squads yet). This puts the actual signed-in account into the same
+  // leaderboard/weak-topics views, built from their real subjectsAtom
+  // progress, so "your squad" genuinely includes you alongside the demo
+  // roster rather than just showing 5 strangers.
+  const { data: account } = useCurrentAccount();
+  const subjectSummaries = useAtomValue(subjectSummariesAtom);
+  const realMember = useMemo<SquadMember | null>(() => {
+    if (!account) return null;
+    const subjects: SubjectScore[] = subjectSummaries
+      .filter((summary) => summary.avgScore !== null)
+      .map((summary) => ({
+        subject: summary.name,
+        score: summary.avgScore ?? 0,
+        topics: summary.topics.filter((topic) => topic.memoryScore !== null).map((topic) => topic.name),
+      }));
+    const overall = subjects.length > 0
+      ? Math.round(subjects.reduce((sum, entry) => sum + entry.score, 0) / subjects.length)
+      : 0;
+    const fullName = account.user.name || 'You';
+    return {
+      id: account.user.id,
+      name: fullName.trim().split(/\s+/)[0] || fullName,
+      fullName,
+      initials: getInitials(fullName),
+      score: overall,
+      overallMemoryScore: overall,
+      streak: 0,
+      color: 'white',
+      subjects,
+    };
+  }, [account, subjectSummaries]);
+  const allMembers = useMemo<SquadMember[]>(
+    () => (realMember ? [...squadMembers, realMember] : squadMembers),
+    [realMember],
+  );
+  const realWeakTopics = useMemo<WeakTopic[]>(() => {
+    if (!account) return [];
+    return subjectSummaries.flatMap((summary) => summary.topics
+      .filter((topic) => {
+        const effective = getEffectiveScore(topic);
+        return effective !== null && effective < 40;
+      })
+      .map((topic) => ({
+        id: `${account.user.id}-${topic.id}`,
+        topic: topic.name,
+        subject: summary.name,
+        memberId: account.user.id,
+        score: getEffectiveScore(topic) as number,
+      })));
+  }, [account, subjectSummaries]);
+  const allWeakTopics = useMemo(() => [...weakTopics, ...realWeakTopics], [realWeakTopics]);
+  const getMemberById = useCallback(
+    (id: string) => allMembers.find((member) => member.id === id) ?? allMembers[0],
+    [allMembers],
+  );
+
   const activeRescueByMember = useMemo(() => {
     const now = Date.now();
     return rescueLogs.reduce<Record<string, RescueNudgeLog>>((accumulator: Record<string, RescueNudgeLog>, log: RescueNudgeLog) => {
@@ -75,7 +133,7 @@ export default function StudySquadPage() {
   }, [rescueLogs]);
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const rankedMembers = useMemo(() => [...squadMembers].sort((a: SquadMember, b: SquadMember) => b.score - a.score), []);
+  const rankedMembers = useMemo(() => [...allMembers].sort((a: SquadMember, b: SquadMember) => b.score - a.score), [allMembers]);
   const selectedMember = rankedMembers.find((member: SquadMember) => member.id === selectedMemberId) ?? rankedMembers[0];
 
   const sendInvite = () => {
@@ -319,7 +377,12 @@ export default function StudySquadPage() {
                         {index === 0 && <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground"><Crown className="h-4 w-4" /></span>}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold">{index + 1}. {member.name}</p>
+                        <p className="font-bold">
+                          {index + 1}. {member.name}
+                          {member.id === realMember?.id && (
+                            <>{' '}<Badge className="ml-1 rounded-full border-0 bg-primary text-primary-foreground align-middle">You</Badge></>
+                          )}
+                        </p>
                         <p className="text-sm text-muted-foreground"><Flame className="mr-1 inline h-4 w-4" /> {member.streak}-day streak</p>
                       </div>
                       {pendingRescue && <Badge className="rounded-full border-0 bg-secondary text-secondary-foreground">Rescue sent ⏳</Badge>}
@@ -353,8 +416,8 @@ export default function StudySquadPage() {
                 <CardTitle className="flex items-center gap-2 text-xl"><Bell className="h-5 w-5" /> Where your squad struggles</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {weakTopics.map((topic: WeakTopic) => {
-                  const member = getSquadMember(topic.memberId);
+                {allWeakTopics.map((topic: WeakTopic) => {
+                  const member = getMemberById(topic.memberId);
                   return (
                     <div key={topic.id} className="rounded-[18px] border-l-4 border-l-destructive bg-background p-4 text-foreground">
                       <div className="flex items-start justify-between gap-3">
