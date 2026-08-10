@@ -146,6 +146,156 @@ const topicSubconcepts: Record<string, SubconceptSeed[]> = {
     { id: 'half-life', name: 'Half-life', description: 'The time taken for the activity of a radioactive source to halve.', keyConnectionTopic: 'Radioactive Decay' },
     { id: 'nuclear-radiation-types', name: 'Nuclear Radiation Types', description: 'Alpha, beta, and gamma radiation differ in penetration, range, and ionising power.', keyConnectionTopic: 'Half-life' },
   ],
+  'english-comprehension': [
+    { id: 'text-comprehension', name: 'Text Comprehension', description: 'Reading closely to identify explicit information stated directly in a passage.', keyConnectionTopic: 'Inference Questions' },
+    { id: 'inference-questions', name: 'Inference Questions', description: 'Working out meaning that is implied rather than stated outright.', keyConnectionTopic: 'Vocabulary in Context' },
+    { id: 'vocabulary-in-context', name: 'Vocabulary in Context', description: 'Using surrounding sentences to work out what an unfamiliar word means.', keyConnectionTopic: 'Text Comprehension' },
+  ],
+  'english-summary-writing': [
+    { id: 'identifying-key-points', name: 'Identifying Key Points', description: 'Picking out the most important ideas from a passage while leaving out detail.', keyConnectionTopic: 'Paraphrasing' },
+    { id: 'paraphrasing', name: 'Paraphrasing', description: 'Rewriting an idea in your own words without changing its meaning.', keyConnectionTopic: 'Word Limit Discipline' },
+    { id: 'word-limit-discipline', name: 'Word Limit Discipline', description: 'Fitting all key points into a strict word count without losing marks for excess.', keyConnectionTopic: 'Identifying Key Points' },
+  ],
+  'english-situational-writing': [
+    { id: 'purpose-audience-context', name: 'Purpose, Audience, Context', description: 'Every situational piece is shaped by who it is for, why, and in what setting.', keyConnectionTopic: 'Register & Tone' },
+    { id: 'register-tone', name: 'Register & Tone', description: 'Matching formal or informal language to the relationship with the reader.', keyConnectionTopic: 'Format Conventions' },
+    { id: 'format-conventions', name: 'Format Conventions', description: 'Letters, emails, and reports each follow their own expected layout.', keyConnectionTopic: 'Purpose, Audience, Context' },
+  ],
+  'english-continuous-writing': [
+    { id: 'narrative-techniques', name: 'Narrative Techniques', description: 'Plot, pacing, and point of view used to tell an engaging story.', keyConnectionTopic: 'Descriptive Language' },
+    { id: 'descriptive-language', name: 'Descriptive Language', description: 'Sensory detail and figurative language that bring a scene to life.', keyConnectionTopic: 'Essay Structure' },
+    { id: 'essay-structure', name: 'Essay Structure', description: 'A clear introduction, developed body, and satisfying conclusion.', keyConnectionTopic: 'Narrative Techniques' },
+  ],
+  'english-editing': [
+    { id: 'grammar-errors', name: 'Grammar Errors', description: 'Common mistakes in tense, subject-verb agreement, and word form.', keyConnectionTopic: 'Sentence Structure' },
+    { id: 'spelling-punctuation', name: 'Spelling & Punctuation', description: 'Correct spelling and punctuation marks that change how a sentence reads.', keyConnectionTopic: 'Grammar Errors' },
+    { id: 'sentence-structure', name: 'Sentence Structure', description: 'Spotting run-ons, fragments, and awkward phrasing that need correcting.', keyConnectionTopic: 'Spelling & Punctuation' },
+  ],
+  'english-visual-text': [
+    { id: 'interpreting-images', name: 'Interpreting Images', description: 'Reading what a photo, cartoon, or graphic is showing and implying.', keyConnectionTopic: 'Text-Image Relationships' },
+    { id: 'text-image-relationships', name: 'Text-Image Relationships', description: 'How captions and accompanying text change or reinforce an image\'s meaning.', keyConnectionTopic: 'Persuasive Techniques' },
+    { id: 'persuasive-techniques', name: 'Persuasive Techniques', description: 'Colour, layout, and symbols used to influence how a viewer reacts.', keyConnectionTopic: 'Interpreting Images' },
+  ],
+  'history-world-war-i': [
+    { id: 'causes-of-wwi', name: 'Causes of WWI', description: 'Alliances, imperialism, militarism, and nationalism that led to war in 1914.', keyConnectionTopic: 'Alliance Systems' },
+    { id: 'alliance-systems', name: 'Alliance Systems', description: 'The Triple Alliance and Triple Entente turned a regional crisis into a world war.', keyConnectionTopic: 'The Treaty of Versailles' },
+    { id: 'the-treaty-of-versailles', name: 'The Treaty of Versailles', description: 'The 1919 peace settlement and its harsh terms for Germany.', keyConnectionTopic: 'Causes of WWI' },
+  ],
+  'history-world-war-ii': [
+    { id: 'causes-of-wwii', name: 'Causes of WWII', description: 'Failure of appeasement, the Treaty of Versailles\' legacy, and expansionist aggression.', keyConnectionTopic: 'Key Turning Points' },
+    { id: 'key-turning-points', name: 'Key Turning Points', description: 'Battles like Stalingrad and Midway that shifted the war\'s momentum.', keyConnectionTopic: 'Impact of the War' },
+    { id: 'impact-of-the-war', name: 'Impact of the War', description: 'The human, economic, and political aftermath that reshaped the postwar world.', keyConnectionTopic: 'Causes of WWII' },
+  ],
+  'history-the-cold-war': [
+    { id: 'ideological-conflict', name: 'Ideological Conflict', description: 'Capitalism versus communism as the root of decades of US-Soviet tension.', keyConnectionTopic: 'Superpower Rivalry' },
+    { id: 'superpower-rivalry', name: 'Superpower Rivalry', description: 'The arms race, space race, and competing spheres of influence.', keyConnectionTopic: 'Proxy Wars' },
+    { id: 'proxy-wars', name: 'Proxy Wars', description: 'Conflicts like Korea and Vietnam fought indirectly between the superpowers.', keyConnectionTopic: 'Ideological Conflict' },
+  ],
+  'history-singapore-history': [
+    { id: 'japanese-occupation', name: 'Japanese Occupation', description: 'Life in Singapore under Japanese rule from 1942 to 1945.', keyConnectionTopic: 'Road to Independence' },
+    { id: 'road-to-independence', name: 'Road to Independence', description: 'Self-government, merger with Malaysia, and the path to full independence.', keyConnectionTopic: 'Nation-Building' },
+    { id: 'nation-building', name: 'Nation-Building', description: 'Housing, education, and defence policies that built a young nation after 1965.', keyConnectionTopic: 'Japanese Occupation' },
+  ],
+  'history-decolonisation': [
+    { id: 'rise-of-nationalism', name: 'Rise of Nationalism', description: 'Colonised peoples organising to demand self-rule after WWII.', keyConnectionTopic: 'Independence Movements' },
+    { id: 'independence-movements', name: 'Independence Movements', description: 'Political and sometimes armed campaigns that ended colonial rule.', keyConnectionTopic: 'Post-Colonial Challenges' },
+    { id: 'post-colonial-challenges', name: 'Post-Colonial Challenges', description: 'New nations facing weak institutions, borders, and economic dependency.', keyConnectionTopic: 'Rise of Nationalism' },
+  ],
+  'history-united-nations': [
+    { id: 'formation-aims', name: 'Formation & Aims', description: 'Founded in 1945 to maintain international peace and security.', keyConnectionTopic: 'Peacekeeping Role' },
+    { id: 'peacekeeping-role', name: 'Peacekeeping Role', description: 'UN peacekeeping missions sent to reduce conflict around the world.', keyConnectionTopic: 'Successes & Limitations' },
+    { id: 'successes-limitations', name: 'Successes & Limitations', description: 'Cases where the UN succeeded, and where veto powers blocked action.', keyConnectionTopic: 'Formation & Aims' },
+  ],
+  'geography-weather-climate': [
+    { id: 'atmospheric-processes', name: 'Atmospheric Processes', description: 'How heating, pressure, and air movement drive day-to-day weather.', keyConnectionTopic: 'Climate Graphs' },
+    { id: 'climate-graphs', name: 'Climate Graphs', description: 'Reading temperature and rainfall data to describe a region\'s climate.', keyConnectionTopic: 'Extreme Weather Events' },
+    { id: 'extreme-weather-events', name: 'Extreme Weather Events', description: 'Typhoons, droughts, and other hazards linked to atmospheric conditions.', keyConnectionTopic: 'Atmospheric Processes' },
+  ],
+  'geography-plate-tectonics': [
+    { id: 'plate-boundaries', name: 'Plate Boundaries', description: 'Destructive, constructive, and conservative boundaries between tectonic plates.', keyConnectionTopic: 'Earthquakes' },
+    { id: 'earthquakes', name: 'Earthquakes', description: 'Sudden ground shaking caused by the release of stress at plate boundaries.', keyConnectionTopic: 'Volcanic Activity' },
+    { id: 'volcanic-activity', name: 'Volcanic Activity', description: 'Magma reaching the surface, most often where plates meet.', keyConnectionTopic: 'Plate Boundaries' },
+  ],
+  'geography-coasts': [
+    { id: 'coastal-erosion', name: 'Coastal Erosion', description: 'Hydraulic action, abrasion, and other processes that wear away a coastline.', keyConnectionTopic: 'Depositional Landforms' },
+    { id: 'depositional-landforms', name: 'Depositional Landforms', description: 'Beaches and spits formed where the sea deposits eroded material.', keyConnectionTopic: 'Coastal Management' },
+    { id: 'coastal-management', name: 'Coastal Management', description: 'Sea walls and other strategies used to protect coastlines from erosion.', keyConnectionTopic: 'Coastal Erosion' },
+  ],
+  'geography-rivers': [
+    { id: 'river-processes', name: 'River Processes', description: 'Erosion, transportation, and deposition that shape a river\'s course.', keyConnectionTopic: 'Fluvial Landforms' },
+    { id: 'fluvial-landforms', name: 'Fluvial Landforms', description: 'Meanders, waterfalls, and floodplains produced by river processes.', keyConnectionTopic: 'Flood Management' },
+    { id: 'flood-management', name: 'Flood Management', description: 'Dams and other measures used to reduce the risk of river flooding.', keyConnectionTopic: 'River Processes' },
+  ],
+  'geography-tourism': [
+    { id: 'tourism-growth-factors', name: 'Tourism Growth Factors', description: 'Rising incomes, cheaper travel, and marketing driving global tourism growth.', keyConnectionTopic: 'Impacts of Tourism' },
+    { id: 'impacts-of-tourism', name: 'Impacts of Tourism', description: 'The economic benefits and environmental/social costs tourism brings.', keyConnectionTopic: 'Sustainable Tourism' },
+    { id: 'sustainable-tourism', name: 'Sustainable Tourism', description: 'Managing tourism so destinations aren\'t damaged for future visitors.', keyConnectionTopic: 'Tourism Growth Factors' },
+  ],
+  'geography-food-resources': [
+    { id: 'food-production-systems', name: 'Food Production Systems', description: 'Different farming methods used to produce food at different scales.', keyConnectionTopic: 'Food Security' },
+    { id: 'food-security', name: 'Food Security', description: 'Whether a population has reliable access to enough safe, nutritious food.', keyConnectionTopic: 'Sustainable Agriculture' },
+    { id: 'sustainable-agriculture', name: 'Sustainable Agriculture', description: 'Farming practices that maintain food output without degrading the land.', keyConnectionTopic: 'Food Production Systems' },
+  ],
+  'a-math-quadratics': [
+    { id: 'quadratic-formula', name: 'Quadratic Formula', description: 'A formula that solves any quadratic equation directly from its coefficients.', keyConnectionTopic: 'Discriminant' },
+    { id: 'completing-the-square', name: 'Completing the Square', description: 'Rewriting a quadratic to find its turning point and solve it algebraically.', keyConnectionTopic: 'Quadratic Formula' },
+    { id: 'discriminant', name: 'Discriminant', description: 'Tells you how many real roots a quadratic equation has, without solving it.', keyConnectionTopic: 'Completing the Square' },
+  ],
+  'a-math-polynomials': [
+    { id: 'remainder-theorem', name: 'Remainder Theorem', description: 'Finds the remainder when a polynomial is divided, without doing long division.', keyConnectionTopic: 'Factor Theorem' },
+    { id: 'factor-theorem', name: 'Factor Theorem', description: 'Tests whether a given value is a root, i.e. a factor, of a polynomial.', keyConnectionTopic: 'Polynomial Division' },
+    { id: 'polynomial-division', name: 'Polynomial Division', description: 'Dividing one polynomial by another to simplify or factorise an expression.', keyConnectionTopic: 'Remainder Theorem' },
+  ],
+  'a-math-trigonometry': [
+    { id: 'trigonometric-identities', name: 'Trigonometric Identities', description: 'Relationships like sin²θ + cos²θ = 1 used to simplify trig expressions.', keyConnectionTopic: 'Trigonometric Equations' },
+    { id: 'trigonometric-equations', name: 'Trigonometric Equations', description: 'Solving equations involving sine, cosine, and tangent within a given range.', keyConnectionTopic: 'Graphs of Trig Functions' },
+    { id: 'graphs-of-trig-functions', name: 'Graphs of Trig Functions', description: 'The repeating wave shapes of sine, cosine, and tangent graphs.', keyConnectionTopic: 'Trigonometric Identities' },
+  ],
+  'a-math-differentiation': [
+    { id: 'chain-rule', name: 'Chain Rule', description: 'Differentiates a function composed of one function nested inside another.', keyConnectionTopic: 'Product & Quotient Rule' },
+    { id: 'product-quotient-rule', name: 'Product & Quotient Rule', description: 'Rules for differentiating a product or a fraction of two functions.', keyConnectionTopic: 'Stationary Points' },
+    { id: 'stationary-points', name: 'Stationary Points', description: 'Points where the gradient is zero, found by setting the derivative to 0.', keyConnectionTopic: 'Chain Rule' },
+  ],
+  'a-math-integration': [
+    { id: 'indefinite-integrals', name: 'Indefinite Integrals', description: 'The reverse process of differentiation, giving a family of functions plus a constant.', keyConnectionTopic: 'Definite Integrals' },
+    { id: 'definite-integrals', name: 'Definite Integrals', description: 'Evaluating an integral between two limits to get a single numerical value.', keyConnectionTopic: 'Area Under a Curve' },
+    { id: 'area-under-a-curve', name: 'Area Under a Curve', description: 'Using definite integrals to calculate the area between a curve and the x-axis.', keyConnectionTopic: 'Indefinite Integrals' },
+  ],
+  'a-math-coordinate-geometry': [
+    { id: 'equation-of-a-line', name: 'Equation of a Line', description: 'Writing a straight line in the form y = mx + c from given information.', keyConnectionTopic: 'Distance & Midpoint' },
+    { id: 'distance-midpoint', name: 'Distance & Midpoint', description: 'Formulas for the distance between two points and the point exactly between them.', keyConnectionTopic: 'Perpendicular & Parallel Lines' },
+    { id: 'perpendicular-parallel-lines', name: 'Perpendicular & Parallel Lines', description: 'Gradient rules for lines that never meet or that cross at a right angle.', keyConnectionTopic: 'Equation of a Line' },
+  ],
+  'e-math-numbers': [
+    { id: 'number-types', name: 'Number Types', description: 'Integers, rationals, and irrationals, and how they relate to each other.', keyConnectionTopic: 'Standard Form' },
+    { id: 'standard-form', name: 'Standard Form', description: 'Writing very large or very small numbers as a value times a power of 10.', keyConnectionTopic: 'Estimation & Approximation' },
+    { id: 'estimation-approximation', name: 'Estimation & Approximation', description: 'Rounding to a sensible number of figures to check if an answer is reasonable.', keyConnectionTopic: 'Number Types' },
+  ],
+  'e-math-algebra': [
+    { id: 'simplifying-expressions', name: 'Simplifying Expressions', description: 'Collecting like terms and expanding brackets to tidy up an expression.', keyConnectionTopic: 'Solving Equations' },
+    { id: 'solving-equations', name: 'Solving Equations', description: 'Finding the value of an unknown that makes an equation true.', keyConnectionTopic: 'Simultaneous Equations' },
+    { id: 'simultaneous-equations', name: 'Simultaneous Equations', description: 'Solving two equations together to find values that satisfy both at once.', keyConnectionTopic: 'Simplifying Expressions' },
+  ],
+  'e-math-geometry': [
+    { id: 'angle-properties', name: 'Angle Properties', description: 'Rules for angles on a line, around a point, and in polygons.', keyConnectionTopic: 'Congruence & Similarity' },
+    { id: 'congruence-similarity', name: 'Congruence & Similarity', description: 'Shapes that are identical, or the same shape at a different scale.', keyConnectionTopic: 'Circle Theorems' },
+    { id: 'circle-theorems', name: 'Circle Theorems', description: 'Angle relationships involving chords, tangents, and arcs of a circle.', keyConnectionTopic: 'Angle Properties' },
+  ],
+  'e-math-statistics': [
+    { id: 'mean-median-mode', name: 'Mean, Median & Mode', description: 'Three different ways to describe the "average" of a data set.', keyConnectionTopic: 'Data Representation' },
+    { id: 'data-representation', name: 'Data Representation', description: 'Bar charts, histograms, and pie charts used to display data visually.', keyConnectionTopic: 'Cumulative Frequency' },
+    { id: 'cumulative-frequency', name: 'Cumulative Frequency', description: 'Running totals used to find the median and quartiles from grouped data.', keyConnectionTopic: 'Mean, Median & Mode' },
+  ],
+  'e-math-probability': [
+    { id: 'probability-rules', name: 'Probability Rules', description: 'Basic rules for combining probabilities of independent and combined events.', keyConnectionTopic: 'Tree Diagrams' },
+    { id: 'tree-diagrams', name: 'Tree Diagrams', description: 'Diagrams that map out possible outcomes across a sequence of events.', keyConnectionTopic: 'Venn Diagrams' },
+    { id: 'venn-diagrams', name: 'Venn Diagrams', description: 'Diagrams showing how sets of outcomes overlap, useful for combined events.', keyConnectionTopic: 'Probability Rules' },
+  ],
+  'e-math-mensuration': [
+    { id: 'area-perimeter', name: 'Area & Perimeter', description: 'Formulas for the space inside and the boundary length of 2D shapes.', keyConnectionTopic: 'Volume & Surface Area' },
+    { id: 'volume-surface-area', name: 'Volume & Surface Area', description: 'Formulas for the space inside and the outer surface of 3D solids.', keyConnectionTopic: 'Arc Length & Sector Area' },
+    { id: 'arc-length-sector-area', name: 'Arc Length & Sector Area', description: 'Measuring a portion of a circle\'s circumference and the area it encloses.', keyConnectionTopic: 'Area & Perimeter' },
+  ],
 };
 
 // Real syllabus relationships between real catalog topic ids (not the old
@@ -175,6 +325,36 @@ const realisticTopicConnections: Record<string, { from: string; to: string }[]> 
     { from: 'physics-electricity', to: 'physics-electromagnetism' }, // current creates magnetic effects
     { from: 'physics-waves', to: 'physics-electromagnetism' }, // EM waves are part of the wave family
     { from: 'physics-nuclear-physics', to: 'physics-energy' }, // radioactive decay releases energy
+  ],
+  English: [
+    { from: 'english-comprehension', to: 'english-summary-writing' }, // summary skills build directly on comprehension
+    { from: 'english-situational-writing', to: 'english-continuous-writing' }, // both are the writing paper's two components
+    { from: 'english-editing', to: 'english-continuous-writing' }, // editing skills sharpen your own writing
+    { from: 'english-visual-text', to: 'english-comprehension' }, // visual text also tests comprehension skills
+  ],
+  History: [
+    { from: 'history-world-war-i', to: 'history-world-war-ii' }, // WWI's unresolved tensions fed into WWII
+    { from: 'history-world-war-ii', to: 'history-the-cold-war' }, // WWII's ending set up Cold War rivalry
+    { from: 'history-the-cold-war', to: 'history-decolonisation' }, // superpower rivalry shaped decolonisation
+    { from: 'history-singapore-history', to: 'history-decolonisation' }, // Singapore's independence is part of decolonisation
+    { from: 'history-the-cold-war', to: 'history-united-nations' }, // the UN formed in response to WWII and Cold War tension
+  ],
+  Geography: [
+    { from: 'geography-rivers', to: 'geography-coasts' }, // rivers deposit sediment that shapes coastlines
+    { from: 'geography-weather-climate', to: 'geography-food-resources' }, // climate directly affects what can be farmed
+    { from: 'geography-tourism', to: 'geography-coasts' }, // many tourist destinations are coastal
+    { from: 'geography-plate-tectonics', to: 'geography-weather-climate' }, // volcanic activity can affect regional climate
+  ],
+  'A-Math': [
+    { from: 'a-math-polynomials', to: 'a-math-quadratics' }, // a quadratic is a specific type of polynomial
+    { from: 'a-math-quadratics', to: 'a-math-coordinate-geometry' }, // quadratic curves are studied via coordinate geometry
+    { from: 'a-math-trigonometry', to: 'a-math-differentiation' }, // differentiating trigonometric functions
+    { from: 'a-math-differentiation', to: 'a-math-integration' }, // integration reverses differentiation
+  ],
+  'E-Math': [
+    { from: 'e-math-algebra', to: 'e-math-numbers' }, // algebra builds directly on number properties
+    { from: 'e-math-geometry', to: 'e-math-mensuration' }, // mensuration applies geometric shape properties
+    { from: 'e-math-statistics', to: 'e-math-probability' }, // both are data and chance topics, often taught together
   ],
 };
 
@@ -407,7 +587,7 @@ export default function StudentConceptWebView() {
   const selectedPopupTier = popup ? tierForScore(popup.node.memoryScore) : null;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
+    <div className="flex h-dvh max-h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-4 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
         <div className="flex items-center gap-3 rounded-full bg-secondary px-4 py-2 text-secondary-foreground">
           <span className="text-xl">{subjectsData[subject]?.icon ?? '🧠'}</span>
@@ -442,7 +622,7 @@ export default function StudentConceptWebView() {
         </div>
       </div>
 
-      <div ref={canvasRef} className="relative flex-1 cursor-grab overflow-hidden active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onWheel={handleWheel} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
+      <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onWheel={handleWheel} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
         <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
           <defs>
             <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>
