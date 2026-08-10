@@ -166,6 +166,15 @@
   --border: #31445e;
   --input: #31445e;
   --ring: #6486B5;
+  /* --studynow-dark is used across quiz.tsx/capture-hub.tsx/profile.tsx as a
+     fixed "dark text on a light card" color, predating the dark mode theme.
+     Left at its :root value (a near-black navy), it renders as near-invisible
+     dark-on-dark text once --background/--card flip to dark colors here.
+     Flipping it to the same light tone as --foreground fixes every one of
+     those call sites without editing ~40 individual class names; the couple
+     of `text-studynow-dark` usages that sit on a fixed amber (#EAA93C)
+     button background stay perfectly readable with light text too. */
+  --studynow-dark: #f7f3e8;
   --sidebar: #102036;
   --sidebar-foreground: #f7f3e8;
   --sidebar-primary: #f2cb55;

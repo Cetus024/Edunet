@@ -424,6 +424,12 @@ export default function StudentConceptWebView() {
   const [dragging, setDragging] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [popup, setPopup] = useState<PopupState | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Hovering a bubble "activates" a bouncier version of the idle float on it
+  // and, for a subject or topic bubble, on its children too — hovering the
+  // subject bounces every topic, hovering a topic bounces its own subtopics.
+  // Makes it easy to tell which subtopics belong to which topic even where
+  // neighbouring fans sit close together.
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const graph = useMemo(() => {
@@ -449,10 +455,18 @@ export default function StudentConceptWebView() {
       const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 170), y: roundCoordinate(400 + Math.sin(angle) * 170), r: 42, index: nodes.length };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
+      // The subtopic fan's angular width used to be a fixed constant, tuned
+      // for the old 5-topics-per-subject template. Real subjects now have
+      // 6-7 topics each, shrinking the angular slice available per topic —
+      // a fixed-width fan then spills into the neighbouring topic's fan and
+      // the bubbles visibly overlap. Scaling the spread to the actual
+      // per-topic slice (with margin to spare) keeps every subject's fans
+      // clear of each other regardless of topic count.
+      const perTopicSlice = (Math.PI * 2) / entry.topics.length;
+      const spread = Math.min(perTopicSlice * 0.62, Math.PI / 3.2);
       topic.subConcepts.forEach((concept: SubConcept, conceptIndex: number) => {
-        const spread = Math.PI / 3.2;
         const subAngle = angle - spread / 2 + (spread / Math.max(1, topic.subConcepts.length - 1)) * conceptIndex;
-        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 310), y: roundCoordinate(400 + Math.sin(subAngle) * 310), r: 30, index: nodes.length };
+        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 330), y: roundCoordinate(400 + Math.sin(subAngle) * 330), r: 28, index: nodes.length };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
@@ -639,8 +653,13 @@ export default function StudentConceptWebView() {
               const lines = wrapText(node.name);
               const friendMarkers = friendMarkersByNodeId[node.id] ?? [];
               const inViewport = node.x * pan.zoom + pan.x > -120 && node.x * pan.zoom + pan.x < 1120 && node.y * pan.zoom + pan.y > -120 && node.y * pan.zoom + pan.y < 920;
+              const activated = !prefersReducedMotion && (
+                hoveredNodeId === node.id
+                || (node.kind === 'topic' && hoveredNodeId === normalize(subject))
+                || (node.kind === 'subconcept' && hoveredNodeId === node.parentId)
+              );
               return (
-                <motion.g key={node.id} data-node="true" role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: greyed ? 0.35 : 1, scale: highlighted ? 1.15 : 1, y: prefersReducedMotion ? 0 : [0, -4, 0, 4, 0] }} transition={{ opacity: { duration: 0.25, delay: node.index * 0.04 }, scale: { duration: 0.25 }, y: prefersReducedMotion ? { duration: 0 } : { duration: 5 + (node.index % 3), repeat: Infinity, ease: 'easeInOut' as const, delay: node.index * 0.12 } }} style={{ transformOrigin: `${node.x}px ${node.y}px` }}>
+                <motion.g key={node.id} data-node="true" role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: greyed ? 0.35 : 1, scale: highlighted ? 1.15 : activated ? 1.22 : 1, y: prefersReducedMotion ? 0 : [0, -4, 0, 4, 0] }} transition={{ opacity: { duration: 0.25, delay: node.index * 0.04 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.25 }, y: prefersReducedMotion ? { duration: 0 } : { duration: 5 + (node.index % 3), repeat: Infinity, ease: 'easeInOut' as const, delay: node.index * 0.12 } }} style={{ transformOrigin: `${node.x}px ${node.y}px` }}>
                   {node.kind === 'subject' && <circle cx={node.x} cy={node.y} r={node.r + 14} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.45" />}
                   {highlighted && <><circle cx={node.x} cy={node.y} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={node.x} cy={node.y} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
                   <circle cx={node.x} cy={node.y} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter="url(#node-shadow)" />

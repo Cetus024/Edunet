@@ -174,7 +174,9 @@ const materialsSample = [
     type: 'document',
     features: ['summary', 'web'],
   },
-];
+  // Sample entries have no captured text of their own, so their summary
+  // falls back to metadata-only bullets — see buildMaterialSummary below.
+].map((material) => ({ ...material, content: null as string | null }));
 
 // Animated soundwave component
 function SoundWave({ isActive }: { isActive: boolean }) {
@@ -283,15 +285,36 @@ function FeatureIcon({ feature }: { feature: string }) {
   );
 }
 
-// O-level style key-point summary for a saved material. Capture Hub content
-// isn't persisted to a real backend (see known-gaps notes), so this is
-// generated on the fly from the material's own metadata rather than stored -
-// it exists so "View Summary" opens something real instead of doing nothing.
+// Pulls up to `max` representative sentences out of real captured text,
+// spread across the whole passage rather than just its opening, so a long
+// transcript still reads as an overview instead of only its first minute.
+function extractKeyPoints(content: string, max = 5): string[] {
+  const sentences = content
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 12);
+  if (sentences.length <= max) return sentences;
+  const step = sentences.length / max;
+  return Array.from({ length: max }, (_, index) => sentences[Math.floor(index * step)]);
+}
+
+// O-level style key-point summary for a saved material. Capture Hub has no
+// real backend (see known-gaps notes), so nothing is summarised server-side -
+// when the material has its own captured text (anything just processed in
+// this session), the summary is genuinely extracted from that text. Older
+// sample-library entries have no stored text, so they fall back to a
+// metadata-only summary instead of nothing.
 function buildMaterialSummary(material: (typeof materialsSample)[number]): string[] {
   const subject = subjects.find((candidate) => candidate.id === material.subject);
   const subjectLabel = subject ? `${subject.icon} ${subject.name}` : 'this subject';
+  const intro = `${material.topic} is the focus topic captured in "${material.name}" (${subjectLabel}).`;
+
+  const keyPoints = material.content ? extractKeyPoints(material.content) : [];
+  if (keyPoints.length > 0) return [intro, ...keyPoints];
+
   return [
-    `${material.topic} is the focus topic captured in "${material.name}".`,
+    intro,
     `Covers ${subjectLabel} content uploaded on ${format(new Date(material.dateUploaded), 'dd MMM yyyy')}.`,
     material.features.includes('quiz')
       ? 'A Smart Quiz set was generated from this material to test recall.'
@@ -491,6 +514,9 @@ export default function CaptureHubPage() {
         ...(addToWeb ? ['web'] : []),
         ...(generateSummary ? ['summary'] : []),
       ],
+      // Stored so buildMaterialSummary can genuinely summarise this specific
+      // material's own captured text, instead of only describing its metadata.
+      content: extractedContent,
     };
 
     setMaterials((prev) => [newMaterial, ...prev]);
@@ -502,6 +528,9 @@ export default function CaptureHubPage() {
     if (generateSummary) actions.push('Summary created');
 
     toast.success(actions.join(' • ') || 'Material saved!');
+    // Open the summary immediately so the result of "Summarise into Key
+    // Points" is actually visible, not just a toast claiming it happened.
+    if (generateSummary) setSummaryMaterial(newMaterial);
 
     // Reset
     setExtractedContent('');
