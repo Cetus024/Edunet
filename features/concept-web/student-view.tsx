@@ -456,7 +456,7 @@ export default function StudentConceptWebView() {
                   {node.kind === 'subject' && <text x={node.x} y={node.y - 18} textAnchor="middle" fontSize="30">{subjectsData[subject]?.icon ?? '🧠'}</text>}
                   {lines.map((line: string, lineIndex: number) => <text key={line} x={node.x} y={node.y + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
                   {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
-                  {node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore < 40 && inViewport && (
+                  {node.kind !== 'subject' && friendMarkers.length > 0 && inViewport && (
                     <ConceptNodeFriendMarkers
                       nodeId={node.id}
                       nodeCenter={{ x: node.x, y: node.y }}
