@@ -30,115 +30,122 @@ type GraphLink = { from: GraphNode; to: GraphNode; dashed?: boolean };
 type PopupState = { node: GraphNode; x: number; y: number };
 type PanState = { x: number; y: number; zoom: number };
 
-// Optional visual-detail templates for the original three subjects. Names,
-// catalog membership, icons, and every displayed score are replaced with the
-// authenticated subjectsAtom values below.
-const subjectTemplates: Record<string, SubjectEntry> = {
-  Biology: {
-    icon: '🧬',
-    topics: [
-      { id: 'cell-biology', name: 'Cell Biology', memoryScore: 78, description: 'Cell structures, specialised cells, diffusion, osmosis, and active transport.', keyConnection: { topic: 'Enzymes', explanation: 'Cell reactions rely on enzymes to control metabolism and release usable energy.' }, subConcepts: [
-        { id: 'mitosis', name: 'Mitosis', memoryScore: 64, description: 'Cell division that produces genetically identical daughter cells for growth and repair.', keyConnection: { topic: 'DNA', explanation: 'Mitosis copies and separates chromosomes so each new cell keeps the same genetic instructions.' } },
-        { id: 'cell-membrane', name: 'Cell Membrane', memoryScore: 85, description: 'A partially permeable boundary controlling movement in and out of cells.', keyConnection: { topic: 'Osmosis', explanation: 'Osmosis depends on water moving across the partially permeable cell membrane.' } },
-        { id: 'organelles', name: 'Organelles', memoryScore: 72, description: 'Nucleus, mitochondria, ribosomes, and chloroplasts each perform specific cell jobs.', keyConnection: { topic: 'Photosynthesis', explanation: 'Chloroplasts are the organelles where photosynthesis happens in plant cells.' } },
-      ] },
-      { id: 'enzymes', name: 'Enzymes', memoryScore: 46, description: 'Biological catalysts affected by temperature, pH, and substrate concentration.', keyConnection: { topic: 'Digestion', explanation: 'Digestive enzymes break large food molecules into soluble nutrients.' }, subConcepts: [
-        { id: 'active-site', name: 'Active Site', memoryScore: 41, description: 'The enzyme region where the substrate fits during a reaction.', keyConnection: { topic: 'Denaturation', explanation: 'Denaturation changes the active site shape so substrates no longer fit.' } },
-        { id: 'denaturation', name: 'Denaturation', memoryScore: 31, description: 'Permanent enzyme shape change caused by high temperature or unsuitable pH.', keyConnection: { topic: 'Homeostasis', explanation: 'Homeostasis helps keep internal conditions suitable for enzyme action.' } },
-        { id: 'lock-key', name: 'Lock and Key', memoryScore: 58, description: 'A model explaining enzyme specificity by matching substrate shape.', keyConnection: { topic: 'Active Site', explanation: 'The model depends on the active site and substrate having complementary shapes.' } },
-      ] },
-      { id: 'photosynthesis', name: 'Photosynthesis', memoryScore: 66, description: 'Plants make glucose from carbon dioxide and water using light energy.', keyConnection: { topic: 'Respiration', explanation: 'Glucose made in photosynthesis is later broken down in respiration.' }, subConcepts: [
-        { id: 'chlorophyll', name: 'Chlorophyll', memoryScore: 69, description: 'Green pigment that absorbs light energy for photosynthesis.', keyConnection: { topic: 'Chloroplasts', explanation: 'Chlorophyll is found inside chloroplasts in plant cells.' } },
-        { id: 'limiting-factors', name: 'Limiting Factors', memoryScore: 52, description: 'Light, carbon dioxide, and temperature can limit photosynthesis rate.', keyConnection: { topic: 'Enzymes', explanation: 'Temperature affects photosynthesis partly because enzyme-controlled reactions are involved.' } },
-        { id: 'stomata', name: 'Stomata', memoryScore: 38, description: 'Leaf pores that control gas exchange and water loss.', keyConnection: { topic: 'Transpiration', explanation: 'Stomata opening affects both carbon dioxide uptake and water vapour loss.' } },
-      ] },
-      { id: 'respiration', name: 'Respiration', memoryScore: 82, description: 'Releasing energy from glucose aerobically or anaerobically.', keyConnection: { topic: 'Photosynthesis', explanation: 'Photosynthesis stores energy in glucose; respiration releases it.' }, subConcepts: [
-        { id: 'aerobic', name: 'Aerobic Respiration', memoryScore: 79, description: 'Glucose reacts with oxygen to release energy, carbon dioxide, and water.', keyConnection: { topic: 'Gas Exchange', explanation: 'Aerobic respiration needs oxygen supplied by gas exchange surfaces.' } },
-        { id: 'anaerobic', name: 'Anaerobic Respiration', memoryScore: 44, description: 'Energy release without oxygen, producing lactic acid in muscles.', keyConnection: { topic: 'Oxygen Debt', explanation: 'Lactic acid must be broken down later using oxygen.' } },
-        { id: 'mitochondria', name: 'Mitochondria', memoryScore: 74, description: 'Organelles where most aerobic respiration occurs.', keyConnection: { topic: 'Organelles', explanation: 'Mitochondria are specialised organelles for energy release.' } },
-      ] },
-      { id: 'genetics', name: 'Genetics', memoryScore: 57, description: 'Inheritance, chromosomes, DNA, genes, and variation.', keyConnection: { topic: 'Mitosis', explanation: 'Chromosomes copied in mitosis carry inherited genetic information.' }, subConcepts: [
-        { id: 'dna', name: 'DNA', memoryScore: 62, description: 'The molecule carrying genetic instructions in a sequence of bases.', keyConnection: { topic: 'Protein Synthesis', explanation: 'DNA base order codes for amino acid sequences in proteins.' } },
-        { id: 'alleles', name: 'Alleles', memoryScore: 35, description: 'Different versions of the same gene.', keyConnection: { topic: 'Punnett Squares', explanation: 'Punnett squares predict offspring allele combinations.' } },
-        { id: 'punnett', name: 'Punnett Squares', memoryScore: 48, description: 'Diagrams used to predict inheritance probabilities.', keyConnection: { topic: 'Alleles', explanation: 'Punnett squares arrange parent alleles to show possible genotypes.' } },
-      ] },
-    ],
-  },
-  Chemistry: {
-    icon: '⚗️',
-    topics: [
-      { id: 'atomic-structure', name: 'Atomic Structure', memoryScore: 75, description: 'Protons, neutrons, electrons, isotopes, and electronic structure.', keyConnection: { topic: 'Periodic Table', explanation: 'Atomic number and electron arrangement explain periodic table patterns.' }, subConcepts: [
-        { id: 'protons', name: 'Protons', memoryScore: 81, description: 'Positive particles in the nucleus that define the element.', keyConnection: { topic: 'Atomic Number', explanation: 'Atomic number equals the number of protons.' } },
-        { id: 'isotopes', name: 'Isotopes', memoryScore: 43, description: 'Atoms of the same element with different neutron numbers.', keyConnection: { topic: 'Relative Atomic Mass', explanation: 'Isotope abundance affects the relative atomic mass value.' } },
-        { id: 'electron-shells', name: 'Electron Shells', memoryScore: 67, description: 'Electrons arranged in energy levels around the nucleus.', keyConnection: { topic: 'Ionic Bonding', explanation: 'Atoms gain or lose outer electrons to form ions.' } },
-      ] },
-      { id: 'chemical-bonding', name: 'Chemical Bonding', memoryScore: 39, description: 'Ionic, covalent, and metallic bonding and their properties.', keyConnection: { topic: 'Structure and Properties', explanation: 'Bond type determines melting point, conductivity, and hardness.' }, subConcepts: [
-        { id: 'ionic-bonding', name: 'Ionic Bonding', memoryScore: 32, description: 'Electrostatic attraction between oppositely charged ions.', keyConnection: { topic: 'Electron Shells', explanation: 'Ionic bonding happens when atoms transfer outer electrons.' } },
-        { id: 'covalent-bonding', name: 'Covalent Bonding', memoryScore: 49, description: 'Atoms share pairs of electrons to complete outer shells.', keyConnection: { topic: 'Molecules', explanation: 'Covalent bonds hold atoms together in simple molecules.' } },
-        { id: 'metallic-bonding', name: 'Metallic Bonding', memoryScore: 71, description: 'Positive metal ions surrounded by delocalised electrons.', keyConnection: { topic: 'Conductivity', explanation: 'Delocalised electrons allow metals to conduct electricity.' } },
-      ] },
-      { id: 'moles', name: 'Moles', memoryScore: 51, description: 'Chemical amounts, relative formula mass, concentration, and reacting masses.', keyConnection: { topic: 'Equations', explanation: 'Balanced equations give mole ratios for calculations.' }, subConcepts: [
-        { id: 'avogadro', name: 'Avogadro Constant', memoryScore: 28, description: 'The number of particles in one mole of substance.', keyConnection: { topic: 'Moles', explanation: 'It links particle numbers to measurable amounts.' } },
-        { id: 'concentration', name: 'Concentration', memoryScore: 54, description: 'Amount of solute per volume of solution.', keyConnection: { topic: 'Titration', explanation: 'Titration uses concentrations and volumes to calculate unknowns.' } },
-        { id: 'yield', name: 'Percentage Yield', memoryScore: 61, description: 'Actual yield compared with theoretical yield.', keyConnection: { topic: 'Reacting Masses', explanation: 'Theoretical yield is calculated from reacting masses.' } },
-      ] },
-      { id: 'acids-alkalis', name: 'Acids and Alkalis', memoryScore: 83, description: 'pH, neutralisation, salts, and ionic equations.', keyConnection: { topic: 'Ions', explanation: 'Hydrogen and hydroxide ions explain acidity and alkalinity.' }, subConcepts: [
-        { id: 'ph-scale', name: 'pH Scale', memoryScore: 84, description: 'A scale showing acidity or alkalinity of a solution.', keyConnection: { topic: 'Indicators', explanation: 'Indicators change colour across different pH values.' } },
-        { id: 'neutralisation', name: 'Neutralisation', memoryScore: 77, description: 'Acid and alkali react to make salt and water.', keyConnection: { topic: 'Ionic Equations', explanation: 'Neutralisation can be summarised as H+ plus OH- makes water.' } },
-        { id: 'salts', name: 'Salt Preparation', memoryScore: 59, description: 'Methods for making soluble and insoluble salts.', keyConnection: { topic: 'Neutralisation', explanation: 'Many salt preparations start with neutralising an acid.' } },
-      ] },
-      { id: 'electrolysis', name: 'Electrolysis', memoryScore: 42, description: 'Using electricity to decompose ionic substances.', keyConnection: { topic: 'Ionic Bonding', explanation: 'Only mobile ions can carry charge during electrolysis.' }, subConcepts: [
-        { id: 'electrodes', name: 'Electrodes', memoryScore: 47, description: 'Conductors where oxidation or reduction occurs.', keyConnection: { topic: 'Redox', explanation: 'Oxidation happens at one electrode and reduction at the other.' } },
-        { id: 'molten-electrolysis', name: 'Molten Electrolysis', memoryScore: 34, description: 'Electrolysis of melted ionic compounds.', keyConnection: { topic: 'Ions', explanation: 'Melting frees ions so they can move and carry charge.' } },
-        { id: 'aqueous-electrolysis', name: 'Aqueous Electrolysis', memoryScore: 40, description: 'Electrolysis in water, where ions compete for discharge.', keyConnection: { topic: 'Reactivity Series', explanation: 'Metal ion discharge depends on relative reactivity.' } },
-      ] },
-      { id: 'rates', name: 'Rates of Reaction', memoryScore: 68, description: 'How quickly reactants become products and factors affecting rate.', keyConnection: { topic: 'Collision Theory', explanation: 'Rate depends on successful collisions between particles.' }, subConcepts: [
-        { id: 'collision-theory', name: 'Collision Theory', memoryScore: 70, description: 'Particles must collide with enough energy and correct orientation.', keyConnection: { topic: 'Activation Energy', explanation: 'Only collisions above activation energy react successfully.' } },
-        { id: 'catalysts', name: 'Catalysts', memoryScore: 65, description: 'Substances that speed reactions without being used up.', keyConnection: { topic: 'Activation Energy', explanation: 'Catalysts provide a lower energy pathway.' } },
-        { id: 'surface-area', name: 'Surface Area', memoryScore: 55, description: 'Smaller pieces expose more particles for collisions.', keyConnection: { topic: 'Collision Theory', explanation: 'More exposed particles means more frequent successful collisions.' } },
-      ] },
-    ],
-  },
-  Physics: {
-    icon: '🛰️',
-    topics: [
-      { id: 'forces-motion', name: 'Forces and Motion', memoryScore: 73, description: 'Speed, acceleration, resultant force, and Newton’s laws.', keyConnection: { topic: 'Energy', explanation: 'Forces transfer energy when they move objects through a distance.' }, subConcepts: [
-        { id: 'acceleration', name: 'Acceleration', memoryScore: 76, description: 'Change in velocity per second.', keyConnection: { topic: 'Velocity-Time Graphs', explanation: 'Acceleration is the gradient of a velocity-time graph.' } },
-        { id: 'newtons-second', name: 'Newton’s Second Law', memoryScore: 56, description: 'Resultant force equals mass times acceleration.', keyConnection: { topic: 'Acceleration', explanation: 'The law calculates acceleration from force and mass.' } },
-        { id: 'terminal-velocity', name: 'Terminal Velocity', memoryScore: 37, description: 'Constant speed reached when forces balance.', keyConnection: { topic: 'Resultant Force', explanation: 'When resultant force is zero, acceleration stops.' } },
-      ] },
-      { id: 'energy', name: 'Energy', memoryScore: 80, description: 'Energy stores, transfers, efficiency, and conservation.', keyConnection: { topic: 'Forces and Motion', explanation: 'Mechanical work transfers energy between stores.' }, subConcepts: [
-        { id: 'gpe', name: 'Gravitational Potential', memoryScore: 82, description: 'Energy stored by objects raised in a gravitational field.', keyConnection: { topic: 'Kinetic Energy', explanation: 'Falling transfers gravitational potential energy into kinetic energy.' } },
-        { id: 'efficiency', name: 'Efficiency', memoryScore: 63, description: 'Useful energy output divided by total energy input.', keyConnection: { topic: 'Power', explanation: 'Power ratings help compare useful energy transfer per second.' } },
-        { id: 'conservation', name: 'Conservation of Energy', memoryScore: 74, description: 'Energy cannot be created or destroyed, only transferred.', keyConnection: { topic: 'Energy Stores', explanation: 'Conservation tracks how total energy moves between stores.' } },
-      ] },
-      { id: 'waves', name: 'Waves', memoryScore: 45, description: 'Wave properties, reflection, refraction, sound, and electromagnetic waves.', keyConnection: { topic: 'Light', explanation: 'Light is an electromagnetic wave that reflects and refracts.' }, subConcepts: [
-        { id: 'frequency', name: 'Frequency', memoryScore: 50, description: 'Number of waves passing a point each second.', keyConnection: { topic: 'Wave Speed', explanation: 'Wave speed equals frequency times wavelength.' } },
-        { id: 'refraction', name: 'Refraction', memoryScore: 36, description: 'Wave direction changes when speed changes between materials.', keyConnection: { topic: 'Lenses', explanation: 'Lenses use refraction to focus light.' } },
-        { id: 'em-spectrum', name: 'EM Spectrum', memoryScore: 42, description: 'The full range of electromagnetic radiation.', keyConnection: { topic: 'Frequency', explanation: 'EM waves differ by frequency and wavelength.' } },
-      ] },
-      { id: 'electricity', name: 'Electricity', memoryScore: 58, description: 'Charge, current, voltage, resistance, circuits, and power.', keyConnection: { topic: 'Energy', explanation: 'Electrical devices transfer energy from circuits to useful stores.' }, subConcepts: [
-        { id: 'current', name: 'Current', memoryScore: 60, description: 'Rate of flow of electric charge.', keyConnection: { topic: 'Charge', explanation: 'Current equals charge flow per second.' } },
-        { id: 'resistance', name: 'Resistance', memoryScore: 44, description: 'Opposition to current in a component.', keyConnection: { topic: 'Ohm’s Law', explanation: 'Resistance links voltage and current in Ohm’s law.' } },
-        { id: 'series-parallel', name: 'Series and Parallel', memoryScore: 53, description: 'Circuit arrangements that affect current and potential difference.', keyConnection: { topic: 'Voltage', explanation: 'Potential difference is shared differently in series and parallel circuits.' } },
-      ] },
-      { id: 'radioactivity', name: 'Radioactivity', memoryScore: 24, description: 'Nuclear radiation, half-life, contamination, and irradiation.', keyConnection: { topic: 'Atomic Structure', explanation: 'Radiation comes from unstable atomic nuclei.' }, subConcepts: [
-        { id: 'alpha-beta-gamma', name: 'Alpha Beta Gamma', memoryScore: 29, description: 'Three types of nuclear radiation with different penetration and ionisation.', keyConnection: { topic: 'Ionisation', explanation: 'Radiation danger depends on how strongly it ionises cells.' } },
-        { id: 'half-life', name: 'Half-life', memoryScore: 22, description: 'Time taken for activity or unstable nuclei count to halve.', keyConnection: { topic: 'Decay Graphs', explanation: 'Half-life is read from radioactive decay graphs.' } },
-        { id: 'irradiation', name: 'Irradiation', memoryScore: 33, description: 'Exposure to radiation from a source outside the body.', keyConnection: { topic: 'Contamination', explanation: 'Contamination is different because radioactive material is present on or inside you.' } },
-      ] },
-    ],
-  },
-};
-
-const topicTemplateIds: Record<string, string> = {
-  'bio-cell': 'cell-biology',
-  'chem-bonding': 'chemical-bonding',
-  'chem-stoich': 'moles',
-  'chem-acids': 'acids-alkalis',
-  'chem-rate': 'rates',
-  'phys-kinematics': 'forces-motion',
-  'phys-nuclear': 'radioactivity',
+// Every real catalog topic (keyed by its real id — see database/seed) gets 3
+// realistic O-Level subtopic branches, restoring the two-tier branch layout
+// for Biology/Chemistry/Physics. This replaces an earlier approach that
+// matched subtopics from an old hardcoded template by NAME, which only ever
+// lined up for the handful of real topics that happened to share a name with
+// the template (e.g. "Genetics", "Respiration") — every other topic showed
+// no branches at all. Subjects without an entry here (English, History,
+// Geography, A-Math, E-Math) still render, just as a single ring with no
+// subtopic fan, until their own syllabus branches are written.
+type SubconceptSeed = { id: string; name: string; description: string; keyConnectionTopic: string };
+const topicSubconcepts: Record<string, SubconceptSeed[]> = {
+  'biology-cell-division-mitosis': [
+    { id: 'chromosomes', name: 'Chromosomes', description: 'Threadlike structures carrying genetic information, copied and separated during cell division.', keyConnectionTopic: 'The Cell Cycle' },
+    { id: 'the-cell-cycle', name: 'The Cell Cycle', description: 'Growth phase followed by division, producing two genetically identical daughter cells.', keyConnectionTopic: 'Growth & Repair' },
+    { id: 'growth-repair', name: 'Growth & Repair', description: 'Mitosis replaces damaged cells and enables an organism to grow.', keyConnectionTopic: 'Chromosomes' },
+  ],
+  'biology-nutrition': [
+    { id: 'digestive-enzymes', name: 'Digestive Enzymes', description: 'Break down large food molecules into smaller, soluble ones for absorption.', keyConnectionTopic: 'Absorption in the Small Intestine' },
+    { id: 'balanced-diet', name: 'Balanced Diet', description: 'The right proportions of carbohydrates, proteins, fats, vitamins, minerals, fibre, and water.', keyConnectionTopic: 'Digestive Enzymes' },
+    { id: 'absorption-small-intestine', name: 'Absorption in the Small Intestine', description: 'Villi increase surface area so digested nutrients can be absorbed into the blood.', keyConnectionTopic: 'Balanced Diet' },
+  ],
+  'biology-respiration': [
+    { id: 'aerobic-respiration', name: 'Aerobic Respiration', description: 'Glucose reacts with oxygen to release energy, carbon dioxide, and water.', keyConnectionTopic: 'Mitochondria' },
+    { id: 'anaerobic-respiration', name: 'Anaerobic Respiration', description: 'Energy release without oxygen, producing lactic acid in muscles.', keyConnectionTopic: 'Aerobic Respiration' },
+    { id: 'mitochondria', name: 'Mitochondria', description: 'Organelles where most aerobic respiration takes place.', keyConnectionTopic: 'Anaerobic Respiration' },
+  ],
+  'biology-transport': [
+    { id: 'circulatory-system', name: 'Circulatory System', description: 'The heart and blood vessels transport oxygen, nutrients, and waste around the body.', keyConnectionTopic: 'Diffusion & Osmosis' },
+    { id: 'xylem-phloem', name: 'Xylem & Phloem', description: 'Plant vessels carrying water/minerals upward and dissolved sugars around the plant.', keyConnectionTopic: 'Circulatory System' },
+    { id: 'diffusion-osmosis', name: 'Diffusion & Osmosis', description: 'Movement of particles and water down a concentration gradient underlies all transport.', keyConnectionTopic: 'Xylem & Phloem' },
+  ],
+  'biology-reproduction': [
+    { id: 'sexual-reproduction', name: 'Sexual Reproduction', description: 'Fusion of male and female gametes produces genetically varied offspring.', keyConnectionTopic: 'Fertilisation' },
+    { id: 'fertilisation', name: 'Fertilisation', description: 'The fusion of a sperm nucleus and an egg nucleus to form a zygote.', keyConnectionTopic: 'The Menstrual Cycle' },
+    { id: 'the-menstrual-cycle', name: 'The Menstrual Cycle', description: 'Hormone-controlled monthly cycle that prepares the uterus for a possible pregnancy.', keyConnectionTopic: 'Sexual Reproduction' },
+  ],
+  'biology-ecology': [
+    { id: 'food-chains-webs', name: 'Food Chains & Webs', description: 'Show how energy and nutrients transfer between organisms in an ecosystem.', keyConnectionTopic: 'Nutrient Cycles' },
+    { id: 'nutrient-cycles', name: 'Nutrient Cycles', description: 'Decomposers recycle nutrients like carbon and nitrogen back into the ecosystem.', keyConnectionTopic: 'Population & Environment' },
+    { id: 'population-environment', name: 'Population & Environment', description: 'Population size is limited by food, space, predators, and other environmental factors.', keyConnectionTopic: 'Food Chains & Webs' },
+  ],
+  'biology-genetics': [
+    { id: 'dna-genes', name: 'DNA & Genes', description: 'DNA carries genetic instructions in genes, sequences of bases coding for traits.', keyConnectionTopic: 'Alleles' },
+    { id: 'alleles', name: 'Alleles', description: 'Different versions of the same gene, which can be dominant or recessive.', keyConnectionTopic: 'Punnett Squares' },
+    { id: 'punnett-squares', name: 'Punnett Squares', description: 'Diagrams used to predict the probability of offspring genotypes and phenotypes.', keyConnectionTopic: 'DNA & Genes' },
+  ],
+  'chemistry-atomic-structure': [
+    { id: 'protons-neutrons-electrons', name: 'Protons, Neutrons & Electrons', description: 'Subatomic particles whose numbers define an element and its charge.', keyConnectionTopic: 'Isotopes' },
+    { id: 'isotopes', name: 'Isotopes', description: 'Atoms of the same element with different numbers of neutrons.', keyConnectionTopic: 'Electronic Structure' },
+    { id: 'electronic-structure', name: 'Electronic Structure', description: 'Electrons arranged in shells around the nucleus, determining chemical bonding.', keyConnectionTopic: 'Protons, Neutrons & Electrons' },
+  ],
+  'chemistry-covalent-bonding': [
+    { id: 'simple-molecules', name: 'Simple Molecules', description: 'Small covalent molecules with low melting/boiling points, e.g. water and carbon dioxide.', keyConnectionTopic: 'Shared Electron Pairs' },
+    { id: 'giant-covalent-structures', name: 'Giant Covalent Structures', description: 'Huge lattices of covalently bonded atoms, e.g. diamond and graphite, with very high melting points.', keyConnectionTopic: 'Simple Molecules' },
+    { id: 'shared-electron-pairs', name: 'Shared Electron Pairs', description: 'Atoms share pairs of electrons to complete their outer shells.', keyConnectionTopic: 'Giant Covalent Structures' },
+  ],
+  'chemistry-stoichiometry': [
+    { id: 'the-mole', name: 'The Mole', description: 'A counting unit for particles, linking a measurable mass to a number of atoms or molecules.', keyConnectionTopic: 'Balanced Equations' },
+    { id: 'balanced-equations', name: 'Balanced Equations', description: 'Equal atoms of each element on both sides, giving mole ratios for a reaction.', keyConnectionTopic: 'Reacting Masses' },
+    { id: 'reacting-masses', name: 'Reacting Masses', description: 'Using mole ratios from a balanced equation to calculate masses of reactants and products.', keyConnectionTopic: 'The Mole' },
+  ],
+  'chemistry-acids-bases': [
+    { id: 'ph-scale', name: 'pH Scale', description: 'A scale from 0 to 14 showing how acidic or alkaline a solution is.', keyConnectionTopic: 'Neutralisation' },
+    { id: 'neutralisation', name: 'Neutralisation', description: 'An acid and a base react to form a salt and water.', keyConnectionTopic: 'Salt Preparation' },
+    { id: 'salt-preparation', name: 'Salt Preparation', description: 'Methods for making soluble and insoluble salts, often starting from neutralisation.', keyConnectionTopic: 'pH Scale' },
+  ],
+  'chemistry-redox-reactions': [
+    { id: 'oxidation-reduction', name: 'Oxidation & Reduction', description: 'Oxidation is loss of electrons (or gain of oxygen); reduction is the reverse.', keyConnectionTopic: 'Electron Transfer' },
+    { id: 'electron-transfer', name: 'Electron Transfer', description: 'Redox reactions always involve electrons moving from one species to another.', keyConnectionTopic: 'Displacement Reactions' },
+    { id: 'displacement-reactions', name: 'Displacement Reactions', description: 'A more reactive metal displaces a less reactive one from its compound — a classic redox example.', keyConnectionTopic: 'Oxidation & Reduction' },
+  ],
+  'chemistry-organic-chemistry': [
+    { id: 'hydrocarbons', name: 'Hydrocarbons', description: 'Compounds of hydrogen and carbon only, the basis of fuels like alkanes and alkenes.', keyConnectionTopic: 'Homologous Series' },
+    { id: 'alcohols', name: 'Alcohols', description: 'Organic compounds containing an -OH group, made by fermentation or from hydrocarbons.', keyConnectionTopic: 'Hydrocarbons' },
+    { id: 'homologous-series', name: 'Homologous Series', description: 'A family of compounds with the same general formula and similar chemical properties.', keyConnectionTopic: 'Alcohols' },
+  ],
+  'chemistry-rate-of-reaction': [
+    { id: 'collision-theory', name: 'Collision Theory', description: 'Particles must collide with enough energy and the correct orientation to react.', keyConnectionTopic: 'Catalysts' },
+    { id: 'catalysts', name: 'Catalysts', description: 'Speed up a reaction by providing a lower energy pathway, without being used up.', keyConnectionTopic: 'Factors Affecting Rate' },
+    { id: 'factors-affecting-rate', name: 'Factors Affecting Rate', description: 'Temperature, concentration, surface area, and pressure all change collision frequency.', keyConnectionTopic: 'Collision Theory' },
+  ],
+  'physics-speed-acceleration': [
+    { id: 'distance-time-graphs', name: 'Distance-Time Graphs', description: 'Gradient gives speed; a curved line shows the object is accelerating.', keyConnectionTopic: 'Velocity-Time Graphs' },
+    { id: 'velocity-time-graphs', name: 'Velocity-Time Graphs', description: 'Gradient gives acceleration; area under the graph gives distance travelled.', keyConnectionTopic: 'Acceleration Formula' },
+    { id: 'acceleration-formula', name: 'Acceleration Formula', description: 'Acceleration equals the change in velocity divided by the time taken.', keyConnectionTopic: 'Distance-Time Graphs' },
+  ],
+  'physics-dynamics': [
+    { id: 'newtons-laws', name: "Newton's Laws", description: "An object's motion only changes when acted on by a resultant force.", keyConnectionTopic: 'Resultant Force' },
+    { id: 'resultant-force', name: 'Resultant Force', description: 'The single force equivalent to all the forces acting on an object combined.', keyConnectionTopic: 'Momentum' },
+    { id: 'momentum', name: 'Momentum', description: 'Mass times velocity; conserved in collisions when no external force acts.', keyConnectionTopic: "Newton's Laws" },
+  ],
+  'physics-energy': [
+    { id: 'energy-stores-transfers', name: 'Energy Stores & Transfers', description: 'Energy moves between stores such as kinetic, gravitational, and thermal.', keyConnectionTopic: 'Conservation of Energy' },
+    { id: 'conservation-of-energy', name: 'Conservation of Energy', description: 'Energy cannot be created or destroyed, only transferred between stores.', keyConnectionTopic: 'Efficiency' },
+    { id: 'efficiency', name: 'Efficiency', description: 'Useful energy output divided by total energy input, since some is always wasted.', keyConnectionTopic: 'Energy Stores & Transfers' },
+  ],
+  'physics-waves': [
+    { id: 'wave-properties', name: 'Wave Properties', description: 'Amplitude, wavelength, and frequency describe and distinguish waves.', keyConnectionTopic: 'Reflection & Refraction' },
+    { id: 'reflection-refraction', name: 'Reflection & Refraction', description: 'Waves bounce off surfaces or bend when they change speed between materials.', keyConnectionTopic: 'Electromagnetic Spectrum' },
+    { id: 'electromagnetic-spectrum', name: 'Electromagnetic Spectrum', description: 'The full range of electromagnetic waves, ordered by frequency and wavelength.', keyConnectionTopic: 'Wave Properties' },
+  ],
+  'physics-electricity': [
+    { id: 'current-voltage', name: 'Current & Voltage', description: 'Current is the rate of flow of charge; voltage is the energy transferred per charge.', keyConnectionTopic: 'Resistance' },
+    { id: 'resistance', name: 'Resistance', description: 'Opposition to current flow in a component, linking voltage and current via Ohm’s law.', keyConnectionTopic: 'Series & Parallel Circuits' },
+    { id: 'series-parallel-circuits', name: 'Series & Parallel Circuits', description: 'Circuit arrangements that share current and potential difference differently.', keyConnectionTopic: 'Current & Voltage' },
+  ],
+  'physics-electromagnetism': [
+    { id: 'magnetic-fields', name: 'Magnetic Fields', description: 'Regions where a magnetic force acts, mapped with field lines from N to S pole.', keyConnectionTopic: 'The Motor Effect' },
+    { id: 'electromagnetic-induction', name: 'Electromagnetic Induction', description: 'A changing magnetic field near a conductor induces a voltage (generator effect).', keyConnectionTopic: 'Magnetic Fields' },
+    { id: 'the-motor-effect', name: 'The Motor Effect', description: 'A current-carrying wire in a magnetic field experiences a force, the basis of motors.', keyConnectionTopic: 'Electromagnetic Induction' },
+  ],
+  'physics-nuclear-physics': [
+    { id: 'radioactive-decay', name: 'Radioactive Decay', description: 'Unstable nuclei randomly emit radiation to become more stable.', keyConnectionTopic: 'Nuclear Radiation Types' },
+    { id: 'half-life', name: 'Half-life', description: 'The time taken for the activity of a radioactive source to halve.', keyConnectionTopic: 'Radioactive Decay' },
+    { id: 'nuclear-radiation-types', name: 'Nuclear Radiation Types', description: 'Alpha, beta, and gamma radiation differ in penetration, range, and ionising power.', keyConnectionTopic: 'Half-life' },
+  ],
 };
 
 // Real syllabus relationships between real catalog topic ids (not the old
@@ -193,28 +200,28 @@ export default function StudentConceptWebView() {
   const authenticatedSubjects = useAtomValue(subjectsAtom);
   const subjectsData = useMemo<Record<string, SubjectEntry>>(() => {
     return Object.fromEntries(authenticatedSubjects.map((subjectData: SubjectData) => {
-      const template = subjectTemplates[subjectData.name];
       const topics = subjectData.topics.map((topicData: TopicData, topicIndex: number): Topic => {
-        const templateTopic = template?.topics.find((candidate: Topic) => (
-          candidate.id === topicTemplateIds[topicData.id]
-          || normalize(candidate.name) === normalize(topicData.name)
-        ));
+        const subconceptSeeds = topicSubconcepts[topicData.id] ?? [];
         const nextTopic = subjectData.topics[(topicIndex + 1) % subjectData.topics.length] ?? topicData;
 
         return {
           id: topicData.id,
           name: topicData.name,
           memoryScore: topicData.memoryScore,
-          description: templateTopic?.description
-            ?? `${topicData.name} is part of your ${subjectData.name} O-Level learning map.`,
+          description: subconceptSeeds.length > 0
+            ? `${topicData.name} covers ${subconceptSeeds.map((seed) => seed.name).join(', ')}.`
+            : `${topicData.name} is part of your ${subjectData.name} O-Level learning map.`,
           keyConnection: {
             topic: nextTopic.name,
             explanation: `${topicData.name} and ${nextTopic.name} are neighbouring branches in your ${subjectData.name} revision map.`,
           },
-          subConcepts: (templateTopic?.subConcepts ?? []).map((concept: SubConcept) => ({
-            ...concept,
-            // Detail nodes inherit the authenticated parent topic score. The
-            // legacy template score is never displayed or used for risk state.
+          subConcepts: subconceptSeeds.map((seed: SubconceptSeed) => ({
+            id: `${topicData.id}-${seed.id}`,
+            name: seed.name,
+            description: seed.description,
+            keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topicData.name}.` },
+            // Detail nodes inherit the authenticated parent topic score — there
+            // is no separate real per-subtopic score to track.
             memoryScore: topicData.memoryScore,
           })),
         };
@@ -250,20 +257,25 @@ export default function StudentConceptWebView() {
       ? Math.round(startedScores.reduce((sum: number, score: number) => sum + score, 0) / startedScores.length)
       : null;
     const firstTopic = entry.topics[0];
-    // Every real topic sits on a single even ring around the subject — no
-    // second "subconcept" ring. The old template data had a two-tier layout,
-    // but it only ever expanded for topics whose name happened to collide
-    // with a legacy template name (e.g. real catalog topics called "Genetics"
-    // or "Respiration"), so most subjects rendered as an inconsistent mix of
-    // bare topic bubbles and a few with an extra fan of children. A single
-    // ring is the layout that's actually true for every subject.
+    // Every real topic sits on an even ring around the subject, and topics
+    // with real curated subtopics (see topicSubconcepts above) fan out a
+    // second ring of 3 branch nodes — every topic that has subtopic data
+    // gets the same treatment, not just whichever ones happened to share a
+    // name with an old template.
     const nodes: GraphNode[] = [{ id: normalize(subject), name: subject, memoryScore: average, description: `${subject} concept map built from your authenticated O-Level learning progress.`, keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` }, kind: 'subject', subject, x: 500, y: 400, r: 60, index: 0 }];
     const links: GraphLink[] = [];
     entry.topics.forEach((topic: Topic, topicIndex: number) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / entry.topics.length);
-      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 230), y: roundCoordinate(400 + Math.sin(angle) * 230), r: 46, index: nodes.length };
+      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 170), y: roundCoordinate(400 + Math.sin(angle) * 170), r: 42, index: nodes.length };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
+      topic.subConcepts.forEach((concept: SubConcept, conceptIndex: number) => {
+        const spread = Math.PI / 3.2;
+        const subAngle = angle - spread / 2 + (spread / Math.max(1, topic.subConcepts.length - 1)) * conceptIndex;
+        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 310), y: roundCoordinate(400 + Math.sin(subAngle) * 310), r: 30, index: nodes.length };
+        nodes.push(subNode);
+        links.push({ from: topicNode, to: subNode });
+      });
     });
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator: Record<string, GraphNode>, node: GraphNode) => ({ ...accumulator, [node.id]: node }), {});
     const curatedConnections = realisticTopicConnections[subject];
@@ -396,7 +408,7 @@ export default function StudentConceptWebView() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
-      <div className="z-20 flex items-center gap-4 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-4 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
         <div className="flex items-center gap-3 rounded-full bg-secondary px-4 py-2 text-secondary-foreground">
           <span className="text-xl">{subjectsData[subject]?.icon ?? '🧠'}</span>
           <Label className="font-bold">Concept Web</Label>
