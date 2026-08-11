@@ -28,6 +28,7 @@ import {
 import { loadSession, requireSession } from '../middleware/session.js';
 import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
+import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import {
   getClassConceptWebForTeacher,
   getStudentConceptWebForTeacher,
@@ -38,6 +39,8 @@ import {
   onboardingRequestSchema,
   quizHistoryQuerySchema,
   quizSubmissionSchema,
+  updateQuestionReviewSchema,
+  updateSchoolSchema,
   updateTeachingScopesSchema,
 } from '../validation.js';
 
@@ -237,6 +240,29 @@ api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
   });
 
   return context.json({ scopes: await loadTeachingScopes(userId) });
+});
+
+api.put('/me/school', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = updateSchoolSchema.parse(await readJson(context));
+
+  const [profile] = await db.select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+  if (!profile || profile.role !== 'student') {
+    throw new ApiError(403, 'STUDENT_ONLY', 'Only students can update their school here.');
+  }
+
+  const [school] = await db.select({ id: schools.id, name: schools.name })
+    .from(schools)
+    .where(eq(schools.id, input.schoolId))
+    .limit(1);
+  if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Selected school was not found.');
+
+  await db.update(profiles).set({ schoolId: school.id, updatedAt: new Date() }).where(eq(profiles.userId, userId));
+
+  return context.json({ schoolId: school.id, schoolName: school.name });
 });
 
 api.put('/me/onboarding', loadSession, requireSession, async (context) => {
@@ -452,6 +478,19 @@ api.get('/me/students/:studentId/concept-web', loadSession, requireSession, asyn
   return context.json(result);
 });
 
+api.get('/me/quiz-review', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await getQuizReviewForTeacher(userId, context.req.query('scopeId'));
+  return context.json(result);
+});
+
+api.put('/me/quiz-review', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = updateQuestionReviewSchema.parse(await readJson(context));
+  await saveQuestionReview(userId, input.questionKey, input.explanation);
+  return context.json({ ok: true });
+});
+
 api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = quizSubmissionSchema.parse(await readJson(context));
@@ -475,6 +514,7 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     selectedTopic.name,
     input.mode,
     input.submissionId,
+    input.paperId,
   );
   if (!questions) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');

@@ -74,3 +74,11 @@ export function updateTeachingScopes(scopes: Array<{ subjectId: string; classroo
     body: JSON.stringify({ scopes }),
   });
 }
+
+export function updateSchool(schoolId: string) {
+  return apiRequest<{ schoolId: string; schoolName: string }>('/api/v1/me/school', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ schoolId }),
+  });
+}

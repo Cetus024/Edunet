@@ -426,11 +426,11 @@ const topicQuestionDrafts: Record<string, Record<string, QuestionDraft[]>> = {
 };
 
 const sourceMetadata = [
-  { source: '2019 O-Level Biology Paper 1', resourceNumber: '5090/12/O/N/19 Q15' },
-  { source: '2020 O-Level Biology Paper 2', resourceNumber: '5090/22/M/J/20 Q3(a)' },
-  { source: '2022 O-Level Biology Paper 2', resourceNumber: '5090/22/O/N/22 Q1(b)' },
-  { source: '2018 O-Level Biology Paper 2', resourceNumber: '5090/22/M/J/18 Q2(c)' },
-  { source: '2021 O-Level Biology Paper 2', resourceNumber: '5090/22/O/N/21 Q4(a)' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
 ] as const;
 
 function isValidQuestionSet(drafts: QuestionDraft[]): boolean {
@@ -484,6 +484,31 @@ function seededShuffle<T>(items: readonly T[], seed: string): T[] {
 }
 
 /**
+ * Practice papers are original content styled after the real O-Level paper
+ * format (an all-MCQ paper and an all-structured/fill-blank paper), not a
+ * reproduction of any real exam sitting - see PAST_PAPER_DEFINITIONS labels.
+ */
+const PAST_PAPER_DEFINITIONS = [
+  { id: 'paper-1', paperNumber: 1 as const, label: 'Practice Paper 1 (MCQ)', matches: (q: QuestionDraft) => q.type === 'mcq' },
+  { id: 'paper-2', paperNumber: 2 as const, label: 'Practice Paper 2 (Structured)', matches: (q: QuestionDraft) => q.type !== 'mcq' },
+] as const;
+
+function getSubjectQuestionPool(subject: string): QuizQuestion[] {
+  const subjectTopicNames = Object.keys(topicQuestionDrafts[subject] ?? {});
+  return subjectTopicNames.flatMap((topicName) => getQuestionsForSelection(subject, topicName) ?? []);
+}
+
+export function getAvailablePastPapers(subject: string): Array<{ id: string; label: string; paperNumber: 1 | 2; questionCount: number }> {
+  const pool = getSubjectQuestionPool(subject);
+  return PAST_PAPER_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    paperNumber: definition.paperNumber,
+    questionCount: pool.filter((question) => definition.matches(question)).length,
+  }));
+}
+
+/**
  * Builds the exact question set for a quiz mode. This function is shared by
  * the browser and API so a seeded speed round can be reconstructed for
  * server-side grading without trusting answers supplied by the client.
@@ -493,6 +518,7 @@ export function getQuestionsForQuizMode(
   topic: string,
   mode: QuizQuestionMode,
   seed: string,
+  paperId = 'paper-1',
 ): QuizQuestion[] | null {
   const selectedTopicQuestions = getQuestionsForSelection(subject, topic);
   if (!selectedTopicQuestions) return null;
@@ -507,10 +533,14 @@ export function getQuestionsForQuizMode(
 
   const subjectTopicNames = Object.keys(topicQuestionDrafts[subject] ?? {});
   if (mode === 'past-paper') {
-    const fullPaper = subjectTopicNames.flatMap((topicName) => (
-      getQuestionsForSelection(subject, topicName) ?? []
-    ));
-    return fullPaper.length > 0 ? reindexQuestions(fullPaper) : null;
+    const definition = PAST_PAPER_DEFINITIONS.find((paper) => paper.id === paperId) ?? PAST_PAPER_DEFINITIONS[0];
+    const paperQuestions = getSubjectQuestionPool(subject).filter((question) => definition.matches(question));
+    if (paperQuestions.length === 0) return null;
+    return reindexQuestions(paperQuestions.map((question) => {
+      const paperQuestion: QuizQuestion = { ...question, source: definition.label };
+      delete paperQuestion.resourceNumber;
+      return paperQuestion;
+    }));
   }
 
   const selectedTopicIndex = subjectTopicNames.indexOf(topic);

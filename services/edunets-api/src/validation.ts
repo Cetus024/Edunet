@@ -81,10 +81,20 @@ export const updateTeachingScopesSchema = z.strictObject({
   scopes: z.array(teachingScopeInputSchema).min(1).max(16),
 });
 
+export const updateQuestionReviewSchema = z.strictObject({
+  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2}$/),
+  explanation: z.string().trim().min(1).max(2_000),
+});
+
+export const updateSchoolSchema = z.strictObject({
+  schoolId: z.string().trim().min(1).max(128),
+});
+
 export const quizSubmissionSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
   mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
+  paperId: z.string().trim().min(1).max(32).optional(),
   startedAt: z.iso.datetime({ offset: true }).optional(),
   answers: z.array(z.strictObject({
     questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2}$/),

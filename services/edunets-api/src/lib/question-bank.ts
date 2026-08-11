@@ -24,8 +24,9 @@ export function getKeyedQuestions(
   topicName: string,
   mode: QuizQuestionMode = 'concept-check',
   seed = '',
+  paperId?: string,
 ): KeyedQuizQuestion[] | null {
-  const questions = getQuestionsForQuizMode(subjectName, topicName, mode, seed);
+  const questions = getQuestionsForQuizMode(subjectName, topicName, mode, seed, paperId);
   if (!questions) return null;
 
   return questions.map((question, index) => ({

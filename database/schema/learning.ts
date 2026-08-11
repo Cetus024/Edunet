@@ -33,6 +33,13 @@ export const onboardingProfiles = pgTable('onboarding_profile', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export const questionReviews = pgTable('question_review', {
+  questionKey: text('question_key').primaryKey(),
+  editedExplanation: text('edited_explanation').notNull(),
+  reviewedByUserId: text('reviewed_by_user_id').notNull().references(() => users.id),
+  reviewedAt: timestamp('reviewed_at').notNull().defaultNow(),
+});
+
 export const teachingScopes = pgTable('teaching_scope', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

@@ -8,11 +8,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { cn } from '@/lib/utils';
 import { getRoleLabel, isTeachingRole, type EduNetsRole } from '@/lib/roles';
 import { useTeachingContext } from '@/lib/teaching-context';
+import { TeachingContextSelect } from '@/components/teaching-context-select';
 
 
 type NavItem = { path: string; label: string; icon: LucideIcon };
@@ -110,36 +110,6 @@ export function AppSidebar() {
         </div>
       </nav>
     </>
-  );
-}
-
-function TeachingContextSelect({
-  scopes,
-  activeScopeId,
-  onChange,
-  compact = false,
-}: {
-  scopes: TeachingScope[];
-  activeScopeId: string | null;
-  onChange: (scopeId: string) => void;
-  compact?: boolean;
-}) {
-  return (
-    <div className={cn(!compact && 'mx-4 mt-3')}>
-      {!compact && <p className="mb-1.5 px-1 text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Classroom / subject</p>}
-      <Select value={activeScopeId ?? undefined} onValueChange={onChange}>
-        <SelectTrigger className={cn('w-full border-sidebar-border bg-card text-card-foreground', compact ? 'h-10 rounded-xl' : 'h-11 rounded-2xl')}>
-          <SelectValue placeholder="Choose classroom" />
-        </SelectTrigger>
-        <SelectContent>
-          {scopes.map((scope) => (
-            <SelectItem key={scope.id} value={scope.id}>
-              {scope.subjectIcon ?? '📘'} {scope.classroomName} · {scope.subjectName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
   );
 }
 

@@ -87,5 +87,6 @@ export function useTeacherClassPulse({ enabled = true, scopeId = null }: { enabl
     },
     enabled,
     staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 }

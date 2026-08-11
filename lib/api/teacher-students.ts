@@ -56,6 +56,7 @@ export function useTeacherStudents({ enabled = true, scopeId = null }: { enabled
     queryFn: () => apiRequest<{ students: TeacherStudent[] }>(withScope('/api/v1/me/students', scopeId)),
     enabled,
     staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -67,6 +68,7 @@ export function useClassConceptWeb({ enabled = true, scopeId = null }: { enabled
     queryFn: () => apiRequest<ClassConceptWebResponse>(withScope('/api/v1/me/class-concept-web', scopeId)),
     enabled,
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 

@@ -32,6 +32,7 @@ export type SubmitQuizAttemptInput = {
   submissionId: string;
   topicId: string;
   mode: QuizSubmissionMode;
+  paperId?: string;
   startedAt: string;
   answers: QuizSubmissionAnswer[];
 };

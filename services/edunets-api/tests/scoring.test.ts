@@ -43,12 +43,21 @@ describe('quiz scoring', () => {
   });
 
   it('builds distinct question sets for each quiz mode', () => {
-    const fullPaper = getKeyedQuestions(
+    const paperOne = getKeyedQuestions(
       'bio-ecology',
       'Biology',
       'Ecology',
       'past-paper',
       'paper-attempt',
+      'paper-1',
+    );
+    const paperTwo = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'past-paper',
+      'paper-attempt',
+      'paper-2',
     );
     const conceptCheck = getKeyedQuestions(
       'bio-ecology',
@@ -72,7 +81,10 @@ describe('quiz scoring', () => {
       'speed-attempt',
     );
 
-    expect(fullPaper).toHaveLength(35);
+    expect(paperOne).toHaveLength(21);
+    expect(paperOne!.every((question) => question.type === 'mcq')).toBe(true);
+    expect(paperTwo).toHaveLength(14);
+    expect(paperTwo!.every((question) => question.type !== 'mcq')).toBe(true);
     expect(conceptCheck).toHaveLength(5);
     expect(conceptCheck!.every((question) => question.source === 'AI-generated concept check')).toBe(true);
     expect(speedRound).toHaveLength(5);

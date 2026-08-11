@@ -50,7 +50,7 @@ export type ClassConceptWebResponse = {
  * onboarded role/school/subject, with the same "complete onboarding first"
  * guard), rather than duplicating that query.
  */
-async function loadTeacherActor(teacherUserId: string, scopeId?: string): Promise<EnquiryActor> {
+export async function loadTeacherActor(teacherUserId: string, scopeId?: string): Promise<EnquiryActor> {
   const actor = await loadEnquiryActor(teacherUserId);
   if (!isRecipientRole(actor.role)) {
     throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors have a student roster.');
@@ -74,7 +74,7 @@ async function loadTeacherActor(teacherUserId: string, scopeId?: string): Promis
  * subject during onboarding. There is no explicit class-enrollment table -
  * this school+subject match is the lightweight, real stand-in for one.
  */
-async function listStudentsInScope(teacher: EnquiryActor): Promise<TeacherStudent[]> {
+export async function listStudentsInScope(teacher: EnquiryActor): Promise<TeacherStudent[]> {
   return db.select({
     id: users.id,
     name: users.name,

@@ -12,12 +12,14 @@ import {
   Focus,
   LogOut,
   Mail,
+  Pencil,
   Plus,
   Save,
   ShieldCheck,
   Trash2,
   Trophy,
   UserRound,
+  X,
 } from 'lucide-react';
 import { useAtomValue } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,13 +32,52 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
-import { currentAccountQueryKey, updateTeachingScopes, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
+import { authClient } from '@/lib/api/auth-client';
+import { currentAccountQueryKey, updateSchool, updateTeachingScopes, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
 import { useCatalog } from '@/lib/api/study';
 import { getRoleLabel, isTeachingRole } from '@/lib/roles';
 import {
   getEffectiveScore,
   subjectSummariesAtom,
 } from '@/lib/study-data';
+
+function useNameEditor(currentName: string) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(currentName);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const startEditing = () => {
+    setValue(currentName);
+    setIsEditing(true);
+  };
+  const cancel = () => setIsEditing(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast.error('Name cannot be empty.');
+      return;
+    }
+    if (trimmed === currentName) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await authClient.updateUser({ name: trimmed });
+      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
+      toast.success('Name updated.');
+      setIsEditing(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update your name.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { isEditing, value, setValue, isSaving, startEditing, cancel, save };
+}
 
 function getScoreColor(score: number): string {
   if (score >= 70) return 'bg-[#186636]';
@@ -83,6 +124,7 @@ function TeacherProfilePage({
   const roleLabel = getRoleLabel(profile?.role);
   const queryClient = useQueryClient();
   const catalogQuery = useCatalog();
+  const nameEditor = useNameEditor(fullName);
   const [isSavingScopes, setIsSavingScopes] = useState(false);
   const [scopeDrafts, setScopeDrafts] = useState(() => {
     const savedScopes = profile?.teachingScopes ?? [];
@@ -179,7 +221,30 @@ function TeacherProfilePage({
                   {getInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
-              <h2 className="mt-4 text-2xl font-black">{fullName}</h2>
+              {nameEditor.isEditing ? (
+                <div className="mt-4 flex w-full items-center gap-2">
+                  <Input
+                    value={nameEditor.value}
+                    onChange={(event) => nameEditor.setValue(event.target.value)}
+                    maxLength={120}
+                    autoFocus
+                    className="text-center"
+                  />
+                  <Button type="button" size="icon" onClick={() => void nameEditor.save()} disabled={nameEditor.isSaving} aria-label="Save name">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon" variant="ghost" onClick={nameEditor.cancel} aria-label="Cancel editing name">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center gap-2">
+                  <h2 className="text-2xl font-black">{fullName}</h2>
+                  <button type="button" onClick={nameEditor.startEditing} aria-label="Edit name" className="text-slate-400 transition hover:text-slate-600">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <span className="mt-2 rounded-full bg-[#f7cf5d]/30 px-3 py-1 text-xs font-black text-[#7a5c08]">
                 {roleLabel}
               </span>
@@ -342,6 +407,27 @@ export default function ProfilePage() {
   const { data: account } = useCurrentAccount();
   const subjectSummaries = useAtomValue(subjectSummariesAtom);
   const signOut = useSafeSignOut();
+  const queryClient = useQueryClient();
+  const catalogQuery = useCatalog();
+  const nameEditor = useNameEditor(account?.user.name ?? '');
+  const [isEditingSchool, setIsEditingSchool] = useState(false);
+  const [schoolDraft, setSchoolDraft] = useState('');
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  const handleSaveSchool = async () => {
+    if (!schoolDraft || isSavingSchool) return;
+    setIsSavingSchool(true);
+    try {
+      await updateSchool(schoolDraft);
+      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
+      toast.success('School updated.');
+      setIsEditingSchool(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update your school.');
+    } finally {
+      setIsSavingSchool(false);
+    }
+  };
 
   const subjectOverview = useMemo(
     () => subjectSummaries
@@ -409,8 +495,60 @@ export default function ProfilePage() {
               <div className="mb-4 flex h-32 w-32 items-center justify-center rounded-[2rem] bg-secondary text-secondary-foreground shadow-[0_18px_45px_rgba(29,58,98,0.16)]">
                 <UserRound className="h-16 w-16" />
               </div>
-              <h2 className="mb-1 text-2xl font-bold text-studynow-dark">{fullName}</h2>
-              <p className="mb-4 text-sm text-muted-foreground">{schoolName}</p>
+              {nameEditor.isEditing ? (
+                <div className="mb-1 flex items-center gap-2">
+                  <Input
+                    value={nameEditor.value}
+                    onChange={(event) => nameEditor.setValue(event.target.value)}
+                    maxLength={120}
+                    autoFocus
+                    className="h-9 text-center"
+                  />
+                  <Button type="button" size="icon-sm" onClick={() => void nameEditor.save()} disabled={nameEditor.isSaving} aria-label="Save name">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon-sm" variant="ghost" onClick={nameEditor.cancel} aria-label="Cancel editing name">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-1 flex items-center gap-2">
+                  <h2 className="text-2xl font-bold text-studynow-dark">{fullName}</h2>
+                  <button type="button" onClick={nameEditor.startEditing} aria-label="Edit name" className="text-muted-foreground transition hover:text-foreground">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              {isEditingSchool ? (
+                <div className="mb-4 flex w-full max-w-xs items-center gap-2">
+                  <Select value={schoolDraft} onValueChange={setSchoolDraft}>
+                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Choose a school" /></SelectTrigger>
+                    <SelectContent>
+                      {catalogQuery.data?.schools.map((school) => (
+                        <SelectItem key={school.id} value={school.id}>{school.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon-sm" onClick={() => void handleSaveSchool()} disabled={isSavingSchool || !schoolDraft} aria-label="Save school">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon-sm" variant="ghost" onClick={() => setIsEditingSchool(false)} aria-label="Cancel editing school">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-4 flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground">{schoolName}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setSchoolDraft(account?.profile?.schoolId ?? ''); setIsEditingSchool(true); }}
+                    aria-label="Edit school"
+                    className="text-muted-foreground transition hover:text-foreground"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
               <Badge className="mb-6 bg-secondary px-4 py-1 text-sm font-semibold text-secondary-foreground hover:bg-secondary">
                 {role}
               </Badge>
