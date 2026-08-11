@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { motion, useReducedMotion } from 'motion/react';
 import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'lucide-react';
@@ -423,6 +423,7 @@ export default function StudentConceptWebView() {
   const [pan, setPan] = useState<PanState>({ x: 0, y: 0, zoom: 1 });
   const [dragging, setDragging] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [popup, setPopup] = useState<PopupState | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // Hovering a bubble "activates" a bouncier version of the idle float on it
   // and, for a subject or topic bubble, on its children too — hovering the
@@ -524,6 +525,49 @@ export default function StudentConceptWebView() {
     x: clamp(x, 16, Math.max(16, window.innerWidth - 390)),
     y: clamp(y, 88, Math.max(88, window.innerHeight - 430)),
   }), []);
+
+  // clampPopup above assumes a fixed ~370px popup width to keep the initial
+  // placement simple, but the popup's actual rendered width/height can vary
+  // (viewport under ~400px wide, browser zoom, OS display scaling) and that
+  // assumption can be wrong — the popup was seen rendering partly off the
+  // right edge of the screen. Once it's actually in the DOM, measure its
+  // real box and nudge it fully back into the viewport if it overflows,
+  // rather than trusting the pre-render estimate.
+  useLayoutEffect(() => {
+    if (!popup) return;
+    const element = popupRef.current;
+    const container = canvasRef.current;
+    if (!element || !container) return;
+    // popup.x/popup.y position the popup relative to `container` (its
+    // nearest `position: relative` ancestor), not the viewport — and that
+    // container doesn't start at viewport y=0 (it sits below the header,
+    // which can wrap to multiple rows and get much taller on narrow
+    // screens). Converting through the container's own viewport position
+    // before comparing against window bounds is what clampPopup's earlier
+    // viewport-only estimate was missing. offsetWidth/offsetHeight read the
+    // layout box itself, unaffected by the entrance animation's CSS
+    // transform (scale 0.96 -> 1, y +10 -> 0) that's still mid-flight when
+    // this effect fires — getBoundingClientRect would measure that
+    // transient frame instead of the settled size.
+    const containerRect = container.getBoundingClientRect();
+    // Recomputed as an absolute target (not "shift by however much it
+    // currently overflows") so this is correct on every run even if
+    // containerRect itself drifts slightly between runs — e.g. a scrollbar
+    // appearing/disappearing as the popup's height changes the page's
+    // scrollable height. An incremental nudge would only partially correct
+    // for that; a fresh clamp against the current measurement can't.
+    const maxX = window.innerWidth - 16 - element.offsetWidth - containerRect.left;
+    const maxY = window.innerHeight - 16 - element.offsetHeight - containerRect.top;
+    const clampedX = Math.min(popup.x, Math.max(16 - containerRect.left, maxX));
+    const clampedY = Math.min(popup.y, Math.max(16 - containerRect.top, maxY));
+    if (Math.abs(clampedX - popup.x) < 0.5 && Math.abs(clampedY - popup.y) < 0.5) return;
+    setPopup((current) => (current ? { ...current, x: clampedX, y: clampedY } : current));
+    // Re-runs whenever the popup opens on a (possibly different) node or its
+    // position changes — including from the correction above. That's safe:
+    // once it settles within half a pixel of the target the next run is a
+    // no-op, so this converges in a couple of passes rather than looping.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popup?.node.id, popup?.x, popup?.y]);
 
   useEffect(() => {
     if (subjectsData[subject]) return;
@@ -700,7 +744,7 @@ export default function StudentConceptWebView() {
         </div>
 
         {popup && selectedPopupTier && (
-          <motion.div data-popup="true" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.2, ease: 'easeOut' as const }} className="absolute max-h-[calc(100vh-6.5rem)] w-[calc(100vw-2rem)] max-w-[370px] overflow-y-auto rounded-3xl bg-card text-card-foreground shadow-2xl" style={{ left: popup.x, top: popup.y }}>
+          <motion.div ref={popupRef} data-popup="true" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.2, ease: 'easeOut' as const }} className="absolute max-h-[calc(100vh-6.5rem)] w-[calc(100vw-2rem)] max-w-[370px] overflow-y-auto rounded-3xl bg-card text-card-foreground shadow-2xl" style={{ left: popup.x, top: popup.y }}>
             <div className="bg-gradient-to-r from-[#186636] to-[#1a7a3d] p-5 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div><Badge className={`mb-3 border-0 ${popup.node.kind === 'subject' ? 'bg-secondary text-secondary-foreground' : 'bg-white/20 text-white'}`}>{popup.node.kind === 'subject' ? 'Subject' : popup.node.kind === 'topic' ? 'Main Topic' : 'Sub-concept'}</Badge><h2 className="text-2xl font-black">{popup.node.name}</h2></div>
