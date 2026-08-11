@@ -42,6 +42,58 @@ describe('quiz scoring', () => {
     expect(stableQuestionKey('amath-trig', 3)).toBe('amath-trig:v1:q03');
   });
 
+  it('builds distinct question sets for each quiz mode', () => {
+    const paperOne = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'past-paper',
+      'paper-attempt',
+      'paper-1',
+    );
+    const paperTwo = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'past-paper',
+      'paper-attempt',
+      'paper-2',
+    );
+    const conceptCheck = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'concept-check',
+      'concept-attempt',
+    );
+    const speedRound = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'speed-round',
+      'speed-attempt',
+    );
+    const repeatedSpeedRound = getKeyedQuestions(
+      'bio-ecology',
+      'Biology',
+      'Ecology',
+      'speed-round',
+      'speed-attempt',
+    );
+
+    expect(paperOne).toHaveLength(21);
+    expect(paperOne!.every((question) => question.type === 'mcq')).toBe(true);
+    expect(paperTwo).toHaveLength(14);
+    expect(paperTwo!.every((question) => question.type !== 'mcq')).toBe(true);
+    expect(conceptCheck).toHaveLength(5);
+    expect(conceptCheck!.every((question) => question.source === 'AI-generated concept check')).toBe(true);
+    expect(speedRound).toHaveLength(5);
+    expect(speedRound!.every((question) => question.type === 'mcq')).toBe(true);
+    expect(speedRound!.map((question) => question.text)).toEqual(
+      repeatedSpeedRound!.map((question) => question.text),
+    );
+  });
+
   it('maps all 255 existing questions to stable catalog topic keys', () => {
     const subjectNames = new Map(subjectSeed.map((subject) => [subject.id, subject.name]));
     const keyedQuestions = topicSeed.flatMap((topic) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useAtom } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,7 +45,8 @@ import {
 } from '@/lib/study-data';
 
 import {
-  getQuestionsForSelection,
+  getAvailablePastPapers,
+  getQuestionsForQuizMode,
   getQuizQuestionKey,
   isQuizAnswerCorrect,
   type QuizQuestion,
@@ -151,6 +152,8 @@ function QuizSetupPanel({
   setSelectedTopicId,
   quizMode,
   setQuizMode,
+  selectedPaperId,
+  setSelectedPaperId,
   onGenerateQuiz,
   globalSubjects,
 }: {
@@ -161,6 +164,8 @@ function QuizSetupPanel({
   setSelectedTopicId: (id: string) => void;
   quizMode: QuizMode;
   setQuizMode: (m: QuizMode) => void;
+  selectedPaperId: string;
+  setSelectedPaperId: (id: string) => void;
   onGenerateQuiz: () => void;
   globalSubjects: SubjectData[];
 }) {
@@ -171,6 +176,28 @@ function QuizSetupPanel({
     ? { label: 'Not Started', color: 'text-slate-500', bgColor: 'bg-slate-100' }
     : getMemoryStatus(memoryScore);
   const difficulty = getDifficulty(memoryScore ?? 0);
+  const availablePapers = selectedSubject ? getAvailablePastPapers(selectedSubject) : [];
+  const selectedPaper = availablePapers.find((paper) => paper.id === selectedPaperId) ?? availablePapers[0];
+  const questionCount = selectedSubject && selectedTopic
+    ? (getQuestionsForQuizMode(selectedSubject, selectedTopic, quizMode, 'preview', selectedPaperId)?.length ?? 0)
+    : 0;
+  const modeDetails: Record<QuizMode, { button: string; summary: string }> = {
+    'past-paper': {
+      button: 'Start Full Paper',
+      summary: selectedPaper
+        ? `${selectedPaper.label} · ${questionCount} questions`
+        : 'Choose a practice paper',
+    },
+    'concept-check': {
+      button: 'Generate Concept Quiz',
+      summary: `${questionCount || 5} AI-generated concept questions · ${difficulty} difficulty`,
+    },
+    'speed-round': {
+      button: 'Start Speed Round',
+      summary: '5 random MCQs from this topic and closely related topics',
+    },
+  };
+  const modeDetail = modeDetails[quizMode];
 
   return (
     <motion.div
@@ -264,9 +291,9 @@ function QuizSetupPanel({
           <label className="text-sm font-semibold text-studynow-dark mb-3 block">Quiz Mode</label>
           <div className="flex gap-2 p-1 bg-muted/30 rounded-2xl">
             {[
-              { id: 'past-paper' as QuizMode, label: 'Past Paper', icon: FileText, desc: 'O-Level questions' },
-              { id: 'concept-check' as QuizMode, label: 'Concept', icon: Brain, desc: 'AI-generated' },
-              { id: 'speed-round' as QuizMode, label: 'Speed', icon: Zap, desc: '5 rapid MCQs' },
+              { id: 'past-paper' as QuizMode, label: 'Past Paper', icon: FileText, desc: 'Full paper' },
+              { id: 'concept-check' as QuizMode, label: 'Concept', icon: Brain, desc: 'AI concepts' },
+              { id: 'speed-round' as QuizMode, label: 'Speed', icon: Zap, desc: 'Random 5' },
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -279,10 +306,36 @@ function QuizSetupPanel({
               >
                 <mode.icon className={`w-5 h-5 mx-auto mb-1 ${quizMode === mode.id ? 'text-white' : ''}`} />
                 <span className="text-xs font-semibold block">{mode.label}</span>
+                <span className={`mt-0.5 block text-[10px] ${quizMode === mode.id ? 'text-white/80' : 'text-muted-foreground'}`}>{mode.desc}</span>
               </button>
             ))}
           </div>
         </div>
+
+        {/* Past Paper Picker */}
+        <AnimatePresence>
+          {quizMode === 'past-paper' && availablePapers.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <label className="text-sm font-semibold text-studynow-dark mb-2 block">Choose a Paper</label>
+              <Select value={selectedPaperId} onValueChange={setSelectedPaperId}>
+                <SelectTrigger className="w-full h-12 bg-card border-border/50 rounded-xl">
+                  <SelectValue placeholder="Choose a paper..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePapers.map((paper) => (
+                    <SelectItem key={paper.id} value={paper.id}>
+                      {paper.label} · {paper.questionCount} questions
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Difficulty Auto-label */}
         <AnimatePresence>
@@ -293,10 +346,8 @@ function QuizSetupPanel({
               exit={{ opacity: 0, y: -10 }}
               className="flex items-center gap-2 px-4 py-3 bg-card rounded-xl border border-border/30"
             >
-              <Sparkles className="w-4 h-4 text-[#EAA93C]" />
-              <span className="text-sm text-muted-foreground">Difficulty set to:</span>
-              <Badge className="bg-[#186636]/10 text-[var(--success)] border-0 font-bold">{difficulty}</Badge>
-              <span className="text-xs text-muted-foreground">(based on your score)</span>
+              {quizMode === 'past-paper' ? <FileText className="w-4 h-4 text-[#EAA93C]" /> : quizMode === 'speed-round' ? <Zap className="w-4 h-4 text-[#EAA93C]" /> : <Sparkles className="w-4 h-4 text-[#EAA93C]" />}
+              <span className="text-sm font-semibold text-muted-foreground">{modeDetail.summary}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -309,12 +360,12 @@ function QuizSetupPanel({
           disabled={!selectedSubject || !selectedTopic}
           className="w-full h-14 bg-[#EAA93C] hover:bg-[#d99a2f] text-studynow-dark font-bold text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all gold-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          Generate Quiz
+          {modeDetail.button}
           <ChevronRight className="w-6 h-6 ml-2" />
         </Button>
         <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1">
-          <Sparkles className="w-3 h-3" />
-          Questions tailored to your current memory score
+          {quizMode === 'past-paper' ? <FileText className="w-3 h-3" /> : quizMode === 'speed-round' ? <Zap className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+          {modeDetail.summary}
         </p>
       </div>
     </motion.div>
@@ -568,7 +619,6 @@ function ActiveQuizPanel({
   answers,
   submittedAnswers,
   isFinishing,
-  subject,
   topic,
 }: {
   questions: Question[];
@@ -580,12 +630,10 @@ function ActiveQuizPanel({
   answers: (string | number | null)[];
   submittedAnswers: boolean[];
   isFinishing: boolean;
-  subject: string;
   topic: string;
 }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const question = questions[currentIndex];
-  const displayedSource = question.source?.replace('Biology', subject || 'Biology');
   const currentAnswer = answers[currentIndex];
   const isAnswered = question.type === 'mcq'
     ? currentAnswer !== null
@@ -624,8 +672,8 @@ function ActiveQuizPanel({
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <Badge className="bg-[#186636]/10 text-[var(--success)] border-0 font-semibold">
-                {topic}
+              <Badge className="bg-[#186636]/10 text-[#186636] border-0 font-semibold">
+                {question.topic || topic}
               </Badge>
               <span className="text-sm text-muted-foreground font-medium">
                 Question {currentIndex + 1} of {questions.length}
@@ -638,7 +686,7 @@ function ActiveQuizPanel({
           </div>
 
           {/* Source tag for past paper questions */}
-          {(displayedSource || question.resourceNumber) && (
+          {(question.source || question.resourceNumber) && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -646,7 +694,7 @@ function ActiveQuizPanel({
             >
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAA93C]/10">
                 <FileText className="w-4 h-4 text-[#EAA93C]" />
-                <span className="text-sm text-[#EAA93C] font-medium">{displayedSource}</span>
+                <span className="text-sm text-[#EAA93C] font-medium">{question.source}</span>
               </div>
               {question.resourceNumber && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#186636]/10">
@@ -753,7 +801,18 @@ function ActiveQuizPanel({
 }
 
 // Auto-starting Quiz State
-function AutoStartingState({ topic, isRescue }: { topic: string; isRescue: boolean }) {
+function AutoStartingState({ topic, isRescue, mode, paperLabel }: { topic: string; isRescue: boolean; mode: QuizMode; paperLabel?: string }) {
+  const heading = isRescue || mode === 'speed-round'
+    ? 'Building Your Speed Round...'
+    : mode === 'past-paper'
+      ? `Loading ${paperLabel ?? 'the Practice Paper'}...`
+      : 'Generating Concept Questions...';
+  const description = isRescue || mode === 'speed-round'
+    ? <>Randomly selecting five MCQs from <span className="font-semibold text-[#186636]">{topic}</span> and related topics.</>
+    : mode === 'past-paper'
+      ? <>Loading every question in <span className="font-semibold text-[#186636]">{paperLabel ?? 'this paper'}</span> for the selected subject.</>
+      : <>Preparing AI-generated concept questions for <span className="font-semibold text-[#186636]">{topic}</span>.</>;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -767,9 +826,9 @@ function AutoStartingState({ topic, isRescue }: { topic: string; isRescue: boole
       >
         <Sparkles className="w-12 h-12 text-[#EAA93C]" />
       </motion.div>
-      <h3 className="text-2xl font-bold text-studynow-dark mb-3">{isRescue ? 'Starting 10-Minute Rescue...' : 'Generating Your Quiz...'}</h3>
+      <h3 className="text-2xl font-bold text-studynow-dark mb-3">{heading}</h3>
       <p className="text-muted-foreground max-w-md leading-relaxed">
-        {isRescue ? 'Opening Speed mode with a visible 10-minute target for ' : 'Creating personalized questions for '}<span className="font-semibold text-[var(--success)]">{topic}</span>{isRescue ? '.' : ' based on your memory score.'}
+        {description}
       </p>
       <motion.div
         className="mt-6 flex items-center gap-2 px-4 py-2 rounded-full bg-[#EAA93C]/10"
@@ -796,13 +855,13 @@ function QuizEmptyState() {
       </div>
       <h3 className="text-2xl font-bold text-studynow-dark mb-3">Ready to Test Your Knowledge?</h3>
       <p className="text-muted-foreground max-w-md leading-relaxed">
-        Select a subject and topic from the left panel, then generate a personalized quiz tailored to your memory score.
+        Select a subject and topic, then choose a full paper, an AI concept check, or a five-question speed round.
       </p>
       <div className="flex gap-6 mt-8">
         {[
-          { icon: FileText, label: 'Past Paper Questions', desc: 'Real O-Level papers' },
-          { icon: Brain, label: 'Concept Checks', desc: 'AI-generated tests' },
-          { icon: Zap, label: 'Speed Rounds', desc: '5 rapid-fire MCQs' },
+          { icon: FileText, label: 'Past Paper', desc: 'Complete stored paper' },
+          { icon: Brain, label: 'Concept Checks', desc: 'AI-generated concepts' },
+          { icon: Zap, label: 'Speed Rounds', desc: 'Random 5-topic mix' },
         ].map((item, idx) => (
           <motion.div
             key={item.label}
@@ -1041,6 +1100,7 @@ function StudentQuizPage() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [quizMode, setQuizMode] = useState<QuizMode>('past-paper');
+  const [selectedPaperId, setSelectedPaperId] = useState('paper-1');
   const [activeRescueId, setActiveRescueId] = useState<string | null>(null);
   const [quizState, setQuizState] = useState<QuizState>('setup');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -1065,6 +1125,30 @@ function StudentQuizPage() {
     ? (getEffectiveScore(currentTopic) ?? 50)
     : 50);
 
+  const activateQuiz = useCallback((subject: string, topic: string, mode: QuizMode, paperId: string) => {
+    const nextSubmissionId = crypto.randomUUID();
+    const selectedQuestions = getQuestionsForQuizMode(subject, topic, mode, nextSubmissionId, paperId);
+    if (!selectedQuestions) {
+      setQuestions([]);
+      setAnswers([]);
+      setSubmittedAnswers([]);
+      setQuizState('setup');
+      toast.error('No questions available for this quiz mode');
+      return false;
+    }
+
+    setQuestions(selectedQuestions);
+    setAnswers(new Array(selectedQuestions.length).fill(null));
+    setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
+    setCurrentQuestionIndex(0);
+    setSubmissionId(nextSubmissionId);
+    setAttemptStartedAt(new Date().toISOString());
+    setAttemptResult(null);
+    quizFinishNotifiedRef.current = false;
+    setQuizState('active');
+    return true;
+  }, []);
+
   // Auto-select subject and topic from URL params (from concept web navigation)
   useEffect(() => {
     if (urlSubject && urlTopic && !hasAutoStarted.current) {
@@ -1078,6 +1162,9 @@ function StudentQuizPage() {
         );
         
         if (matchingTopic) {
+          const resolvedMode: QuizMode = urlMode === 'past-paper' || urlMode === 'concept-check' || urlMode === 'speed-round'
+            ? urlMode
+            : quizMode;
           const parsedScore = urlScore !== null ? Number(urlScore) : null;
           // Set the subject, topic, and exact dashboard memory score
           setSelectedSubject(urlSubject);
@@ -1085,9 +1172,7 @@ function StudentQuizPage() {
           setSelectedTopicId(matchingTopic.id);
           setSelectedMemoryScore(Number.isFinite(parsedScore) ? parsedScore : null);
 
-          if (urlMode === 'past-paper' || urlMode === 'concept-check' || urlMode === 'speed-round') {
-            setQuizMode(urlMode);
-          }
+          setQuizMode(resolvedMode);
           if (urlRescueId) setActiveRescueId(urlRescueId);
 
           // Mark as auto-starting and trigger quiz generation
@@ -1105,52 +1190,17 @@ function StudentQuizPage() {
           
           // Auto-generate quiz after a brief delay for UI to update
           setTimeout(() => {
-            const selectedQuestions = getQuestionsForSelection(urlSubject, matchingTopic.name);
-            if (!selectedQuestions) {
-              setQuestions([]);
-              setAnswers([]);
-              setSubmittedAnswers([]);
-              setQuizState('setup');
-              setAutoStarting(false);
-              toast.error('No questions available for this topic');
-              return;
-            }
-            setQuestions(selectedQuestions);
-            setAnswers(new Array(selectedQuestions.length).fill(null));
-            setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
-            setCurrentQuestionIndex(0);
-            setSubmissionId(crypto.randomUUID());
-            setAttemptStartedAt(new Date().toISOString());
-            setAttemptResult(null);
-            quizFinishNotifiedRef.current = false;
-            setQuizState('active');
+            activateQuiz(urlSubject, matchingTopic.name, resolvedMode, selectedPaperId);
             setAutoStarting(false);
           }, 500);
         }
       }
     }
-  }, [urlSubject, urlTopic, urlScore, urlMode, urlRescueId, subjects, searchParams, setSearchParams]);
+  }, [urlSubject, urlTopic, urlScore, urlMode, urlRescueId, subjects, searchParams, setSearchParams, quizMode, selectedPaperId, activateQuiz]);
 
   // Handle quiz generation
   const handleGenerateQuiz = () => {
-    const selectedQuestions = getQuestionsForSelection(selectedSubject, selectedTopic);
-    if (!selectedQuestions) {
-      setQuestions([]);
-      setAnswers([]);
-      setSubmittedAnswers([]);
-      setQuizState('setup');
-      toast.error('No questions available for this topic');
-      return;
-    }
-    setQuestions(selectedQuestions);
-    setAnswers(new Array(selectedQuestions.length).fill(null));
-    setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
-    setCurrentQuestionIndex(0);
-    setSubmissionId(crypto.randomUUID());
-    setAttemptStartedAt(new Date().toISOString());
-    setAttemptResult(null);
-    quizFinishNotifiedRef.current = false;
-    setQuizState('active');
+    activateQuiz(selectedSubject, selectedTopic, quizMode, selectedPaperId);
   };
 
   // Handle answer submission
@@ -1195,6 +1245,7 @@ function StudentQuizPage() {
         submissionId,
         topicId: selectedTopicId,
         mode: quizMode,
+        paperId: quizMode === 'past-paper' ? selectedPaperId : undefined,
         startedAt: attemptStartedAt,
         answers: questions.map((question, index) => ({
           questionKey: getQuizQuestionKey(selectedTopicId, question.id),
@@ -1254,14 +1305,7 @@ function StudentQuizPage() {
 
   // Handle retake
   const handleRetake = () => {
-    setAnswers(new Array(questions.length).fill(null));
-    setSubmittedAnswers(new Array(questions.length).fill(false));
-    setCurrentQuestionIndex(0);
-    setSubmissionId(crypto.randomUUID());
-    setAttemptStartedAt(new Date().toISOString());
-    setAttemptResult(null);
-    quizFinishNotifiedRef.current = false;
-    setQuizState('active');
+    activateQuiz(selectedSubject, selectedTopic, quizMode, selectedPaperId);
   };
 
   // Handle view concept web - deep-links into the concept web with this
@@ -1296,6 +1340,8 @@ function StudentQuizPage() {
               setSelectedTopicId={setSelectedTopicId}
               quizMode={quizMode}
               setQuizMode={setQuizMode}
+              selectedPaperId={selectedPaperId}
+              setSelectedPaperId={setSelectedPaperId}
               onGenerateQuiz={handleGenerateQuiz}
               globalSubjects={subjects}
             />
@@ -1307,7 +1353,15 @@ function StudentQuizPage() {
       <div className="flex-1 min-h-[600px]">
         <AnimatePresence mode="wait">
           {quizState === 'setup' && !autoStarting && <QuizEmptyState key="empty" />}
-          {quizState === 'setup' && autoStarting && <AutoStartingState key="auto-starting" topic={selectedTopic} isRescue={activeRescueId !== null} />}
+          {quizState === 'setup' && autoStarting && (
+            <AutoStartingState
+              key="auto-starting"
+              topic={selectedTopic}
+              isRescue={activeRescueId !== null}
+              mode={quizMode}
+              paperLabel={selectedSubject ? getAvailablePastPapers(selectedSubject).find((paper) => paper.id === selectedPaperId)?.label : undefined}
+            />
+          )}
           {quizState === 'active' && (
             <ActiveQuizPanel
               key="active"
@@ -1320,7 +1374,6 @@ function StudentQuizPage() {
               answers={answers}
               submittedAnswers={submittedAnswers}
               isFinishing={isSubmittingAttempt}
-              subject={selectedSubject}
               topic={selectedTopic}
             />
           )}

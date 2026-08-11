@@ -118,8 +118,8 @@ const roleSchoolPrompts: Record<OnboardingRole, string> = {
 
 const roleSubjectPrompts: Record<OnboardingRole, string> = {
   student: 'Which subject do you want to start with?',
-  teacher: 'Which subject do you mainly teach?',
-  tutor: 'Which subject do you mainly tutor?',
+  teacher: 'Which subjects and classrooms do you teach?',
+  tutor: 'Which subjects and groups do you tutor?',
   parent: "Which subject is your child's main focus?",
 };
 
@@ -660,30 +660,33 @@ function TopicStep({
 type SubjectStepProps = {
   role: OnboardingRole;
   subjects: SubjectData[];
-  selectedSubjectId: string;
-  onSelectSubject: (subjectId: string) => void;
+  selectedSubjectIds: string[];
+  classroomNames: Record<string, string>;
+  allowMultiple: boolean;
+  onToggleSubject: (subjectId: string) => void;
+  onChangeClassroomName: (subjectId: string, value: string) => void;
   headingRef: RefObject<HTMLHeadingElement | null>;
 };
 
-function SubjectStep({ role, subjects, selectedSubjectId, onSelectSubject, headingRef }: SubjectStepProps) {
+function SubjectStep({ role, subjects, selectedSubjectIds, classroomNames, allowMultiple, onToggleSubject, onChangeClassroomName, headingRef }: SubjectStepProps) {
   return (
     <div>
       <StepHeading
         eyebrow="Scope your workspace"
         title={roleSubjectPrompts[role]}
-        description="This connects your workspace to the right topics and students - no upload or familiarity check needed."
+        description={allowMultiple ? 'Select every subject you teach and give each classroom a recognizable name.' : 'This connects your workspace to the right topics and students.'}
         headingRef={headingRef}
       />
 
-      <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-4" role="radiogroup" aria-label="O-Level subject">
+      <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-4" role={allowMultiple ? 'group' : 'radiogroup'} aria-label="O-Level subject">
         {subjects.map((subject) => {
-          const isSelected = subject.id === selectedSubjectId;
+          const isSelected = selectedSubjectIds.includes(subject.id);
           return (
             <button
               key={subject.id}
               type="button"
-              onClick={() => onSelectSubject(subject.id)}
-              role="radio"
+              onClick={() => onToggleSubject(subject.id)}
+              role={allowMultiple ? 'checkbox' : 'radio'}
               aria-checked={isSelected}
               className={cn(
                 'flex min-h-24 flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 bg-white px-3 py-4 text-center outline-none transition-all hover:-translate-y-0.5 hover:border-[var(--edunets-light-blue)]/55 focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/20 sm:min-h-28',
@@ -703,6 +706,26 @@ function SubjectStep({ role, subjects, selectedSubjectId, onSelectSubject, headi
           );
         })}
       </div>
+      {allowMultiple && selectedSubjectIds.length > 0 && (
+        <div className="mx-auto mt-4 grid max-w-3xl gap-3 sm:grid-cols-2">
+          {selectedSubjectIds.map((subjectId) => {
+            const subject = subjects.find((candidate) => candidate.id === subjectId);
+            if (!subject) return null;
+            return (
+              <label key={subjectId} className="rounded-2xl border-2 border-[#e2e7ee] bg-white p-3 text-left">
+                <span className="mb-1.5 block text-xs font-black text-[var(--edunets-ink)]">{subject.icon} {subject.name} classroom</span>
+                <input
+                  value={classroomNames[subjectId] ?? ''}
+                  onChange={(event) => onChangeClassroomName(subjectId, event.target.value)}
+                  maxLength={80}
+                  placeholder={`e.g. ${subject.name} 4A`}
+                  className="w-full rounded-xl border border-[#d8e0ea] bg-[#f8fafc] px-3 py-2 text-sm font-semibold text-[var(--edunets-ink)] outline-none focus:border-[var(--edunets-light-blue)]"
+                />
+              </label>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -848,6 +871,8 @@ export default function OnboardingPage() {
     reset: resetTranscript,
   } = useBrowserLiveTranscription();
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [selectedTeachingSubjectIds, setSelectedTeachingSubjectIds] = useState<string[]>([]);
+  const [classroomNames, setClassroomNames] = useState<Record<string, string>>({});
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [familiarity, setFamiliarity] = useState<OnboardingFamiliarity | null>(null);
   const [childName, setChildName] = useState('');
@@ -1046,10 +1071,16 @@ export default function OnboardingPage() {
       return learningSource === 'none';
     }
     if (currentStepKey === 'topic') return selectedSubject !== null && selectedTopic !== null;
-    if (currentStepKey === 'subject') return selectedSubject !== null;
+    if (currentStepKey === 'subject') {
+      if (isTeachingRole(role)) {
+        return selectedTeachingSubjectIds.length > 0
+          && selectedTeachingSubjectIds.every((subjectId) => classroomNames[subjectId]?.trim());
+      }
+      return selectedSubject !== null;
+    }
     if (currentStepKey === 'child') return childName.trim().length > 0 && isValidEmail(childEmail);
     return familiarity !== null;
-  }, [childEmail, childName, currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTopic]);
+  }, [childEmail, childName, classroomNames, currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTeachingSubjectIds, selectedTopic]);
 
   const handleBack = async () => {
     if (recordingStatus === 'recording' || recordingStatus === 'requesting') {
@@ -1067,6 +1098,19 @@ export default function OnboardingPage() {
     setSelectedSubjectId(subjectId);
     setSelectedTopicId('');
     setFamiliarity(null);
+  };
+
+  const handleToggleTeachingSubject = (subjectId: string) => {
+    const next = selectedTeachingSubjectIds.includes(subjectId)
+      ? selectedTeachingSubjectIds.filter((candidate) => candidate !== subjectId)
+      : [...selectedTeachingSubjectIds, subjectId];
+    setSelectedTeachingSubjectIds(next);
+    setSelectedSubjectId(next[0] ?? '');
+    setClassroomNames((current) => {
+      if (current[subjectId]) return current;
+      const subjectName = subjects.find((subject) => subject.id === subjectId)?.name ?? 'Class';
+      return { ...current, [subjectId]: `${subjectName} class` };
+    });
   };
 
   const finishOnboarding = async () => {
@@ -1108,6 +1152,12 @@ export default function OnboardingPage() {
         subjectId: selectedSubject.id,
         topicId: effectiveTopic.id,
         familiarity: effectiveFamiliarity,
+        ...(isTeachingRole(role) ? {
+          teachingScopes: selectedTeachingSubjectIds.map((subjectId) => ({
+            subjectId,
+            classroomName: classroomNames[subjectId]!.trim(),
+          })),
+        } : {}),
         child: role === 'parent' ? { name: childName.trim(), email: childEmail.trim().toLowerCase() } : null,
       });
 
@@ -1320,8 +1370,11 @@ export default function OnboardingPage() {
                   <SubjectStep
                     role={role}
                     subjects={subjects}
-                    selectedSubjectId={selectedSubjectId}
-                    onSelectSubject={handleSelectSubject}
+                    selectedSubjectIds={isTeachingRole(role) ? selectedTeachingSubjectIds : selectedSubjectId ? [selectedSubjectId] : []}
+                    classroomNames={classroomNames}
+                    allowMultiple={isTeachingRole(role)}
+                    onToggleSubject={isTeachingRole(role) ? handleToggleTeachingSubject : handleSelectSubject}
+                    onChangeClassroomName={(subjectId, value) => setClassroomNames((current) => ({ ...current, [subjectId]: value }))}
                     headingRef={headingRef}
                   />
                 )}

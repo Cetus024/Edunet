@@ -12,6 +12,7 @@ import { useCurrentAccount } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useTeacherStudents } from '@/lib/api/teacher-students';
 import { useTeacherClassPulse, type TopicHealth } from '@/lib/api/teacher-class-pulse';
+import { useTeachingContext } from '@/lib/teaching-context';
 
 type RankedAction = {
   id: string;
@@ -34,7 +35,9 @@ const STATUS_DOT: Record<TopicHealth['status'], string> = {
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const { data: account } = useCurrentAccount();
-  const { data: rosterData } = useTeacherStudents();
+  const { activeScopeId, activeScope } = useTeachingContext();
+  const firstName = account?.user.name.split(/\s+/)[0] || 'there';
+  const { data: rosterData } = useTeacherStudents({ scopeId: activeScopeId });
   const { unreadCount } = useEnquiryUnreadCount({
     userId: account?.user.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
@@ -43,7 +46,7 @@ export default function TeacherDashboardPage() {
     data: pulse,
     isLoading: pulseLoading,
     error: pulseError,
-  } = useTeacherClassPulse({ enabled: Boolean(account?.onboardingCompleted) });
+  } = useTeacherClassPulse({ enabled: Boolean(account?.onboardingCompleted), scopeId: activeScopeId });
 
   const students = useMemo(() => rosterData?.students ?? [], [rosterData]);
   const topics = pulse?.topics ?? [];
@@ -89,6 +92,15 @@ export default function TeacherDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl bg-gradient-to-br from-primary/15 to-transparent p-6">
+        <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Welcome back, {firstName}</p>
+        <h1 className="mt-1 text-2xl font-black text-foreground">{activeScope?.classroomName ?? 'Your classroom'} at a glance</h1>
+        <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+          {activeScope?.subjectName ? `${activeScope.subjectName}: ` : ''}Everyone at your school who picked this subject during setup shows up here automatically - no manual
+          roster to keep up to date.
+        </p>
+      </motion.div>
+
       <section>
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>

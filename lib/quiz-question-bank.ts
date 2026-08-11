@@ -1,4 +1,5 @@
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
+export type QuizQuestionMode = 'past-paper' | 'concept-check' | 'speed-round';
 
 export interface QuizQuestion {
   id: number;
@@ -425,11 +426,11 @@ const topicQuestionDrafts: Record<string, Record<string, QuestionDraft[]>> = {
 };
 
 const sourceMetadata = [
-  { source: '2019 O-Level Biology Paper 1', resourceNumber: '5090/12/O/N/19 Q15' },
-  { source: '2020 O-Level Biology Paper 2', resourceNumber: '5090/22/M/J/20 Q3(a)' },
-  { source: '2022 O-Level Biology Paper 2', resourceNumber: '5090/22/O/N/22 Q1(b)' },
-  { source: '2018 O-Level Biology Paper 2', resourceNumber: '5090/22/M/J/18 Q2(c)' },
-  { source: '2021 O-Level Biology Paper 2', resourceNumber: '5090/22/O/N/21 Q4(a)' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
+  { source: 'EduNets practice bank' },
 ] as const;
 
 function isValidQuestionSet(drafts: QuestionDraft[]): boolean {
@@ -452,6 +453,122 @@ export function getQuestionsForSelection(subject: string, topic: string): QuizQu
     topic,
     ...sourceMetadata[index],
     ...draft,
+  }));
+}
+
+function reindexQuestions(questions: readonly QuizQuestion[]): QuizQuestion[] {
+  return questions.map((question, index) => ({ ...question, id: index + 1 }));
+}
+
+function seededShuffle<T>(items: readonly T[], seed: string): T[] {
+  let state = 2_166_136_261;
+  for (let index = 0; index < seed.length; index += 1) {
+    state ^= seed.charCodeAt(index);
+    state = Math.imul(state, 16_777_619);
+  }
+
+  const random = () => {
+    state += 0x6D2B79F5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
+  }
+  return shuffled;
+}
+
+/**
+ * Practice papers are original content styled after the real O-Level paper
+ * format (an all-MCQ paper and an all-structured/fill-blank paper), not a
+ * reproduction of any real exam sitting - see PAST_PAPER_DEFINITIONS labels.
+ */
+const PAST_PAPER_DEFINITIONS = [
+  { id: 'paper-1', paperNumber: 1 as const, label: 'Practice Paper 1 (MCQ)', matches: (q: QuestionDraft) => q.type === 'mcq' },
+  { id: 'paper-2', paperNumber: 2 as const, label: 'Practice Paper 2 (Structured)', matches: (q: QuestionDraft) => q.type !== 'mcq' },
+] as const;
+
+function getSubjectQuestionPool(subject: string): QuizQuestion[] {
+  const subjectTopicNames = Object.keys(topicQuestionDrafts[subject] ?? {});
+  return subjectTopicNames.flatMap((topicName) => getQuestionsForSelection(subject, topicName) ?? []);
+}
+
+export function getAvailablePastPapers(subject: string): Array<{ id: string; label: string; paperNumber: 1 | 2; questionCount: number }> {
+  const pool = getSubjectQuestionPool(subject);
+  return PAST_PAPER_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    paperNumber: definition.paperNumber,
+    questionCount: pool.filter((question) => definition.matches(question)).length,
+  }));
+}
+
+/**
+ * Builds the exact question set for a quiz mode. This function is shared by
+ * the browser and API so a seeded speed round can be reconstructed for
+ * server-side grading without trusting answers supplied by the client.
+ */
+export function getQuestionsForQuizMode(
+  subject: string,
+  topic: string,
+  mode: QuizQuestionMode,
+  seed: string,
+  paperId = 'paper-1',
+): QuizQuestion[] | null {
+  const selectedTopicQuestions = getQuestionsForSelection(subject, topic);
+  if (!selectedTopicQuestions) return null;
+
+  if (mode === 'concept-check') {
+    return reindexQuestions(selectedTopicQuestions.map((question) => {
+      const conceptQuestion: QuizQuestion = { ...question, source: 'AI-generated concept check' };
+      delete conceptQuestion.resourceNumber;
+      return conceptQuestion;
+    }));
+  }
+
+  const subjectTopicNames = Object.keys(topicQuestionDrafts[subject] ?? {});
+  if (mode === 'past-paper') {
+    const definition = PAST_PAPER_DEFINITIONS.find((paper) => paper.id === paperId) ?? PAST_PAPER_DEFINITIONS[0];
+    const paperQuestions = getSubjectQuestionPool(subject).filter((question) => definition.matches(question));
+    if (paperQuestions.length === 0) return null;
+    return reindexQuestions(paperQuestions.map((question) => {
+      const paperQuestion: QuizQuestion = { ...question, source: definition.label };
+      delete paperQuestion.resourceNumber;
+      return paperQuestion;
+    }));
+  }
+
+  const selectedTopicIndex = subjectTopicNames.indexOf(topic);
+  if (selectedTopicIndex < 0) return null;
+
+  const relatedTopicNames = [topic];
+  for (let distance = 1; relatedTopicNames.length < subjectTopicNames.length; distance += 1) {
+    const previousTopic = subjectTopicNames[selectedTopicIndex - distance];
+    const nextTopic = subjectTopicNames[selectedTopicIndex + distance];
+    if (previousTopic) relatedTopicNames.push(previousTopic);
+    if (nextTopic) relatedTopicNames.push(nextTopic);
+    if (!previousTopic && !nextTopic) break;
+  }
+
+  const speedPool: QuizQuestion[] = [];
+  for (const [relatedIndex, relatedTopic] of relatedTopicNames.entries()) {
+    const relatedQuestions = (getQuestionsForSelection(subject, relatedTopic) ?? [])
+      .filter((question) => question.type === 'mcq');
+    speedPool.push(...relatedQuestions);
+    if (speedPool.length >= 5 && relatedIndex >= Math.min(2, relatedTopicNames.length - 1)) break;
+  }
+
+  if (speedPool.length < 5) return null;
+  const speedQuestions = seededShuffle(speedPool, `${seed}:${subject}:${topic}`).slice(0, 5);
+  return reindexQuestions(speedQuestions.map((question) => {
+    const speedQuestion: QuizQuestion = { ...question, source: `Speed mix · ${question.topic}` };
+    delete speedQuestion.resourceNumber;
+    return speedQuestion;
   }));
 }
 

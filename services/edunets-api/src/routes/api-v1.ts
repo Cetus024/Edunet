@@ -13,6 +13,7 @@ import {
   profiles,
   quizAttemptAnswers,
   quizAttempts,
+  teachingScopes,
   userTopicProgress,
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
@@ -27,12 +28,20 @@ import {
 import { loadSession, requireSession } from '../middleware/session.js';
 import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
-import { getStudentConceptWebForTeacher, listStudentsForTeacher } from '../services/teacher-students.js';
+import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
+import {
+  getClassConceptWebForTeacher,
+  getStudentConceptWebForTeacher,
+  listStudentsForTeacher,
+} from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
   onboardingRequestSchema,
   quizHistoryQuerySchema,
   quizSubmissionSchema,
+  updateQuestionReviewSchema,
+  updateSchoolSchema,
+  updateTeachingScopesSchema,
 } from '../validation.js';
 
 const api = new Hono<AppEnv>();
@@ -41,6 +50,24 @@ function requireUserId(context: Context<AppEnv>): string {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
   return user.id;
+}
+
+async function loadTeachingScopes(userId: string) {
+  return db.select({
+    id: teachingScopes.id,
+    schoolId: teachingScopes.schoolId,
+    schoolName: schools.name,
+    subjectId: teachingScopes.subjectId,
+    subjectName: subjects.name,
+    subjectIcon: subjects.icon,
+    classroomName: teachingScopes.classroomName,
+    position: teachingScopes.position,
+  })
+    .from(teachingScopes)
+    .innerJoin(schools, eq(schools.id, teachingScopes.schoolId))
+    .innerJoin(subjects, eq(subjects.id, teachingScopes.subjectId))
+    .where(eq(teachingScopes.userId, userId))
+    .orderBy(asc(teachingScopes.position), asc(teachingScopes.id));
 }
 
 api.get('/catalog', async (context) => {
@@ -90,6 +117,7 @@ api.get('/catalog', async (context) => {
 api.get('/me', loadSession, requireSession, async (context) => {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
+  const scopeRowsPromise = loadTeachingScopes(user.id);
 
   const [profile] = await db.select({
     role: profiles.role,
@@ -118,6 +146,7 @@ api.get('/me', loadSession, requireSession, async (context) => {
     .leftJoin(topics, eq(onboardingProfiles.topicId, topics.id))
     .where(eq(profiles.userId, user.id))
     .limit(1);
+  const scopeRows = await scopeRowsPromise;
 
   return context.json({
     user: {
@@ -157,8 +186,83 @@ api.get('/me', loadSession, requireSession, async (context) => {
       familiarity: profile.familiarity,
       initialMemoryScore: profile.initialMemoryScore,
       completedAt: profile.completedAt,
+      teachingScopes: scopeRows,
     } : null,
   });
+});
+
+api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = updateTeachingScopesSchema.parse(await readJson(context));
+  const [profile] = await db.select({ role: profiles.role, schoolId: profiles.schoolId })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+
+  if (!profile || (profile.role !== 'teacher' && profile.role !== 'tutor')) {
+    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors can update teaching contexts.');
+  }
+
+  const requestedSubjectIds = [...new Set(input.scopes.map((scope) => scope.subjectId))];
+  const subjectRows = await db.select({ id: subjects.id })
+    .from(subjects)
+    .where(inArray(subjects.id, requestedSubjectIds));
+  if (subjectRows.length !== requestedSubjectIds.length) {
+    throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
+  }
+
+  const firstScope = input.scopes[0]!;
+  const [firstTopic] = await db.select({ id: topics.id })
+    .from(topics)
+    .where(eq(topics.subjectId, firstScope.subjectId))
+    .orderBy(asc(topics.position))
+    .limit(1);
+  if (!firstTopic) throw new ApiError(400, 'SUBJECT_HAS_NO_TOPICS', 'The primary subject has no topics.');
+
+  const now = new Date();
+  await db.transaction(async (transaction) => {
+    await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
+    await transaction.insert(teachingScopes).values(input.scopes.map((scope, position) => ({
+      id: randomUUID(),
+      userId,
+      schoolId: profile.schoolId,
+      subjectId: scope.subjectId,
+      classroomName: scope.classroomName,
+      position,
+      createdAt: now,
+      updatedAt: now,
+    })));
+    await transaction.update(onboardingProfiles).set({
+      subjectId: firstScope.subjectId,
+      topicId: firstTopic.id,
+      updatedAt: now,
+    }).where(eq(onboardingProfiles.userId, userId));
+  });
+
+  return context.json({ scopes: await loadTeachingScopes(userId) });
+});
+
+api.put('/me/school', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = updateSchoolSchema.parse(await readJson(context));
+
+  const [profile] = await db.select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+  if (!profile || profile.role !== 'student') {
+    throw new ApiError(403, 'STUDENT_ONLY', 'Only students can update their school here.');
+  }
+
+  const [school] = await db.select({ id: schools.id, name: schools.name })
+    .from(schools)
+    .where(eq(schools.id, input.schoolId))
+    .limit(1);
+  if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Selected school was not found.');
+
+  await db.update(profiles).set({ schoolId: school.id, updatedAt: new Date() }).where(eq(profiles.userId, userId));
+
+  return context.json({ schoolId: school.id, schoolName: school.name });
 });
 
 api.put('/me/onboarding', loadSession, requireSession, async (context) => {
@@ -218,6 +322,22 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
 
     if (!selectedTopic) {
       throw new ApiError(400, 'INVALID_TOPIC', 'The topic does not belong to the selected subject.');
+    }
+
+    const requestedTeachingScopes = input.role === 'teacher' || input.role === 'tutor'
+      ? input.teachingScopes ?? [{
+        subjectId: selectedTopic.subjectId,
+        classroomName: `${selectedTopic.subjectName} class`,
+      }]
+      : [];
+    if (requestedTeachingScopes.length > 0) {
+      const requestedSubjectIds = [...new Set(requestedTeachingScopes.map((scope) => scope.subjectId))];
+      const validTeachingSubjects = await transaction.select({ id: subjects.id })
+        .from(subjects)
+        .where(inArray(subjects.id, requestedSubjectIds));
+      if (validTeachingSubjects.length !== requestedSubjectIds.length) {
+        throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
+      }
     }
 
     const now = new Date();
@@ -280,6 +400,19 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       },
     });
 
+    if (requestedTeachingScopes.length > 0) {
+      await transaction.insert(teachingScopes).values(requestedTeachingScopes.map((scope, position) => ({
+        id: randomUUID(),
+        userId,
+        schoolId: school.id,
+        subjectId: scope.subjectId,
+        classroomName: scope.classroomName,
+        position,
+        createdAt: now,
+        updatedAt: now,
+      })));
+    }
+
     await transaction.insert(userTopicProgress).values({
       userId,
       topicId: selectedTopic.id,
@@ -328,15 +461,34 @@ api.get('/me/child', loadSession, requireSession, async (context) => {
 
 api.get('/me/students', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const students = await listStudentsForTeacher(userId);
+  const students = await listStudentsForTeacher(userId, context.req.query('scopeId'));
   return context.json({ students });
+});
+
+api.get('/me/class-concept-web', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await getClassConceptWebForTeacher(userId, context.req.query('scopeId'));
+  return context.json(result);
 });
 
 api.get('/me/students/:studentId/concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const studentId = context.req.param('studentId');
-  const result = await getStudentConceptWebForTeacher(userId, studentId);
+  const result = await getStudentConceptWebForTeacher(userId, studentId, context.req.query('scopeId'));
   return context.json(result);
+});
+
+api.get('/me/quiz-review', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await getQuizReviewForTeacher(userId, context.req.query('scopeId'));
+  return context.json(result);
+});
+
+api.put('/me/quiz-review', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = updateQuestionReviewSchema.parse(await readJson(context));
+  await saveQuestionReview(userId, input.questionKey, input.explanation);
+  return context.json({ ok: true });
 });
 
 api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
@@ -360,6 +512,9 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     selectedTopic.id,
     selectedTopic.subjectName,
     selectedTopic.name,
+    input.mode,
+    input.submissionId,
+    input.paperId,
   );
   if (!questions) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');

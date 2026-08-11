@@ -50,6 +50,7 @@ export type OnboardingInput = {
   subjectId: string;
   topicId: string;
   familiarity: 'new' | 'some' | 'well';
+  teachingScopes?: Array<{ subjectId: string; classroomName: string }>;
   // Parent role only.
   child?: { name: string; email: string } | null;
 };

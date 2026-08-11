@@ -7,7 +7,7 @@ import { ensureDemoEnquiryThreads } from '../../../../database/enquiry-demo-seed
 import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { enquiryMessages, enquiryThreads } from '../../../../database/schema/enquiries.js';
-import { onboardingProfiles, profiles } from '../../../../database/schema/learning.js';
+import { onboardingProfiles, profiles, teachingScopes } from '../../../../database/schema/learning.js';
 import { ApiError } from '../errors.js';
 import {
   canAccessThread,
@@ -115,21 +115,22 @@ async function loadDirectoryCandidates(subjectId: string): Promise<{
     name: users.name,
     email: users.email,
     role: profiles.role,
-    schoolId: profiles.schoolId,
-    subjectId: onboardingProfiles.subjectId,
+    schoolId: teachingScopes.schoolId,
+    subjectId: teachingScopes.subjectId,
   })
     .from(users)
     .innerJoin(profiles, eq(profiles.userId, users.id))
-    .innerJoin(onboardingProfiles, eq(onboardingProfiles.userId, users.id))
+    .innerJoin(teachingScopes, eq(teachingScopes.userId, users.id))
     .where(and(
       eq(profiles.onboardingCompleted, true),
       inArray(profiles.role, ['teacher', 'tutor']),
-      eq(onboardingProfiles.subjectId, subjectId),
+      eq(teachingScopes.subjectId, subjectId),
     ));
 
   const candidates: InternalDirectoryCandidate[] = [];
   for (const row of rows) {
     if (!row.schoolId || !isRecipientRole(row.role)) continue;
+    if (candidates.some((candidate) => candidate.userId === row.userId)) continue;
     candidates.push({
       userId: row.userId,
       name: row.name,

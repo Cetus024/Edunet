@@ -31,6 +31,11 @@ function statusFor(topic: Omit<TopicHealth, 'status'>): TopicHealth['status'] {
 
 export const teacherClassPulseQueryKey = ['teacher-class-pulse'] as const;
 
+function withScope(path: string, scopeId: string | null) {
+  if (!scopeId) return path;
+  return `${path}?${new URLSearchParams({ scopeId }).toString()}`;
+}
+
 /**
  * Aggregates real per-student topic mastery (from each roster student's own
  * concept-web scores) into a per-topic health summary for the teacher's
@@ -40,14 +45,14 @@ export const teacherClassPulseQueryKey = ['teacher-class-pulse'] as const;
  * would want a real server-side aggregate query if the roster ever grows
  * large enough for N+1 requests to matter.
  */
-export function useTeacherClassPulse({ enabled = true }: { enabled?: boolean } = {}) {
+export function useTeacherClassPulse({ enabled = true, scopeId = null }: { enabled?: boolean; scopeId?: string | null } = {}) {
   return useQuery({
-    queryKey: teacherClassPulseQueryKey,
+    queryKey: [...teacherClassPulseQueryKey, scopeId ?? 'primary'],
     queryFn: async (): Promise<ClassPulse> => {
-      const { students } = await apiRequest<{ students: TeacherStudent[] }>('/api/v1/me/students');
+      const { students } = await apiRequest<{ students: TeacherStudent[]}>(withScope('/api/v1/me/students', scopeId));
       const conceptWebs = await Promise.all(
         students.map((student) => apiRequest<StudentConceptWebResponse>(
-          `/api/v1/me/students/${student.id}/concept-web`,
+          withScope(`/api/v1/me/students/${student.id}/concept-web`, scopeId),
         ).catch(() => null)),
       );
 
@@ -82,5 +87,6 @@ export function useTeacherClassPulse({ enabled = true }: { enabled?: boolean } =
     },
     enabled,
     staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 }

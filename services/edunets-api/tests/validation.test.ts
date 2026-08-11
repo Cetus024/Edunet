@@ -5,6 +5,7 @@ import {
   questionRecipientsQuerySchema,
   quizSubmissionSchema,
   sendEnquiryMessageSchema,
+  updateTeachingScopesSchema,
 } from '../src/validation.js';
 
 describe('onboarding validation', () => {
@@ -52,6 +53,36 @@ describe('quiz submission validation', () => {
       answers: [{ questionKey: 'amath-trig:q1', answer: 2 }],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('teaching context validation', () => {
+  it('accepts multiple named subjects for a teacher', () => {
+    expect(onboardingRequestSchema.safeParse({
+      role: 'teacher',
+      schoolId: 'example-school',
+      learningSource: 'none',
+      subjectId: 'biology',
+      topicId: 'biology-cells',
+      familiarity: 'well',
+      teachingScopes: [
+        { subjectId: 'biology', classroomName: 'Biology 4A' },
+        { subjectId: 'chemistry', classroomName: 'Chemistry 4B' },
+      ],
+    }).success).toBe(true);
+  });
+
+  it('rejects teaching contexts for learners and requires at least one on profile updates', () => {
+    expect(onboardingRequestSchema.safeParse({
+      role: 'student',
+      schoolId: 'example-school',
+      learningSource: 'none',
+      subjectId: 'amath',
+      topicId: 'amath-trig',
+      familiarity: 'some',
+      teachingScopes: [{ subjectId: 'amath', classroomName: '4A' }],
+    }).success).toBe(false);
+    expect(updateTeachingScopesSchema.safeParse({ scopes: [] }).success).toBe(false);
   });
 });
 

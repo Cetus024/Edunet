@@ -27,11 +27,9 @@ async function ensureOwnershipMarker(): Promise<void> {
  * merely upserted - which also clears out any stale exploratory data left
  * over from earlier ad-hoc seeding.
  *
- * Schools have no incoming foreign keys, so they are safe to delete and
- * reinsert outright. Subjects and topics, however, are referenced by real
- * user data (onboarding_profile.subjectId/topicId, quiz_attempt, and
- * user_topic_progress) once anyone has onboarded, so a blind delete-all
- * violates those foreign keys. They are upserted instead, and only rows no
+ * Schools, subjects, and topics are referenced by real user data (including
+ * teaching scopes) once anyone has onboarded, so a blind delete-all violates
+ * those foreign keys. They are upserted instead, and only rows no
  * longer present in the current seed are deleted (which still fails loudly,
  * as it should, if a genuinely-removed topic is still referenced by
  * existing user data - that is a real conflict, not a bug in this script).
@@ -44,6 +42,17 @@ async function replaceCatalog(): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(quizQuestions);
     await tx.delete(topicAliases);
+
+    if (schoolSeed.length > 0) {
+      await tx.delete(schools).where(notInArray(schools.id, schoolSeed.map((school) => school.id)));
+      await tx.insert(schools).values(schoolSeed).onConflictDoUpdate({
+        target: schools.id,
+        set: {
+          name: sql`excluded.name`,
+          position: sql`excluded.position`,
+        },
+      });
+    }
 
     // Subjects before topics: topics.subjectId references subjects.id.
     if (subjectSeed.length > 0) {
@@ -69,9 +78,6 @@ async function replaceCatalog(): Promise<void> {
         },
       });
     }
-
-    await tx.delete(schools);
-    if (schoolSeed.length > 0) await tx.insert(schools).values(schoolSeed);
   });
 }
 

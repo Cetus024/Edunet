@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertTriangle,
@@ -12,23 +12,72 @@ import {
   Focus,
   LogOut,
   Mail,
+  Pencil,
+  Plus,
+  Save,
   ShieldCheck,
+  Trash2,
   Trophy,
   UserRound,
+  X,
 } from 'lucide-react';
 import { useAtomValue } from 'jotai';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
-import { useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
+import { authClient } from '@/lib/api/auth-client';
+import { currentAccountQueryKey, updateSchool, updateTeachingScopes, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
+import { useCatalog } from '@/lib/api/study';
 import { getRoleLabel, isTeachingRole } from '@/lib/roles';
 import {
   getEffectiveScore,
   subjectSummariesAtom,
 } from '@/lib/study-data';
+
+function useNameEditor(currentName: string) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(currentName);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const startEditing = () => {
+    setValue(currentName);
+    setIsEditing(true);
+  };
+  const cancel = () => setIsEditing(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast.error('Name cannot be empty.');
+      return;
+    }
+    if (trimmed === currentName) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await authClient.updateUser({ name: trimmed });
+      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
+      toast.success('Name updated.');
+      setIsEditing(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update your name.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { isEditing, value, setValue, isSaving, startEditing, cancel, save };
+}
 
 function getScoreColor(score: number): string {
   if (score >= 70) return 'bg-[#186636]';
@@ -73,6 +122,52 @@ function TeacherProfilePage({
   const fullName = account.user.name;
   const email = account.user.email;
   const roleLabel = getRoleLabel(profile?.role);
+  const queryClient = useQueryClient();
+  const catalogQuery = useCatalog();
+  const nameEditor = useNameEditor(fullName);
+  const [isSavingScopes, setIsSavingScopes] = useState(false);
+  const [scopeDrafts, setScopeDrafts] = useState(() => {
+    const savedScopes = profile?.teachingScopes ?? [];
+    if (savedScopes.length > 0) {
+      return savedScopes.map((scope) => ({
+        key: scope.id,
+        subjectId: scope.subjectId,
+        classroomName: scope.classroomName,
+      }));
+    }
+    return profile ? [{
+      key: 'legacy-primary',
+      subjectId: profile.subjectId,
+      classroomName: `${profile.subjectName} class`,
+    }] : [];
+  });
+
+  const handleSaveScopes = async () => {
+    if (scopeDrafts.length === 0 || scopeDrafts.some((scope) => !scope.subjectId || !scope.classroomName.trim())) {
+      toast.error('Keep at least one classroom and complete every subject and classroom name.');
+      return;
+    }
+    setIsSavingScopes(true);
+    try {
+      const result = await updateTeachingScopes(scopeDrafts.map((scope) => ({
+        subjectId: scope.subjectId,
+        classroomName: scope.classroomName.trim(),
+      })));
+      setScopeDrafts(result.scopes.map((scope) => ({
+        key: scope.id,
+        subjectId: scope.subjectId,
+        classroomName: scope.classroomName,
+      })));
+      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
+      toast.success('Teaching subjects and classrooms updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update teaching details.');
+    } finally {
+      setIsSavingScopes(false);
+    }
+  };
+
+  const teachingSubjectNames = [...new Set((profile?.teachingScopes ?? []).map((scope) => scope.subjectName))];
 
   const profileDetails = [
     {
@@ -82,13 +177,13 @@ function TeacherProfilePage({
     },
     {
       icon: BookOpen,
-      label: 'Teaching Subject',
-      value: profile?.subjectName ?? 'Not provided',
+      label: 'Teaching Subjects',
+      value: teachingSubjectNames.length > 0 ? teachingSubjectNames.join(', ') : profile?.subjectName ?? 'Not provided',
     },
     {
       icon: Focus,
-      label: 'Primary Topic / Teaching Focus',
-      value: profile?.topicName ?? 'Not provided',
+      label: 'Classrooms',
+      value: profile?.teachingScopes?.map((scope) => scope.classroomName).join(', ') || `${profile?.subjectName ?? 'Primary'} class`,
     },
   ] as const;
 
@@ -126,7 +221,30 @@ function TeacherProfilePage({
                   {getInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
-              <h2 className="mt-4 text-2xl font-black">{fullName}</h2>
+              {nameEditor.isEditing ? (
+                <div className="mt-4 flex w-full items-center gap-2">
+                  <Input
+                    value={nameEditor.value}
+                    onChange={(event) => nameEditor.setValue(event.target.value)}
+                    maxLength={120}
+                    autoFocus
+                    className="text-center"
+                  />
+                  <Button type="button" size="icon" onClick={() => void nameEditor.save()} disabled={nameEditor.isSaving} aria-label="Save name">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon" variant="ghost" onClick={nameEditor.cancel} aria-label="Cancel editing name">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center gap-2">
+                  <h2 className="text-2xl font-black">{fullName}</h2>
+                  <button type="button" onClick={nameEditor.startEditing} aria-label="Edit name" className="text-slate-400 transition hover:text-slate-600">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <span className="mt-2 rounded-full bg-[#f7cf5d]/30 px-3 py-1 text-xs font-black text-[#7a5c08]">
                 {roleLabel}
               </span>
@@ -193,6 +311,88 @@ function TeacherProfilePage({
               ))}
             </dl>
 
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-[#f7f9fc] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-[#17233a]">Edit classrooms and subjects</h3>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">Add another classroom, rename it, or change the subject it teaches.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!catalogQuery.data?.subjects.length || scopeDrafts.length >= 16}
+                  onClick={() => {
+                    const firstSubject = catalogQuery.data?.subjects[0];
+                    if (!firstSubject) return;
+                    setScopeDrafts((current) => [...current, {
+                      key: crypto.randomUUID(),
+                      subjectId: firstSubject.id,
+                      classroomName: `${firstSubject.name} class`,
+                    }]);
+                  }}
+                  className="rounded-xl border-slate-300 bg-white text-[#17233a] hover:bg-slate-100"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Add classroom
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {scopeDrafts.map((scope, index) => (
+                  <div key={scope.key} className="grid gap-2 rounded-2xl border border-[#2b4261] bg-[#0c1b31] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                    <label>
+                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#7185a3]">Subject</span>
+                      <Select
+                        value={scope.subjectId}
+                        onValueChange={(subjectId) => setScopeDrafts((current) => current.map((candidate) => (
+                          candidate.key === scope.key ? { ...candidate, subjectId } : candidate
+                        )))}
+                      >
+                        <SelectTrigger className="w-full border-[#3a5272] bg-[#172b47] text-white"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {catalogQuery.data?.subjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>{subject.icon} {subject.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label>
+                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#7185a3]">Classroom name</span>
+                      <Input
+                        value={scope.classroomName}
+                        maxLength={80}
+                        onChange={(event) => setScopeDrafts((current) => current.map((candidate) => (
+                          candidate.key === scope.key ? { ...candidate, classroomName: event.target.value } : candidate
+                        )))}
+                        placeholder={`Classroom ${index + 1}`}
+                        className="border-[#3a5272] bg-[#172b47] text-white placeholder:text-[#7185a3]"
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={scopeDrafts.length === 1}
+                      aria-label={`Remove ${scope.classroomName || `classroom ${index + 1}`}`}
+                      onClick={() => setScopeDrafts((current) => current.filter((candidate) => candidate.key !== scope.key))}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                type="button"
+                onClick={() => void handleSaveScopes()}
+                disabled={isSavingScopes || catalogQuery.isPending}
+                className="mt-4 w-full rounded-xl bg-[#f7cf5d] font-black text-[#17233a] hover:bg-[#ffe17d]"
+              >
+                <Save className="mr-2 h-4 w-4" /> {isSavingScopes ? 'Saving…' : 'Save teaching contexts'}
+              </Button>
+            </div>
+
             <div className="mt-5 rounded-2xl border border-[#f7cf5d]/40 bg-[#f7cf5d]/[0.12] px-4 py-4 text-sm font-semibold leading-relaxed text-[#53657e]">
               These details identify your teaching workspace and help EduNets connect relevant student enquiries.
             </div>
@@ -207,6 +407,27 @@ export default function ProfilePage() {
   const { data: account } = useCurrentAccount();
   const subjectSummaries = useAtomValue(subjectSummariesAtom);
   const signOut = useSafeSignOut();
+  const queryClient = useQueryClient();
+  const catalogQuery = useCatalog();
+  const nameEditor = useNameEditor(account?.user.name ?? '');
+  const [isEditingSchool, setIsEditingSchool] = useState(false);
+  const [schoolDraft, setSchoolDraft] = useState('');
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  const handleSaveSchool = async () => {
+    if (!schoolDraft || isSavingSchool) return;
+    setIsSavingSchool(true);
+    try {
+      await updateSchool(schoolDraft);
+      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
+      toast.success('School updated.');
+      setIsEditingSchool(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update your school.');
+    } finally {
+      setIsSavingSchool(false);
+    }
+  };
 
   const subjectOverview = useMemo(
     () => subjectSummaries
@@ -274,8 +495,60 @@ export default function ProfilePage() {
               <div className="mb-4 flex h-32 w-32 items-center justify-center rounded-[2rem] bg-secondary text-secondary-foreground shadow-[0_18px_45px_rgba(29,58,98,0.16)]">
                 <UserRound className="h-16 w-16" />
               </div>
-              <h2 className="mb-1 text-2xl font-bold text-studynow-dark">{fullName}</h2>
-              <p className="mb-4 text-sm text-muted-foreground">{schoolName}</p>
+              {nameEditor.isEditing ? (
+                <div className="mb-1 flex items-center gap-2">
+                  <Input
+                    value={nameEditor.value}
+                    onChange={(event) => nameEditor.setValue(event.target.value)}
+                    maxLength={120}
+                    autoFocus
+                    className="h-9 text-center"
+                  />
+                  <Button type="button" size="icon-sm" onClick={() => void nameEditor.save()} disabled={nameEditor.isSaving} aria-label="Save name">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon-sm" variant="ghost" onClick={nameEditor.cancel} aria-label="Cancel editing name">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-1 flex items-center gap-2">
+                  <h2 className="text-2xl font-bold text-studynow-dark">{fullName}</h2>
+                  <button type="button" onClick={nameEditor.startEditing} aria-label="Edit name" className="text-muted-foreground transition hover:text-foreground">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              {isEditingSchool ? (
+                <div className="mb-4 flex w-full max-w-xs items-center gap-2">
+                  <Select value={schoolDraft} onValueChange={setSchoolDraft}>
+                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Choose a school" /></SelectTrigger>
+                    <SelectContent>
+                      {catalogQuery.data?.schools.map((school) => (
+                        <SelectItem key={school.id} value={school.id}>{school.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon-sm" onClick={() => void handleSaveSchool()} disabled={isSavingSchool || !schoolDraft} aria-label="Save school">
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon-sm" variant="ghost" onClick={() => setIsEditingSchool(false)} aria-label="Cancel editing school">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-4 flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground">{schoolName}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setSchoolDraft(account?.profile?.schoolId ?? ''); setIsEditingSchool(true); }}
+                    aria-label="Edit school"
+                    className="text-muted-foreground transition hover:text-foreground"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
               <Badge className="mb-6 bg-secondary px-4 py-1 text-sm font-semibold text-secondary-foreground hover:bg-secondary">
                 {role}
               </Badge>

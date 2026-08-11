@@ -5,12 +5,14 @@ import { format } from 'date-fns';
 import { motion } from 'motion/react';
 import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useCurrentAccount } from '@/lib/api/me';
+import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 
 import { cn } from '@/lib/utils';
 import { getRoleLabel, isTeachingRole, type EduNetsRole } from '@/lib/roles';
+import { useTeachingContext } from '@/lib/teaching-context';
+import { TeachingContextSelect } from '@/components/teaching-context-select';
 
 
 type NavItem = { path: string; label: string; icon: LucideIcon };
@@ -40,6 +42,7 @@ export function AppSidebar() {
   const user = account?.user ?? null;
   const role = account?.profile?.role ?? null;
   const usesTeachingWorkspace = isTeachingRole(role);
+  const { scopes, activeScopeId, setActiveScopeId } = useTeachingContext();
   const { unreadCount: unreadMessages } = useEnquiryUnreadCount({
     userId: user?.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
@@ -59,12 +62,25 @@ export function AppSidebar() {
             location={location}
             unreadMessages={unreadMessages}
             navItems={activeNavItems}
+            teachingScopes={scopes}
+            activeTeachingScopeId={activeScopeId}
+            onTeachingScopeChange={setActiveScopeId}
             onLogout={() => signOut('/login')}
           />
         </div>
       </aside>
 
       {/* Mobile Bottom Navigation */}
+      {usesTeachingWorkspace && scopes.length > 0 && (
+        <div className="fixed bottom-20 left-3 right-3 z-50 rounded-2xl border border-sidebar-border bg-card p-2 shadow-xl lg:hidden">
+          <TeachingContextSelect
+            scopes={scopes}
+            activeScopeId={activeScopeId}
+            onChange={setActiveScopeId}
+            compact
+          />
+        </div>
+      )}
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-hidden">
         <div className="flex items-center justify-around h-16 px-2">
           {activeNavItems.map((item) => {
@@ -103,6 +119,9 @@ function SidebarContent({
   location,
   unreadMessages,
   navItems,
+  teachingScopes,
+  activeTeachingScopeId,
+  onTeachingScopeChange,
   onLogout,
 }: {
   user: { name: string; image: string | null } | null;
@@ -110,6 +129,9 @@ function SidebarContent({
   location: { pathname: string };
   unreadMessages: number;
   navItems: NavItem[];
+  teachingScopes: TeachingScope[];
+  activeTeachingScopeId: string | null;
+  onTeachingScopeChange: (scopeId: string) => void;
   onLogout: () => Promise<boolean>;
 }) {
   const initials = user?.name
@@ -168,6 +190,14 @@ function SidebarContent({
           </div>
         </div>
       </motion.div>
+
+      {isTeachingRole(role) && teachingScopes.length > 0 && (
+        <TeachingContextSelect
+          scopes={teachingScopes}
+          activeScopeId={activeTeachingScopeId}
+          onChange={onTeachingScopeChange}
+        />
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
