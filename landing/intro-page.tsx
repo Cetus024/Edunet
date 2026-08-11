@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { ArrowLeft, Brain, Cloud, Cpu, LogIn, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,12 @@ const DOCS = [
   },
 ] as const;
 
-export default function IntroPage() {
+// Next.js 16 requires useSearchParams() to sit inside a Suspense boundary
+// during prerendering (build-time static generation) - without it, the
+// production build fails outright rather than just warning. IntroPage below
+// is the actual default export and stays search-param-free; all the real
+// content (including the useSearchParams() call) lives in IntroContent.
+function IntroContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeId, setActiveId] = useState<(typeof DOCS)[number]['id']>('manual');
@@ -145,5 +150,13 @@ export default function IntroPage() {
         EduNets · Built for O-Level momentum
       </footer>
     </main>
+  );
+}
+
+export default function IntroPage() {
+  return (
+    <Suspense fallback={null}>
+      <IntroContent />
+    </Suspense>
   );
 }
