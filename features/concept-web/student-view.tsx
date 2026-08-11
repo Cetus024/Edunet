@@ -643,6 +643,19 @@ export default function StudentConceptWebView() {
   };
 
   const selectedPopupTier = popup ? tierForScore(popup.node.memoryScore) : null;
+  // The quiz page's ?topic= deep link matches on a topic's display NAME
+  // (see dashboard.tsx's callers of the same param), not its id — but a
+  // topic node's own id doubles as its quiz-selection key here, so only
+  // subconcept popups need resolving back to their parent topic's name.
+  // Passing a subconcept's own id/name (e.g. an id like
+  // "biology-cell-division-mitosis") used to work by accident only for
+  // single-word topics whose id happened to contain the name as a
+  // substring, and silently failed for every multi-word one.
+  const quizTopicName = popup
+    ? (popup.node.kind === 'subconcept'
+      ? graph.nodes.find((node: GraphNode) => node.id === popup.node.parentId)?.name ?? popup.node.name
+      : popup.node.name)
+    : '';
 
   return (
     <div className="flex h-dvh max-h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
@@ -761,7 +774,7 @@ export default function StudentConceptWebView() {
                 <div className="mb-2 flex items-center gap-2 font-black"><Link2 className="h-4 w-4" /> Key Connection</div>
                 <p className="text-sm">Links to <strong>{popup.node.keyConnection.topic}</strong>: {popup.node.keyConnection.explanation}</p>
               </div>
-              <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground shadow-lg" onClick={() => navigate(`/quiz?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(popup.node.parentId ?? popup.node.id)}&concept=${encodeURIComponent(popup.node.id)}`)}><Brain className="mr-2 h-4 w-4" /> Quiz me on this <ChevronRight className="ml-2 h-4 w-4" /></Button>
+              <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground shadow-lg" onClick={() => navigate(`/quiz?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(quizTopicName)}&concept=${encodeURIComponent(popup.node.id)}`)}><Brain className="mr-2 h-4 w-4" /> Quiz me on this <ChevronRight className="ml-2 h-4 w-4" /></Button>
             </div>
           </motion.div>
         )}

@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 
 import { authClient, getAuthErrorMessage } from '@/lib/api/auth-client';
 import { currentAccountQueryKey, getCurrentAccount } from '@/lib/api/me';
-import { DEMO_LOGIN_OPTIONS } from '@/lib/demo-auth';
 import { useNavigate } from '@/lib/navigation';
 import { getAuthenticatedHome } from '@/lib/roles';
 
@@ -206,33 +205,6 @@ export default function EduNetsLogin() {
                   Create Account
                 </button>
               </p>
-
-              <div className="rounded-2xl border border-[#d7e0eb] bg-[#f7f9fc] p-4 text-left">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--edunets-light-blue)]">
-                  Demo accounts
-                </p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {DEMO_LOGIN_OPTIONS.map((option) => (
-                    <button
-                      key={option.email}
-                      type="button"
-                      onClick={() => {
-                        setEmail(option.email);
-                        setPassword(option.password);
-                      }}
-                      className="rounded-xl border border-[#cbd7e6] bg-white px-3 py-2 text-left text-xs font-bold text-[var(--edunets-dark-blue)] transition hover:border-[var(--edunets-light-blue)] hover:bg-[#eef4fb]"
-                    >
-                      <span className="block">{option.label}</span>
-                      <span className="mt-1 block font-medium text-[var(--edunets-ink)]/60">
-                        {option.email}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs font-semibold text-[var(--edunets-ink)]/60">
-                  Password: EduNets2026!
-                </p>
-              </div>
             </form>
           </div>
         </section>
