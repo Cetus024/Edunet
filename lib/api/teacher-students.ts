@@ -27,6 +27,22 @@ export type StudentConceptWebResponse = {
   topics: StudentConceptWebTopic[];
 };
 
+export type ClassConceptWebTopic = {
+  id: string;
+  name: string;
+  memoryScore: number | null;
+  participatingStudents: number;
+  lastReviewedAt: string | null;
+  nextReviewAt: string | null;
+  quizAttempts: number;
+};
+
+export type ClassConceptWebResponse = {
+  classSize: number;
+  subject: { id: string; name: string; icon: string | null };
+  topics: ClassConceptWebTopic[];
+};
+
 export const teacherStudentsQueryKey = ['teacher-students'] as const;
 
 export function useTeacherStudents({ enabled = true }: { enabled?: boolean } = {}) {
@@ -35,6 +51,17 @@ export function useTeacherStudents({ enabled = true }: { enabled?: boolean } = {
     queryFn: () => apiRequest<{ students: TeacherStudent[] }>('/api/v1/me/students'),
     enabled,
     staleTime: 30_000,
+  });
+}
+
+export const classConceptWebQueryKey = ['teacher-class-concept-web'] as const;
+
+export function useClassConceptWeb({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: classConceptWebQueryKey,
+    queryFn: () => apiRequest<ClassConceptWebResponse>('/api/v1/me/class-concept-web'),
+    enabled,
+    staleTime: 15_000,
   });
 }
 

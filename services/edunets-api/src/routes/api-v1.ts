@@ -27,7 +27,11 @@ import {
 import { loadSession, requireSession } from '../middleware/session.js';
 import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
-import { getStudentConceptWebForTeacher, listStudentsForTeacher } from '../services/teacher-students.js';
+import {
+  getClassConceptWebForTeacher,
+  getStudentConceptWebForTeacher,
+  listStudentsForTeacher,
+} from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
   onboardingRequestSchema,
@@ -332,6 +336,12 @@ api.get('/me/students', loadSession, requireSession, async (context) => {
   return context.json({ students });
 });
 
+api.get('/me/class-concept-web', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await getClassConceptWebForTeacher(userId);
+  return context.json(result);
+});
+
 api.get('/me/students/:studentId/concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const studentId = context.req.param('studentId');
@@ -360,6 +370,8 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     selectedTopic.id,
     selectedTopic.subjectName,
     selectedTopic.name,
+    input.mode,
+    input.submissionId,
   );
   if (!questions) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');

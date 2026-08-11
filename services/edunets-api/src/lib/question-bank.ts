@@ -1,7 +1,8 @@
 import {
-  getQuestionsForSelection,
+  getQuestionsForQuizMode,
   getQuizQuestionKey,
   isQuizAnswerCorrect,
+  type QuizQuestionMode,
   type QuizQuestion,
 } from '../../../../lib/quiz-question-bank.js';
 
@@ -21,8 +22,10 @@ export function getKeyedQuestions(
   topicId: string,
   subjectName: string,
   topicName: string,
+  mode: QuizQuestionMode = 'concept-check',
+  seed = '',
 ): KeyedQuizQuestion[] | null {
-  const questions = getQuestionsForSelection(subjectName, topicName);
+  const questions = getQuestionsForQuizMode(subjectName, topicName, mode, seed);
   if (!questions) return null;
 
   return questions.map((question, index) => ({

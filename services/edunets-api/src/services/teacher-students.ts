@@ -1,10 +1,11 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
 import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { onboardingProfiles, profiles, userTopicProgress } from '../../../../database/schema/learning.js';
 import { ApiError } from '../errors.js';
+import { summarizeClassTopic } from '../lib/class-concept-web.js';
 import { isRecipientRole, type EnquiryActor } from '../lib/enquiries.js';
 import { loadEnquiryActor } from './enquiries.js';
 
@@ -23,6 +24,20 @@ export type StudentConceptWebResponse = {
     id: string;
     name: string;
     memoryScore: number | null;
+    lastReviewedAt: Date | null;
+    nextReviewAt: Date | null;
+    quizAttempts: number;
+  }>;
+};
+
+export type ClassConceptWebResponse = {
+  classSize: number;
+  subject: { id: string; name: string; icon: string | null };
+  topics: Array<{
+    id: string;
+    name: string;
+    memoryScore: number | null;
+    participatingStudents: number;
     lastReviewedAt: Date | null;
     nextReviewAt: Date | null;
     quizAttempts: number;
@@ -48,10 +63,8 @@ async function loadTeacherActor(teacherUserId: string): Promise<EnquiryActor> {
  * subject during onboarding. There is no explicit class-enrollment table -
  * this school+subject match is the lightweight, real stand-in for one.
  */
-export async function listStudentsForTeacher(teacherUserId: string): Promise<TeacherStudent[]> {
-  const teacher = await loadTeacherActor(teacherUserId);
-
-  const rows = await db.select({
+async function listStudentsInScope(teacher: EnquiryActor): Promise<TeacherStudent[]> {
+  return db.select({
     id: users.id,
     name: users.name,
     email: users.email,
@@ -68,8 +81,69 @@ export async function listStudentsForTeacher(teacherUserId: string): Promise<Tea
       eq(onboardingProfiles.subjectId, teacher.subjectId),
     ))
     .orderBy(asc(users.name));
+}
 
-  return rows;
+export async function listStudentsForTeacher(teacherUserId: string): Promise<TeacherStudent[]> {
+  const teacher = await loadTeacherActor(teacherUserId);
+  return listStudentsInScope(teacher);
+}
+
+/**
+ * Builds the teacher concept web from the entire school+subject roster.
+ * A missing student/topic progress row contributes zero to the whole-class
+ * average. If nobody has started a topic yet, its score stays null so the UI
+ * can distinguish "not started" from a genuine class average of zero.
+ */
+export async function getClassConceptWebForTeacher(
+  teacherUserId: string,
+): Promise<ClassConceptWebResponse> {
+  const teacher = await loadTeacherActor(teacherUserId);
+  const roster = await listStudentsInScope(teacher);
+
+  const [subjectRow] = await db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
+    .from(subjects)
+    .where(eq(subjects.id, teacher.subjectId))
+    .limit(1);
+
+  if (!subjectRow) throw new ApiError(404, 'SUBJECT_NOT_FOUND', 'Subject was not found.');
+
+  const topicRows = await db.select({ id: topics.id, name: topics.name })
+    .from(topics)
+    .where(eq(topics.subjectId, teacher.subjectId))
+    .orderBy(asc(topics.position));
+
+  const progressRows = roster.length === 0
+    ? []
+    : await db.select({
+      topicId: userTopicProgress.topicId,
+      memoryScore: userTopicProgress.memoryScore,
+      lastReviewedAt: userTopicProgress.lastReviewedAt,
+      nextReviewAt: userTopicProgress.nextReviewAt,
+      quizAttempts: userTopicProgress.quizAttempts,
+    })
+      .from(userTopicProgress)
+      .where(inArray(userTopicProgress.userId, roster.map((student) => student.id)));
+
+  const progressByTopic = new Map<string, typeof progressRows>();
+  for (const progress of progressRows) {
+    const topicProgress = progressByTopic.get(progress.topicId) ?? [];
+    topicProgress.push(progress);
+    progressByTopic.set(progress.topicId, topicProgress);
+  }
+
+  return {
+    classSize: roster.length,
+    subject: subjectRow,
+    topics: topicRows.map((topic) => {
+      const topicProgress = progressByTopic.get(topic.id) ?? [];
+
+      return {
+        id: topic.id,
+        name: topic.name,
+        ...summarizeClassTopic(roster.length, topicProgress),
+      };
+    }),
+  };
 }
 
 export async function getStudentConceptWebForTeacher(
