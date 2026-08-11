@@ -285,7 +285,11 @@ export default function TeacherConceptWebView() {
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-4 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
         <div className="flex items-center gap-3 rounded-full bg-secondary px-4 py-2 text-secondary-foreground">
           <span className="text-xl">{subjectIcon ?? '🧠'}</span>
-          <Label className="font-bold">{subjectName} — Your Class</Label>
+          <Label className="font-bold">Concept Web</Label>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-card px-4 py-2 text-card-foreground shadow-sm">
+          <span>{subjectIcon ?? '🧠'}</span>
+          <Label className="font-semibold">{subjectName}</Label>
         </div>
         <Badge variant="outline" className="gap-1.5 rounded-full border-border bg-card text-xs font-bold text-foreground">
           <Users className="h-3 w-3" aria-hidden="true" /> {squadMembers.length} students
@@ -356,7 +360,7 @@ export default function TeacherConceptWebView() {
           <div className="grid grid-cols-2 gap-2 text-sm">
             {[{ c: '#186636', t: '70%+ Strong' }, { c: '#EAA93C', t: '40–69 Review' }, { c: '#D9534F', t: '0–39 Weak' }, { c: '#9CA3AF', t: 'Not Started' }].map((item: { c: string; t: string }) => <div key={item.t} className="flex items-center gap-2"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.c }} />{item.t}</div>)}
           </div>
-          <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>— solid: branch link</p><p>- - dashed: cross-topic link</p><p>Floating icons: students currently weak here.</p></div>
+          <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>— solid: branch link</p><p>- - dashed: cross-topic link</p><p>Click any bubble. Drag to pan, scroll to zoom.</p><p>Floating icons: students currently weak here.</p></div>
         </div>
 
         <div className="absolute bottom-5 right-5 flex flex-col gap-2">
