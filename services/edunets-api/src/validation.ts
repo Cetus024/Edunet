@@ -131,6 +131,16 @@ export const sendEnquiryMessageSchema = z.strictObject({
 
 export const enquiryThreadIdSchema = z.uuid();
 
+export const studentSearchQuerySchema = z.strictObject({
+  q: z.string().trim().min(1).max(120),
+  scopeId: z.string().trim().min(1).max(64),
+});
+
+export const addStudentToScopeSchema = z.strictObject({
+  studentId: z.string().trim().min(1).max(255),
+  scopeId: z.string().trim().min(1).max(64),
+});
+
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
 export type QuizSubmission = z.infer<typeof quizSubmissionSchema>;
 export type CreateEnquiryRequest = z.infer<typeof createEnquirySchema>;

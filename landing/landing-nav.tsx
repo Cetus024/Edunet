@@ -5,12 +5,18 @@ import { Brain } from 'lucide-react';
 import { motion, useReducedMotion, useScroll, useSpring } from 'motion/react';
 
 import { Button } from '@/components/ui/button';
+import { NavLink } from '@/lib/navigation';
 
 const navigationItems = [
   { href: '#why', label: 'Why it matters' },
   { href: '#how-it-works', label: 'How it works' },
   { href: '#features', label: 'Features' },
   { href: '#impact', label: 'Impact' },
+] as const;
+
+const docLinks = [
+  { href: '/intro?doc=manual', label: 'User Manual' },
+  { href: '/intro?doc=techstack', label: 'Tech Stack' },
 ] as const;
 
 type LandingNavProps = {
@@ -69,6 +75,16 @@ export function LandingNav({ onLogin, onGetStarted }: LandingNavProps) {
             >
               {item.label}
             </a>
+          ))}
+          <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--edunets-ink)]/15" />
+          {docLinks.map((item) => (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className="rounded-full px-3 py-2 text-sm font-bold text-[var(--edunets-ink)]/70 outline-none transition-colors hover:bg-white/75 hover:text-[var(--edunets-dark-blue)] focus-visible:ring-2 focus-visible:ring-[var(--edunets-light-blue)] focus-visible:ring-offset-1"
+            >
+              {item.label}
+            </NavLink>
           ))}
         </div>
 

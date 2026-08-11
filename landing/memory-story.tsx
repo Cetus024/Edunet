@@ -90,29 +90,21 @@ function StageVisual({ stage }: StageVisualProps) {
           </div>
         </div>
 
-        <div className="relative mt-8 min-h-56 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[var(--edunets-dark-blue)] to-[var(--edunets-light-blue)] p-6 text-white">
-          <div className="absolute left-[26%] top-[34%] h-px w-[34%] -rotate-12 bg-white/35" aria-hidden="true" />
-          <div className="absolute left-[44%] top-[58%] h-px w-[32%] rotate-[18deg] bg-white/35" aria-hidden="true" />
-          <div className="absolute left-[21%] top-[62%] h-px w-[27%] rotate-[25deg] bg-white/35" aria-hidden="true" />
-
-          <div className="absolute left-[8%] top-[22%] rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold">
-            Cell cycle
-          </div>
-          <div className="absolute bottom-[13%] left-[12%] rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold">
-            Chromosomes
-          </div>
-          <div className="absolute right-[8%] top-[50%] rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold">
-            Growth
-          </div>
-          <div className="absolute left-[40%] top-[38%] rounded-2xl border-2 border-[var(--edunets-coral)] bg-white px-4 py-3 text-sm font-black text-[var(--edunets-dark-blue)] shadow-[0_0_0_7px_rgba(232,115,95,0.16)]">
-            Mitosis
-            <span className="ml-2 text-[var(--edunets-coral)]">28%</span>
-          </div>
+        <div className="relative mt-8 min-h-56 overflow-hidden rounded-[1.75rem] bg-[#F6ECDC]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a real
+              product screenshot, not an optimizable local asset pipeline
+              candidate; plain <img> avoids next/image's build-time layout
+              requirements for a purely decorative marketing panel. */}
+          <img
+            src="/marketing/concept-web-screenshot.png"
+            alt="A real EduNets Concept Web: Physics topics colour-coded by mastery, with Energy marked weak in red."
+            className="h-full w-full object-cover object-[50%_20%]"
+          />
         </div>
 
         <div className="mt-5 flex items-center gap-3 rounded-2xl border border-[var(--edunets-coral)]/25 bg-[var(--edunets-coral)]/[0.07] p-4">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--edunets-coral)]" />
-          <p className="text-sm font-bold text-[var(--edunets-dark-blue)]">Priority found: Cell Division (Mitosis)</p>
+          <p className="text-sm font-bold text-[var(--edunets-dark-blue)]">Priority found: Energy</p>
         </div>
       </div>
     );

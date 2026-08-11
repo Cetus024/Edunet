@@ -4,6 +4,12 @@ import { Pool } from 'pg';
 import { getDatabaseEnvironment } from './env.js';
 import * as schema from './schema/index.js';
 
+// HUAWEI CLOUD INTEGRATION POINT — RDS for PostgreSQL.
+// This pool talks to plain wire-protocol PostgreSQL via `pg` + Drizzle, so
+// it is already Huawei-RDS-compatible: swap `DATABASE_URL` (see
+// database/env.ts) for a Huawei Cloud RDS for PostgreSQL instance's
+// connection string and nothing else here needs to change. No vendor SDK,
+// no proprietary client - the entire schema/query layer is standard SQL.
 const environment = getDatabaseEnvironment();
 
 export const pool = new Pool({

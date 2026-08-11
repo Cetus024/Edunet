@@ -1,3 +1,14 @@
+// HUAWEI CLOUD INTEGRATION POINT — ModelArts.
+// Every question below (and the "concept-check" set built from it, see
+// getQuestionsForQuizMode) is hand-authored and static - "AI-generated" in
+// the UI (quiz-review.ts's aiGeneratedExplanation) currently just means
+// "not yet teacher-edited", not an actual model call. A real AI layer -
+// generating fresh concept-check questions per weak topic, summarising
+// captured notes, or ranking weak-topic priority from a student's raw
+// attempt history - would call a Huawei ModelArts-hosted inference
+// endpoint from here (or from the service layer that calls into this
+// module, e.g. services/edunets-api/src/lib/question-bank.ts), with this
+// static bank kept as the offline fallback/seed set.
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
 export type QuizQuestionMode = 'past-paper' | 'concept-check' | 'speed-round';
 

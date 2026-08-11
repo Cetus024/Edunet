@@ -30,15 +30,20 @@ import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
 import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import {
+  addStudentToScope,
   getClassConceptWebForTeacher,
   getStudentConceptWebForTeacher,
   listStudentsForTeacher,
+  removeStudentFromScope,
+  searchStudentsForTeacher,
 } from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
+  addStudentToScopeSchema,
   onboardingRequestSchema,
   quizHistoryQuerySchema,
   quizSubmissionSchema,
+  studentSearchQuerySchema,
   updateQuestionReviewSchema,
   updateSchoolSchema,
   updateTeachingScopesSchema,
@@ -362,6 +367,15 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       },
     });
 
+    // HUAWEI CLOUD INTEGRATION POINT — OBS (Object Storage Service).
+    // Onboarding only persists material *metadata* (name/type/size below) -
+    // the actual file bytes for uploaded notes/PDFs and recorded audio are
+    // never stored today (see input.material / input.recording). Wiring
+    // real material storage means uploading those bytes to a Huawei OBS
+    // bucket here (obs-sdk-node PUT, or a presigned-URL upload from the
+    // client) and persisting the returned object key/URL alongside these
+    // metadata fields - the same swap point Capture Hub's material list
+    // and past-paper/teacher-resource storage would use.
     await transaction.insert(onboardingProfiles).values({
       userId,
       learningSource: input.learningSource,
@@ -463,6 +477,34 @@ api.get('/me/students', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const students = await listStudentsForTeacher(userId, context.req.query('scopeId'));
   return context.json({ students });
+});
+
+// Registered before the /me/students/:studentId/concept-web param route
+// below so "search" is never captured as a literal studentId.
+api.get('/me/students/search', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = studentSearchQuerySchema.parse({
+    q: context.req.query('q'),
+    scopeId: context.req.query('scopeId'),
+  });
+  const students = await searchStudentsForTeacher(userId, input.q, input.scopeId);
+  return context.json({ students });
+});
+
+api.post('/me/students', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = addStudentToScopeSchema.parse(await readJson(context));
+  await addStudentToScope(userId, input.studentId, input.scopeId);
+  return context.json({ ok: true });
+});
+
+api.delete('/me/students/:studentId', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const studentId = context.req.param('studentId');
+  const scopeId = context.req.query('scopeId');
+  if (!scopeId) throw new ApiError(400, 'SCOPE_ID_REQUIRED', 'scopeId is required.');
+  await removeStudentFromScope(userId, studentId, scopeId);
+  return context.json({ ok: true });
 });
 
 api.get('/me/class-concept-web', loadSession, requireSession, async (context) => {

@@ -13,6 +13,7 @@ import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useTeacherStudents } from '@/lib/api/teacher-students';
 import { useTeacherClassPulse, type TopicHealth } from '@/lib/api/teacher-class-pulse';
 import { useTeachingContext } from '@/lib/teaching-context';
+import { AddStudentDialog } from '@/features/teacher-add-student-dialog';
 
 type RankedAction = {
   id: string;
@@ -253,8 +254,9 @@ export default function TeacherDashboardPage() {
       </div>
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-4">
           <h2 className="text-lg font-black text-foreground">Your students</h2>
+          <AddStudentDialog scopeId={activeScopeId} classroomName={activeScope?.classroomName ?? 'your class'} />
         </div>
         {students.length === 0 ? (
           <Card className="border-0 rounded-2xl card-shadow">

@@ -84,3 +84,47 @@ export function useStudentConceptWeb(studentId: string | null, scopeId: string |
     staleTime: 15_000,
   });
 }
+
+export type StudentSearchResult = {
+  id: string;
+  name: string;
+  email: string;
+  schoolId: string;
+  subjectId: string | null;
+  inClass: boolean;
+};
+
+export function studentSearchQueryKey(query: string, scopeId: string) {
+  return ['teacher-student-search', scopeId, query] as const;
+}
+
+/**
+ * Powers the "Add student" search in the teacher dashboard - candidates are
+ * students at the teacher's own school, tagged with whether they're already
+ * in this class (implicit school+subject match or a prior explicit add) so
+ * the picker can grey out a duplicate instead of erroring on it.
+ */
+export function useSearchStudents(query: string, scopeId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: studentSearchQueryKey(query, scopeId ?? 'none'),
+    queryFn: () => apiRequest<{ students: StudentSearchResult[] }>(
+      `/api/v1/me/students/search?${new URLSearchParams({ q: query, scopeId: scopeId ?? '' }).toString()}`,
+    ),
+    enabled: enabled && Boolean(scopeId) && query.trim().length >= 2,
+    staleTime: 10_000,
+  });
+}
+
+export function addStudentToClass(studentId: string, scopeId: string) {
+  return apiRequest<{ ok: true }>('/api/v1/me/students', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId, scopeId }),
+  });
+}
+
+export function removeStudentFromClass(studentId: string, scopeId: string) {
+  return apiRequest<{ ok: true }>(`/api/v1/me/students/${studentId}?${new URLSearchParams({ scopeId }).toString()}`, {
+    method: 'DELETE',
+  });
+}

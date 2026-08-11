@@ -51,6 +51,19 @@ export const teachingScopes = pgTable('teaching_scope', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// Explicit teacher-added roster membership, layered on top of the implicit
+// school+subject match (see listStudentsInScope) rather than replacing it -
+// a teacher can pull in a student who hasn't picked their exact subject (or
+// is at a different school) without that student's own onboarding choices
+// being overwritten.
+export const classroomEnrollments = pgTable('classroom_enrollment', {
+  teachingScopeId: text('teaching_scope_id').notNull().references(() => teachingScopes.id, { onDelete: 'cascade' }),
+  studentUserId: text('student_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  addedAt: timestamp('added_at').notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.teachingScopeId, table.studentUserId] }),
+]);
+
 export const quizAttempts = pgTable('quiz_attempt', {
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().unique(),
