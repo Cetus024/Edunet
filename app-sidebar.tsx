@@ -49,10 +49,7 @@ export function AppSidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className={cn(
-        'hidden lg:flex flex-col w-64 text-sidebar-foreground h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border shadow-[18px_0_50px_rgba(29,58,98,0.10)] overflow-hidden',
-        usesTeachingWorkspace ? 'teacher-sidebar-gradient' : 'bg-sidebar',
-      )}>
+      <aside className="hidden lg:flex flex-col w-64 text-sidebar-foreground h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border shadow-[18px_0_50px_rgba(29,58,98,0.10)] overflow-hidden bg-sidebar">
         <div className="absolute -left-20 top-12 h-52 w-52 rounded-full bg-secondary blob-soft" />
         <div className="absolute -right-24 bottom-24 h-56 w-56 rounded-full bg-accent blob-soft" />
         <div className="relative z-10 h-full">

@@ -63,7 +63,7 @@ type Question = QuizQuestion;
 
 // Get memory score status
 function getMemoryStatus(score: number): { label: string; color: string; bgColor: string } {
-  if (score >= 70) return { label: 'Strong', color: 'text-[#186636]', bgColor: 'bg-[#186636]/10' };
+  if (score >= 70) return { label: 'Strong', color: 'text-[var(--success)]', bgColor: 'bg-[#186636]/10' };
   if (score >= 40) return { label: 'Needs Review', color: 'text-[#EAA93C]', bgColor: 'bg-[#EAA93C]/10' };
   return { label: 'Weak', color: 'text-[#D9534F]', bgColor: 'bg-[#D9534F]/10' };
 }
@@ -131,7 +131,7 @@ function AnimatedGauge({ score, previousScore, size = 160 }: { score: number; pr
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1 }}
-            className={`flex items-center gap-1 text-sm font-medium ${improved ? 'text-[#186636]' : declined ? 'text-[#D9534F]' : 'text-muted-foreground'}`}
+            className={`flex items-center gap-1 text-sm font-medium ${improved ? 'text-[var(--success)]' : declined ? 'text-[#D9534F]' : 'text-muted-foreground'}`}
           >
             {improved ? <TrendingUp className="w-4 h-4" /> : declined ? <TrendingDown className="w-4 h-4" /> : null}
             {improved ? `+${score - previousScore}` : declined ? `${score - previousScore}` : 'No change'}
@@ -295,7 +295,7 @@ function QuizSetupPanel({
             >
               <Sparkles className="w-4 h-4 text-[#EAA93C]" />
               <span className="text-sm text-muted-foreground">Difficulty set to:</span>
-              <Badge className="bg-[#186636]/10 text-[#186636] border-0 font-bold">{difficulty}</Badge>
+              <Badge className="bg-[#186636]/10 text-[var(--success)] border-0 font-bold">{difficulty}</Badge>
               <span className="text-xs text-muted-foreground">(based on your score)</span>
             </motion.div>
           )}
@@ -339,18 +339,18 @@ function MCQQuestion({
         const isSelected = selectedAnswer === idx;
         const isCorrect = idx === question.correctAnswer;
         
-        let buttonStyle = 'bg-card border-border/50 text-studynow-dark hover:border-[#186636] hover:bg-[#186636]/5';
+        let buttonStyle = 'bg-card border-border/50 text-studynow-dark hover:border-[var(--success)] hover:bg-[#186636]/5';
         
         if (isAnswered) {
           if (isCorrect) {
-            buttonStyle = 'bg-[#186636] border-[#186636] text-white';
+            buttonStyle = 'bg-[#186636] border-[var(--success)] text-white';
           } else if (isSelected && !isCorrect) {
             buttonStyle = 'bg-[#D9534F] border-[#D9534F] text-white';
           } else {
             buttonStyle = 'bg-muted/30 border-border/30 text-muted-foreground';
           }
         } else if (isSelected) {
-          buttonStyle = 'bg-[#186636]/10 border-[#186636] text-[#186636]';
+          buttonStyle = 'bg-[#186636]/10 border-[var(--success)] text-[var(--success)]';
         }
 
         return (
@@ -408,9 +408,9 @@ function FillBlankQuestion({
             className={`w-40 h-10 text-center font-semibold border-b-2 border-t-0 border-x-0 rounded-none bg-transparent focus:ring-0 ${
               isAnswered
                 ? isCorrect
-                  ? 'border-[#186636] text-[#186636]'
+                  ? 'border-[var(--success)] text-[var(--success)]'
                   : 'border-[#D9534F] text-[#D9534F]'
-                : 'border-[#EAA93C] focus:border-[#186636]'
+                : 'border-[#EAA93C] focus:border-[var(--success)]'
             }`}
           />
         </span>
@@ -420,7 +420,7 @@ function FillBlankQuestion({
         <motion.p
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-[#186636] font-medium"
+          className="text-sm text-[var(--success)] font-medium"
         >
           Correct answer: <span className="font-bold">{question.correctAnswer}</span>
         </motion.p>
@@ -454,7 +454,7 @@ function StructuredQuestion({
         onChange={(e) => !isAnswered && onAnswerChange(e.target.value)}
         disabled={isAnswered}
         placeholder="Type your answer here..."
-        className="min-h-[120px] bg-card border-border/50 rounded-xl resize-none focus:border-[#186636]"
+        className="min-h-[120px] bg-card border-border/50 rounded-xl resize-none focus:border-[var(--success)]"
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{wordCount} words</span>
@@ -508,7 +508,7 @@ function DiagramQuestion({
         onChange={(e) => !isAnswered && onAnswerChange(e.target.value)}
         disabled={isAnswered}
         placeholder="Identify structure X and explain its function..."
-        className="min-h-[100px] bg-card border-border/50 rounded-xl resize-none focus:border-[#186636]"
+        className="min-h-[100px] bg-card border-border/50 rounded-xl resize-none focus:border-[var(--success)]"
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{wordCount} words</span>
@@ -539,7 +539,7 @@ function AnswerFeedback({ question, isCorrect }: { question: Question; isCorrect
           )}
         </div>
         <div className="flex-1">
-          <p className={`font-bold text-lg mb-2 ${isCorrect ? 'text-[#186636]' : 'text-[#D9534F]'}`}>
+          <p className={`font-bold text-lg mb-2 ${isCorrect ? 'text-[var(--success)]' : 'text-[#D9534F]'}`}>
             {isCorrect ? 'Correct!' : 'Not quite right'}
           </p>
           <p className="text-sm text-studynow-dark/80 leading-relaxed mb-3">
@@ -624,7 +624,7 @@ function ActiveQuizPanel({
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <Badge className="bg-[#186636]/10 text-[#186636] border-0 font-semibold">
+              <Badge className="bg-[#186636]/10 text-[var(--success)] border-0 font-semibold">
                 {topic}
               </Badge>
               <span className="text-sm text-muted-foreground font-medium">
@@ -650,8 +650,8 @@ function ActiveQuizPanel({
               </div>
               {question.resourceNumber && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#186636]/10">
-                  <span className="text-xs font-bold text-[#186636] tracking-wide">📋</span>
-                  <span className="text-xs font-mono text-[#186636] font-semibold">{question.resourceNumber}</span>
+                  <span className="text-xs font-bold text-[var(--success)] tracking-wide">📋</span>
+                  <span className="text-xs font-mono text-[var(--success)] font-semibold">{question.resourceNumber}</span>
                 </div>
               )}
             </motion.div>
@@ -769,7 +769,7 @@ function AutoStartingState({ topic, isRescue }: { topic: string; isRescue: boole
       </motion.div>
       <h3 className="text-2xl font-bold text-studynow-dark mb-3">{isRescue ? 'Starting 10-Minute Rescue...' : 'Generating Your Quiz...'}</h3>
       <p className="text-muted-foreground max-w-md leading-relaxed">
-        {isRescue ? 'Opening Speed mode with a visible 10-minute target for ' : 'Creating personalized questions for '}<span className="font-semibold text-[#186636]">{topic}</span>{isRescue ? '.' : ' based on your memory score.'}
+        {isRescue ? 'Opening Speed mode with a visible 10-minute target for ' : 'Creating personalized questions for '}<span className="font-semibold text-[var(--success)]">{topic}</span>{isRescue ? '.' : ' based on your memory score.'}
       </p>
       <motion.div
         className="mt-6 flex items-center gap-2 px-4 py-2 rounded-full bg-[#EAA93C]/10"
@@ -792,7 +792,7 @@ function QuizEmptyState() {
       className="h-full flex flex-col items-center justify-center text-center p-8"
     >
       <div className="w-24 h-24 rounded-full bg-[#186636]/10 flex items-center justify-center mb-6">
-        <Brain className="w-12 h-12 text-[#186636]" />
+        <Brain className="w-12 h-12 text-[var(--success)]" />
       </div>
       <h3 className="text-2xl font-bold text-studynow-dark mb-3">Ready to Test Your Knowledge?</h3>
       <p className="text-muted-foreground max-w-md leading-relaxed">
@@ -882,8 +882,8 @@ function ResultsPanel({
               transition={{ type: 'spring', delay: 0.2 }}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#186636]/10 mb-4"
             >
-              <CheckCircle2 className="w-5 h-5 text-[#186636]" />
-              <span className="font-semibold text-[#186636]">Quiz Completed!</span>
+              <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />
+              <span className="font-semibold text-[var(--success)]">Quiz Completed!</span>
             </motion.div>
             <h2 className="text-2xl font-bold text-studynow-dark">{topic}</h2>
             <p className="text-muted-foreground mt-1">Here's how you performed</p>
@@ -920,7 +920,7 @@ function ResultsPanel({
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-studynow-dark font-medium">Current</span>
-                  <span className="text-sm font-bold text-[#186636]">{newScore}%</span>
+                  <span className="text-sm font-bold text-[var(--success)]">{newScore}%</span>
                 </div>
                 <div className="h-3 bg-[#186636]/10 rounded-full overflow-hidden">
                   <motion.div
@@ -957,7 +957,7 @@ function ResultsPanel({
                       <span className="text-sm font-medium text-studynow-dark capitalize">
                         {type.replace('-', ' ')}
                       </span>
-                      <span className="text-sm font-bold text-[#186636]">
+                      <span className="text-sm font-bold text-[var(--success)]">
                         {data.correct}/{data.total}
                       </span>
                     </div>
@@ -988,7 +988,7 @@ function ResultsPanel({
             <Button
               onClick={onRetake}
               variant="outline"
-              className="flex-1 h-12 rounded-xl border-[#186636] text-[#186636] hover:bg-[#186636]/10 font-semibold"
+              className="flex-1 h-12 rounded-xl border-[var(--success)] text-[var(--success)] hover:bg-[#186636]/10 font-semibold"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Retake Quiz

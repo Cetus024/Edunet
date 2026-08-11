@@ -282,7 +282,7 @@ export default function ProfilePage() {
               <div className="mb-6 h-px w-full bg-[#186636]/20" />
               <div className="flex flex-wrap justify-center gap-3">
                 <span className="flex items-center gap-2 rounded-full bg-secondary/60 px-3 py-2 text-sm font-medium">
-                  <CheckCircle className="h-4 w-4 text-[#186636]" />
+                  <CheckCircle className="h-4 w-4 text-[var(--success)]" />
                   {stats.topicsReviewed} topics
                 </span>
                 <span className="flex items-center gap-2 rounded-full bg-secondary/60 px-3 py-2 text-sm font-medium">
@@ -312,7 +312,7 @@ export default function ProfilePage() {
                   <motion.div key={subject.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + index * 0.06 }} className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2"><span className="text-xl">{subject.icon}</span><span className="font-semibold text-studynow-dark">{subject.name}</span></div>
-                      <span className={`text-lg font-bold ${score >= 70 ? 'text-[#186636]' : score >= 50 ? 'text-[#EAA93C]' : 'text-red-500'}`}>{score}%</span>
+                      <span className={`text-lg font-bold ${score >= 70 ? 'text-[var(--success)]' : score >= 50 ? 'text-[#EAA93C]' : 'text-red-500'}`}>{score}%</span>
                     </div>
                     <div className={`mb-2 h-2 overflow-hidden rounded-full ${getScoreBgColor(score)}`}><motion.div initial={{ width: 0 }} animate={{ width: `${score}%` }} className={`h-full rounded-full ${getScoreColor(score)}`} /></div>
                     <p className="text-xs text-muted-foreground">{getLastReviewedLabel(subject.latestReview)}</p>
@@ -335,7 +335,7 @@ export default function ProfilePage() {
               { icon: CheckCircle, value: String(stats.attempts), label: 'Completed Quiz Attempts' },
             ].map(({ icon: Icon, value, label }, index) => (
               <motion.div key={label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 + index * 0.08 }} className="rounded-xl border border-border/50 bg-white p-5 text-center shadow-sm">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#186636]/10"><Icon className="h-6 w-6 text-[#186636]" /></div>
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#186636]/10"><Icon className="h-6 w-6 text-[var(--success)]" /></div>
                 <p className="mb-1 text-xl font-bold text-[#EAA93C]">{value}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </motion.div>

@@ -2,8 +2,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
-
 /* EduNets modern warm startup theme */
 :root {
   --edunets-yellow: #FFE38F;
@@ -18,7 +16,12 @@
   --studynow-cream: var(--edunets-cream);
   --studynow-white: #FFFFFF;
   --studynow-dark: var(--edunets-ink);
-  
+  /* "Correct answer / strong score" green, referenced as var(--success) from
+     quiz.tsx/profile.tsx wherever it's used as text or a border rather than
+     the handful of solid dark-green buttons/gradients paired with fixed
+     white text (kept as literal #186636 there, unaffected). */
+  --success: #186636;
+
   --radius: 1.25rem;
   --background: oklch(0.96 0.03 90);
   --foreground: oklch(0.18 0.02 250);
@@ -142,98 +145,11 @@
   opacity: 0.65;
 }
 
-/* Site-wide dark mode, toggled via next-themes adding/removing `.dark` on
-   <html>. Adapted from the teaching workspace's already-shipped dark
-   palette below, so light and dark stay visually consistent with the rest
-   of the brand instead of introducing a third, unrelated color scheme. */
-.dark {
-  --background: #0f1c2e;
-  --foreground: #f7f3e8;
-  --card: #1b2a40;
-  --card-foreground: #fffaf0;
-  --popover: #1b2a40;
-  --popover-foreground: #fffaf0;
-  --primary: #f2cb55;
-  --primary-foreground: #142238;
-  --secondary: #2a405e;
-  --secondary-foreground: #f7f3e8;
-  --muted: #263850;
-  --muted-foreground: #b6c2d3;
-  --accent: #6486B5;
-  --accent-foreground: #ffffff;
-  --skeleton: #263850;
-  --destructive: #E8735F;
-  --border: #31445e;
-  --input: #31445e;
-  --ring: #6486B5;
-  /* --studynow-dark is used across quiz.tsx/capture-hub.tsx/profile.tsx as a
-     fixed "dark text on a light card" color, predating the dark mode theme.
-     Left at its :root value (a near-black navy), it renders as near-invisible
-     dark-on-dark text once --background/--card flip to dark colors here.
-     Flipping it to the same light tone as --foreground fixes every one of
-     those call sites without editing ~40 individual class names; the couple
-     of `text-studynow-dark` usages that sit on a fixed amber (#EAA93C)
-     button background stay perfectly readable with light text too. */
-  --studynow-dark: #f7f3e8;
-  --sidebar: #102036;
-  --sidebar-foreground: #f7f3e8;
-  --sidebar-primary: #f2cb55;
-  --sidebar-primary-foreground: #142238;
-  --sidebar-accent: #6486B5;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2c405a;
-  --sidebar-ring: #f2cb55;
-  color-scheme: dark;
-}
-
-/* Role-scoped teaching workspace. These variables intentionally live below
-   the app shell so public, auth, student, and parent pages keep the warm theme. */
-.teacher-workspace {
-  --background: #0b1729;
-  --foreground: #f7f3e8;
-  --card: #1b2a40;
-  --card-foreground: #fffaf0;
-  --popover: #1b2a40;
-  --popover-foreground: #fffaf0;
-  --primary: #f2cb55;
-  --primary-foreground: #142238;
-  --secondary: #2a405e;
-  --secondary-foreground: #f7f3e8;
-  --muted: #263850;
-  --muted-foreground: #b6c2d3;
-  --accent: #5278ad;
-  --accent-foreground: #ffffff;
-  --destructive: #e8735f;
-  --border: #31445e;
-  --input: #31445e;
-  --ring: #f2cb55;
-  --sidebar: #102036;
-  --sidebar-foreground: #f7f3e8;
-  --sidebar-primary: #f2cb55;
-  --sidebar-primary-foreground: #142238;
-  --sidebar-accent: #5278ad;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2c405a;
-  --sidebar-ring: #f2cb55;
-  background:
-    radial-gradient(circle at 8% 8%, rgba(242, 203, 85, 0.13), transparent 28%),
-    radial-gradient(circle at 88% 14%, rgba(82, 120, 173, 0.16), transparent 34%),
-    #0b1729;
-  color: var(--foreground);
-}
-
-.teacher-workspace .pattern-overlay {
-  background-image:
-    radial-gradient(circle at 12% 8%, rgba(242, 203, 85, 0.11), transparent 30%),
-    radial-gradient(circle at 90% 10%, rgba(82, 120, 173, 0.14), transparent 32%);
-}
-
-/* Teacher/Tutor sidebar: a warm-to-navy diagonal wash instead of a flat
-   panel, echoing the public site's gradient while staying dark enough for
-   the teaching workspace. */
-.teacher-sidebar-gradient {
-  background: linear-gradient(165deg, #5f7a4a 0%, #37605f 28%, #1c3a52 58%, #102036 100%);
-}
+/* Dark mode and the separate `.teacher-workspace` dark palette have both
+   been removed: every page now always renders from the single light
+   `:root` theme above (see app/providers.tsx and app-shell.tsx). Both kept
+   surfacing dark-text-on-dark-background bugs on pages/components that
+   only ever accounted for the light palette. */
 
 .teacher-scrollbar {
   scrollbar-color: #526b8d transparent;
