@@ -9,6 +9,17 @@ export type CurrentUser = {
   image: string | null;
 };
 
+export type TeachingScope = {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  subjectId: string;
+  subjectName: string;
+  subjectIcon: string | null;
+  classroomName: string;
+  position: number;
+};
+
 export type OnboardingProfileResponse = {
   role: 'student' | 'teacher' | 'tutor' | 'parent';
   schoolId: string;
@@ -23,6 +34,7 @@ export type OnboardingProfileResponse = {
   familiarity: 'new' | 'some' | 'well';
   initialMemoryScore: number;
   completedAt: string;
+  teachingScopes: TeachingScope[];
 };
 
 export type CurrentAccount = {
@@ -52,5 +64,13 @@ export function useCurrentAccount() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+  });
+}
+
+export function updateTeachingScopes(scopes: Array<{ subjectId: string; classroomName: string }>) {
+  return apiRequest<{ scopes: TeachingScope[] }>('/api/v1/me/teaching-scopes', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scopes }),
   });
 }

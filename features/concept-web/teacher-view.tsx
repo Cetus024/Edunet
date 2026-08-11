@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
 import { useClassConceptWeb, useTeacherStudents, type ClassConceptWebTopic } from '@/lib/api/teacher-students';
+import { useTeachingContext } from '@/lib/teaching-context';
 
 type NodeKind = 'subject' | 'topic';
 type GraphNode = {
@@ -73,7 +74,8 @@ function studentInitials(name: string) {
 }
 
 export default function TeacherConceptWebView() {
-  const { data: rosterData, isLoading: rosterLoading, error: rosterError } = useTeacherStudents();
+  const { activeScopeId, activeScope } = useTeachingContext();
+  const { data: rosterData, isLoading: rosterLoading, error: rosterError } = useTeacherStudents({ scopeId: activeScopeId });
   const students = useMemo(() => rosterData?.students ?? [], [rosterData]);
 
   const [weakOnly, setWeakOnly] = useState(false);
@@ -84,6 +86,7 @@ export default function TeacherConceptWebView() {
 
   const { data: webData, isLoading: webLoading, error: webError } = useClassConceptWeb({
     enabled: !rosterLoading && students.length > 0,
+    scopeId: activeScopeId,
   });
 
   const graph = useMemo(() => {
@@ -187,7 +190,7 @@ export default function TeacherConceptWebView() {
     <div className="flex min-h-screen flex-col overflow-hidden bg-background text-foreground">
       <div className="z-20 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-5 py-5 text-card-foreground">
         <div>
-          <h1 className="text-2xl font-black text-primary">Class Concept Web</h1>
+          <h1 className="text-2xl font-black text-primary">{activeScope?.classroomName ?? 'Class'} Concept Web</h1>
           <p className="mt-1 text-sm font-semibold text-muted-foreground">
             Explore whole-class topic mastery, averaged across every student in your roster.
           </p>

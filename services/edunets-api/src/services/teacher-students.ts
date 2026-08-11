@@ -3,7 +3,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../../../database/index.js';
 import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
-import { onboardingProfiles, profiles, userTopicProgress } from '../../../../database/schema/learning.js';
+import { onboardingProfiles, profiles, teachingScopes, userTopicProgress } from '../../../../database/schema/learning.js';
 import { ApiError } from '../errors.js';
 import { summarizeClassTopic } from '../lib/class-concept-web.js';
 import { isRecipientRole, type EnquiryActor } from '../lib/enquiries.js';
@@ -50,12 +50,23 @@ export type ClassConceptWebResponse = {
  * onboarded role/school/subject, with the same "complete onboarding first"
  * guard), rather than duplicating that query.
  */
-async function loadTeacherActor(teacherUserId: string): Promise<EnquiryActor> {
+async function loadTeacherActor(teacherUserId: string, scopeId?: string): Promise<EnquiryActor> {
   const actor = await loadEnquiryActor(teacherUserId);
   if (!isRecipientRole(actor.role)) {
     throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors have a student roster.');
   }
-  return actor;
+  if (!scopeId) return actor;
+
+  const [scope] = await db.select({
+    userId: teachingScopes.userId,
+    schoolId: teachingScopes.schoolId,
+    subjectId: teachingScopes.subjectId,
+  })
+    .from(teachingScopes)
+    .where(and(eq(teachingScopes.id, scopeId), eq(teachingScopes.userId, teacherUserId)))
+    .limit(1);
+  if (!scope) throw new ApiError(403, 'INVALID_TEACHING_SCOPE', 'This teaching context is not available to your account.');
+  return { ...actor, schoolId: scope.schoolId, subjectId: scope.subjectId };
 }
 
 /**
@@ -83,8 +94,8 @@ async function listStudentsInScope(teacher: EnquiryActor): Promise<TeacherStuden
     .orderBy(asc(users.name));
 }
 
-export async function listStudentsForTeacher(teacherUserId: string): Promise<TeacherStudent[]> {
-  const teacher = await loadTeacherActor(teacherUserId);
+export async function listStudentsForTeacher(teacherUserId: string, scopeId?: string): Promise<TeacherStudent[]> {
+  const teacher = await loadTeacherActor(teacherUserId, scopeId);
   return listStudentsInScope(teacher);
 }
 
@@ -96,8 +107,9 @@ export async function listStudentsForTeacher(teacherUserId: string): Promise<Tea
  */
 export async function getClassConceptWebForTeacher(
   teacherUserId: string,
+  scopeId?: string,
 ): Promise<ClassConceptWebResponse> {
-  const teacher = await loadTeacherActor(teacherUserId);
+  const teacher = await loadTeacherActor(teacherUserId, scopeId);
   const roster = await listStudentsInScope(teacher);
 
   const [subjectRow] = await db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
@@ -149,8 +161,9 @@ export async function getClassConceptWebForTeacher(
 export async function getStudentConceptWebForTeacher(
   teacherUserId: string,
   studentId: string,
+  scopeId?: string,
 ): Promise<StudentConceptWebResponse> {
-  const teacher = await loadTeacherActor(teacherUserId);
+  const teacher = await loadTeacherActor(teacherUserId, scopeId);
 
   const [student] = await db.select({
     id: users.id,

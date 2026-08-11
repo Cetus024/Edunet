@@ -24,6 +24,11 @@ export const childInfoSchema = z.strictObject({
   email: z.email().trim().toLowerCase().max(255),
 });
 
+export const teachingScopeInputSchema = z.strictObject({
+  subjectId: z.string().trim().min(1).max(64),
+  classroomName: z.string().trim().min(1).max(80),
+});
+
 export const onboardingRequestSchema = z.strictObject({
   role: z.enum(['student', 'teacher', 'tutor', 'parent']),
   schoolId: z.string().trim().min(1).max(128).optional(),
@@ -36,6 +41,7 @@ export const onboardingRequestSchema = z.strictObject({
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
   familiarity: z.enum(['new', 'some', 'well']),
+  teachingScopes: z.array(teachingScopeInputSchema).min(1).max(16).optional(),
   // Parent role only: who they want to follow.
   child: optionalNullable(childInfoSchema),
 }).superRefine((value, context) => {
@@ -62,6 +68,17 @@ export const onboardingRequestSchema = z.strictObject({
   if (value.role !== 'parent' && value.child) {
     context.addIssue({ code: 'custom', path: ['child'], message: 'Only parents provide child details.' });
   }
+  const isTeachingRole = value.role === 'teacher' || value.role === 'tutor';
+  if (!isTeachingRole && value.teachingScopes) {
+    context.addIssue({ code: 'custom', path: ['teachingScopes'], message: 'Only teachers and tutors provide teaching scopes.' });
+  }
+  if (isTeachingRole && value.teachingScopes && value.teachingScopes[0]?.subjectId !== value.subjectId) {
+    context.addIssue({ code: 'custom', path: ['teachingScopes', 0, 'subjectId'], message: 'The primary teaching context must match the primary subject.' });
+  }
+});
+
+export const updateTeachingScopesSchema = z.strictObject({
+  scopes: z.array(teachingScopeInputSchema).min(1).max(16),
 });
 
 export const quizSubmissionSchema = z.strictObject({

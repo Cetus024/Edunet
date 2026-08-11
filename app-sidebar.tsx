@@ -5,12 +5,14 @@ import { format } from 'date-fns';
 import { motion } from 'motion/react';
 import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useCurrentAccount } from '@/lib/api/me';
+import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { cn } from '@/lib/utils';
 import { getRoleLabel, isTeachingRole, type EduNetsRole } from '@/lib/roles';
+import { useTeachingContext } from '@/lib/teaching-context';
 
 
 type NavItem = { path: string; label: string; icon: LucideIcon };
@@ -40,6 +42,7 @@ export function AppSidebar() {
   const user = account?.user ?? null;
   const role = account?.profile?.role ?? null;
   const usesTeachingWorkspace = isTeachingRole(role);
+  const { scopes, activeScopeId, setActiveScopeId } = useTeachingContext();
   const { unreadCount: unreadMessages } = useEnquiryUnreadCount({
     userId: user?.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
@@ -59,12 +62,25 @@ export function AppSidebar() {
             location={location}
             unreadMessages={unreadMessages}
             navItems={activeNavItems}
+            teachingScopes={scopes}
+            activeTeachingScopeId={activeScopeId}
+            onTeachingScopeChange={setActiveScopeId}
             onLogout={() => signOut('/login')}
           />
         </div>
       </aside>
 
       {/* Mobile Bottom Navigation */}
+      {usesTeachingWorkspace && scopes.length > 0 && (
+        <div className="fixed bottom-20 left-3 right-3 z-50 rounded-2xl border border-sidebar-border bg-card p-2 shadow-xl lg:hidden">
+          <TeachingContextSelect
+            scopes={scopes}
+            activeScopeId={activeScopeId}
+            onChange={setActiveScopeId}
+            compact
+          />
+        </div>
+      )}
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-hidden">
         <div className="flex items-center justify-around h-16 px-2">
           {activeNavItems.map((item) => {
@@ -97,12 +113,45 @@ export function AppSidebar() {
   );
 }
 
+function TeachingContextSelect({
+  scopes,
+  activeScopeId,
+  onChange,
+  compact = false,
+}: {
+  scopes: TeachingScope[];
+  activeScopeId: string | null;
+  onChange: (scopeId: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn(!compact && 'mx-4 mt-3')}>
+      {!compact && <p className="mb-1.5 px-1 text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Classroom / subject</p>}
+      <Select value={activeScopeId ?? undefined} onValueChange={onChange}>
+        <SelectTrigger className={cn('w-full border-sidebar-border bg-card text-card-foreground', compact ? 'h-10 rounded-xl' : 'h-11 rounded-2xl')}>
+          <SelectValue placeholder="Choose classroom" />
+        </SelectTrigger>
+        <SelectContent>
+          {scopes.map((scope) => (
+            <SelectItem key={scope.id} value={scope.id}>
+              {scope.subjectIcon ?? '📘'} {scope.classroomName} · {scope.subjectName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function SidebarContent({
   user,
   role,
   location,
   unreadMessages,
   navItems,
+  teachingScopes,
+  activeTeachingScopeId,
+  onTeachingScopeChange,
   onLogout,
 }: {
   user: { name: string; image: string | null } | null;
@@ -110,6 +159,9 @@ function SidebarContent({
   location: { pathname: string };
   unreadMessages: number;
   navItems: NavItem[];
+  teachingScopes: TeachingScope[];
+  activeTeachingScopeId: string | null;
+  onTeachingScopeChange: (scopeId: string) => void;
   onLogout: () => Promise<boolean>;
 }) {
   const initials = user?.name
@@ -168,6 +220,14 @@ function SidebarContent({
           </div>
         </div>
       </motion.div>
+
+      {isTeachingRole(role) && teachingScopes.length > 0 && (
+        <TeachingContextSelect
+          scopes={teachingScopes}
+          activeScopeId={activeTeachingScopeId}
+          onChange={onTeachingScopeChange}
+        />
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">

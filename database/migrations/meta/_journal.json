@@ -43,6 +43,13 @@
       "when": 1786283171541,
       "tag": "0005_futuristic_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786426547874,
+      "tag": "0006_icy_sugar_man",
+      "breakpoints": true
     }
   ]
 }
