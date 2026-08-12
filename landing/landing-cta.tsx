@@ -1,7 +1,8 @@
 'use client';
 
-import { ArrowRight, Brain, GraduationCap, Sparkles, UserRound } from 'lucide-react';
+import { ArrowRight, GraduationCap, Sparkles, UserRound } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
+import Image from 'next/image';
 
 type LandingCtaProps = {
   onGetStarted: () => void;
@@ -96,7 +97,7 @@ export function LandingCta({ onGetStarted, onLogin }: LandingCtaProps) {
                 animate={shouldReduceMotion ? undefined : { y: [0, -4, 0], rotate: [0, -3, 3, 0] }}
                 transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <Brain className="h-7 w-7 sm:h-8 sm:w-8" />
+                <Image src="/branding/spidey-icon.png" alt="" width={380} height={380} className="h-9 w-9 select-none sm:h-11 sm:w-11" />
               </motion.div>
               <span className="mt-1 text-xs font-black sm:text-sm">EduNets</span>
             </div>
