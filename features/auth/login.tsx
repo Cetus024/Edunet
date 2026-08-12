@@ -97,7 +97,7 @@ export default function EduNetsLogin() {
               alt="EduNets"
               width={881}
               height={459}
-              className="h-14 w-auto select-none sm:h-16"
+              className="h-20 w-auto select-none sm:h-24"
             />
 
             <h1 className="mt-10 text-4xl font-black leading-tight tracking-tight text-[var(--edunets-dark-blue)] sm:text-5xl">
