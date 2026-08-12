@@ -1,48 +1,46 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, Brain, Cloud, Cpu, LogIn, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { ArrowLeft, Brain, LogIn } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useNavigate } from '@/lib/navigation';
 
-const DOCS = [
-  {
-    href: '/user-manual',
-    label: 'User Manual',
-    icon: Sparkles,
-    description: 'A walkthrough of every student feature — onboarding, Smart Quiz, Concept Web, Study Squad, and more.',
-  },
-  {
-    href: '/tech-stack',
-    label: 'Tech Stack',
-    icon: Cpu,
-    description: 'What EduNets is actually built on — the real stack, architecture, and what still runs on demo data.',
-  },
-  {
-    href: '/huawei-cloud',
-    label: 'Huawei Cloud',
-    icon: Cloud,
-    description: 'The concrete deployment path onto Huawei Cloud — service mapping, and exactly which file each swap point lives in.',
-  },
-] as const;
+type DocPageShellProps = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  src: string;
+};
 
 /**
- * A simple index linking to each doc's own dedicated page (/tech-stack,
- * /user-manual, /huawei-cloud) - each of those, not this page, does the
- * actual iframe embedding (see doc-page-shell.tsx). Kept as a landing spot
- * for the header nav's "browse the docs" entry point.
+ * Shared chrome for each doc's own dedicated page (/tech-stack, /user-manual,
+ * /huawei-cloud) - a real route per doc, not a shared tab switcher. The doc
+ * itself is a full standalone HTML file (public/docs/*.html) with its own
+ * head/style, so it's embedded via iframe rather than ported into JSX -
+ * that keeps the source content byte-for-byte instead of risking a lossy
+ * HTML-to-React conversion of a 500+ line hand-authored document.
+ *
+ * `src` must be extensionless (no ".html") - this app is a static export
+ * (next.config.ts's output: 'export'), and Vercel's clean-URLs rewriting
+ * for static deployments strips .html from every request, including these
+ * pass-through public/docs/*.html files. The .html-suffixed path 404s in
+ * production even though the file exists; only `next dev` needs the real
+ * filename, which is why this only reproduces against a deployed URL, not
+ * locally.
  */
-export default function IntroPage() {
+export function DocPageShell({ eyebrow, title, description, icon: Icon, src }: DocPageShellProps) {
   const navigate = useNavigate();
 
   return (
     <main
-      className="relative isolate min-h-screen bg-background"
+      className="relative isolate flex min-h-screen flex-col bg-background"
       style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}
     >
       <header className="sticky top-0 z-20 px-3 pt-3 sm:px-5 sm:pt-4">
         <nav
-          aria-label="Intro page navigation"
+          aria-label={`${title} page navigation`}
           className="mx-auto flex h-14 max-w-6xl items-center gap-3 rounded-2xl border border-white/60 bg-[rgba(255,248,222,0.82)] px-3 shadow-[0_10px_35px_rgba(29,58,98,0.10)] backdrop-blur-xl sm:h-16 sm:px-4"
         >
           <button
@@ -89,42 +87,24 @@ export default function IntroPage() {
         </nav>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pt-10 sm:px-6 sm:pt-14">
-        <p className="text-sm font-black uppercase tracking-widest text-[var(--edunets-coral)]">Introduction</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--edunets-dark-blue)] sm:text-5xl">
-          Everything about EduNets, in one place
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm font-semibold text-[var(--edunets-ink)]/70 sm:text-base">
-          A quick tour of what students see day to day, and what actually powers it under the hood.
-        </p>
-
-        <div className="mt-8 grid gap-4 pb-14 sm:grid-cols-3">
-          {DOCS.map((doc) => {
-            const Icon = doc.icon;
-            return (
-              <button
-                key={doc.href}
-                type="button"
-                onClick={() => navigate(doc.href)}
-                className="group flex flex-col items-start gap-3 rounded-3xl border border-white/60 bg-white p-6 text-left shadow-[0_18px_50px_rgba(29,58,98,0.10)] transition hover:-translate-y-1"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--edunets-dark-blue)] text-[var(--edunets-yellow)]">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <p className="text-lg font-black text-[var(--edunets-dark-blue)]">{doc.label}</p>
-                <p className="text-sm font-semibold text-[var(--edunets-ink)]/65">{doc.description}</p>
-                <span className="mt-auto flex items-center gap-1 text-sm font-bold text-[var(--edunets-coral)] transition group-hover:gap-2">
-                  Open <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </span>
-              </button>
-            );
-          })}
+      <section className="mx-auto w-full max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--edunets-dark-blue)] text-[var(--edunets-yellow)]">
+            <Icon className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-[var(--edunets-coral)]">{eyebrow}</p>
+            <h1 className="text-2xl font-black tracking-tight text-[var(--edunets-dark-blue)] sm:text-3xl">{title}</h1>
+          </div>
         </div>
+        <p className="mt-3 max-w-2xl text-sm font-semibold text-[var(--edunets-ink)]/70">{description}</p>
       </section>
 
-      <footer className="px-5 pb-8 pt-2 text-center text-xs font-bold text-[var(--edunets-ink)]/50 sm:pb-10">
-        EduNets · Built for O-Level momentum
-      </footer>
+      <section className="mx-auto flex w-full max-w-6xl flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pb-14">
+        <div className="w-full overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_18px_50px_rgba(29,58,98,0.10)]">
+          <iframe src={src} title={title} className="h-[75vh] w-full sm:h-[80vh]" />
+        </div>
+      </section>
     </main>
   );
 }

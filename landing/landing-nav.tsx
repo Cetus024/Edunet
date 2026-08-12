@@ -15,8 +15,8 @@ const navigationItems = [
 ] as const;
 
 const docLinks = [
-  { href: '/intro?doc=manual', label: 'User Manual' },
-  { href: '/intro?doc=techstack', label: 'Tech Stack' },
+  { href: '/user-manual', label: 'User Manual' },
+  { href: '/tech-stack', label: 'Tech Stack' },
 ] as const;
 
 type LandingNavProps = {
