@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { Brain, ChevronRight, Flame, CheckCircle2, TrendingUp, Clock } from 'lucide-react';
+import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock } from 'lucide-react';
+import Image from 'next/image';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -99,7 +100,7 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
           {/* Bottom: Spider message and button */}
           <div className="bg-secondary text-secondary-foreground rounded-2xl p-3 flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-card text-card-foreground shadow-sm">
-              <Brain className="h-5 w-5" />
+              <Image src="/branding/spidey-icon.png" alt="" width={380} height={380} className="h-6 w-6 select-none" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs italic font-bold leading-snug">

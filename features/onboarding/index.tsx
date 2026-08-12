@@ -11,12 +11,12 @@ import {
 } from 'react';
 import { useAtom } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
+import Image from 'next/image';
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
   BookOpenCheck,
-  BrainCircuit,
   Building2,
   Check,
   FileCheck2,
@@ -1272,7 +1272,7 @@ export default function OnboardingPage() {
 
           <div className="hidden items-center gap-3 rounded-2xl border border-white/25 bg-white/10 px-3 py-1.5 text-white backdrop-blur-xl sm:flex">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--edunets-yellow)] text-[var(--edunets-dark-blue)]">
-              <BrainCircuit className="h-5 w-5" aria-hidden="true" />
+              <Image src="/branding/spidey-icon.png" alt="" width={380} height={380} className="h-6 w-6 select-none" aria-hidden="true" />
             </span>
             <div>
               <p className="text-sm font-black">EduNets setup</p>

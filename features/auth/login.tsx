@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Brain, Check, LockKeyhole, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, LockKeyhole, Mail } from 'lucide-react';
+import Image from 'next/image';
 import { toast } from 'sonner';
 
 import { authClient, getAuthErrorMessage } from '@/lib/api/auth-client';
@@ -91,14 +92,13 @@ export default function EduNetsLogin() {
       <div className="relative z-10 grid min-h-screen lg:grid-cols-2">
         <section className="order-2 flex items-center justify-center px-6 pb-14 pt-10 sm:px-10 lg:order-1 lg:px-14 lg:py-20 xl:px-20">
           <div className="w-full max-w-xl">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-[var(--edunets-light-blue)] to-[var(--edunets-yellow)] text-white shadow-[0_14px_32px_rgba(29,58,98,0.18)] sm:h-20 sm:w-20">
-                <Brain className="h-8 w-8 sm:h-10 sm:w-10" aria-hidden="true" />
-              </div>
-              <span className="text-3xl font-black tracking-tight text-[var(--edunets-dark-blue)] sm:text-4xl">
-                EduNets
-              </span>
-            </div>
+            <Image
+              src="/branding/edunets-logo.png"
+              alt="EduNets"
+              width={881}
+              height={459}
+              className="h-14 w-auto select-none sm:h-16"
+            />
 
             <h1 className="mt-10 text-4xl font-black leading-tight tracking-tight text-[var(--edunets-dark-blue)] sm:text-5xl">
               Continue Your Learning
