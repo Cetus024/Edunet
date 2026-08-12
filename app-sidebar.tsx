@@ -3,6 +3,7 @@
 import { NavLink, useLocation } from '@/lib/navigation';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
+import Image from 'next/image';
 import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
@@ -145,21 +146,18 @@ function SidebarContent({
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-5">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground shadow-[0_12px_28px_rgba(29,58,98,0.14)]">
-            <Brain className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className={cn(
-              'text-2xl font-black tracking-tight',
-              isTeachingRole(role) ? 'text-sidebar-accent' : 'text-primary',
-            )}>EduNets</h1>
-            <p className="text-xs font-semibold text-muted-foreground">Weave stronger bonds, retain every lesson</p>
-          </div>
+          <Image
+            src="/branding/edunets-logo.png"
+            alt="EduNets"
+            width={881}
+            height={459}
+            className="h-9 w-auto select-none"
+          />
+          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">Weave stronger bonds, retain every lesson</p>
         </motion.div>
       </div>
 

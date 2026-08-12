@@ -1,7 +1,7 @@
 'use client';
 
 import type { MouseEvent } from 'react';
-import { Brain } from 'lucide-react';
+import Image from 'next/image';
 import { motion, useReducedMotion, useScroll, useSpring } from 'motion/react';
 
 import { Button } from '@/components/ui/button';
@@ -59,10 +59,14 @@ export function LandingNav({ onLogin, onGetStarted }: LandingNavProps) {
           aria-label="EduNets home"
           className="flex shrink-0 items-center gap-2 rounded-xl text-[var(--edunets-dark-blue)] outline-none transition-colors hover:text-[var(--edunets-light-blue)] focus-visible:ring-2 focus-visible:ring-[var(--edunets-light-blue)] focus-visible:ring-offset-2"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--edunets-dark-blue)] text-[var(--edunets-yellow)] shadow-sm sm:h-10 sm:w-10">
-            <Brain className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <span className="hidden text-lg font-black tracking-tight min-[390px]:inline sm:text-xl">EduNets</span>
+          <Image
+            src="/branding/edunets-logo.png"
+            alt="EduNets"
+            width={881}
+            height={459}
+            priority
+            className="h-8 w-auto select-none sm:h-10"
+          />
         </a>
 
         <div className="mx-auto hidden items-center gap-1 lg:flex">
