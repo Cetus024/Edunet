@@ -182,3 +182,30 @@
 .teacher-scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+/* Concept-web friend markers: orbit rotation is driven as a plain CSS
+   animation rather than a Framer Motion `animate` target. motion/react
+   manages its own transform-origin for any SVG element it animates a
+   `rotate` value on, silently overwriting an author-supplied
+   transform-origin/transform-box (verified live: it reset both to
+   "50% 50%" / a no-op transform) - a native CSS animation isn't touched
+   by that runtime and reliably respects the transform-origin set beside
+   it. See features/concept-web/friend-markers.tsx. */
+@keyframes edunets-orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.friend-orbit-spin {
+  animation: edunets-orbit-spin 24s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .friend-orbit-spin {
+    animation: none;
+  }
+}
