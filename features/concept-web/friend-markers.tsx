@@ -61,7 +61,7 @@ export function ConceptNodeFriendMarkers({ nodeId, nodeCenter, nodeRadius, subje
       initial={{ opacity: 0 }}
       animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, rotate: 360 }}
       transition={prefersReducedMotion ? { duration: 0.25 } : { rotate: { duration: 24, repeat: Infinity, ease: 'linear' as const }, opacity: { duration: 0.25 } }}
-      style={{ transformBox: 'fill-box', transformOrigin: `${nodeCenter.x}px ${nodeCenter.y}px` }}
+      style={{ transformBox: 'view-box', transformOrigin: `${nodeCenter.x}px ${nodeCenter.y}px` }}
     >
       {orbitItems.map((friend: StrugglingFriend | null, index: number) => {
         const angleRadians = (angles[index] * Math.PI) / 180;
@@ -90,7 +90,7 @@ export function ConceptNodeFriendMarkers({ nodeId, nodeCenter, nodeRadius, subje
             whileTap={friend ? { scale: 1.08 } : undefined}
             animate={prefersReducedMotion ? { y: 0 } : { y: [0, -3, 0] }}
             transition={prefersReducedMotion ? { duration: 0 } : { duration: 3 + index * 0.35, repeat: Infinity, repeatType: 'reverse', delay: index * 0.25, ease: 'easeInOut' as const }}
-            style={{ cursor: friend ? 'pointer' : 'default', transformBox: 'fill-box', transformOrigin: `${x}px ${y}px` }}
+            style={{ cursor: friend ? 'pointer' : 'default', transformBox: 'view-box', transformOrigin: `${x}px ${y}px` }}
           >
             <circle cx={x} cy={y} r={touchSize / 2} fill="transparent" />
             <circle cx={x} cy={y} r={visualSize / 2} fill={fill} stroke={coral} strokeWidth={2} filter="url(#node-shadow)" />
