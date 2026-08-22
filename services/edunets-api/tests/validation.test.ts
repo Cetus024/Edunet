@@ -3,6 +3,8 @@ import {
   createEnquirySchema,
   onboardingRequestSchema,
   questionRecipientsQuerySchema,
+  quizOptionsQuerySchema,
+  quizSetRequestSchema,
   quizSubmissionSchema,
   sendEnquiryMessageSchema,
   updateTeachingScopesSchema,
@@ -12,25 +14,21 @@ describe('onboarding validation', () => {
   const valid = {
     role: 'student',
     schoolId: 'example-school',
-    learningSource: 'none',
     subjectId: 'amath',
     topicId: 'amath-trig',
     familiarity: 'some',
   } as const;
 
-  it('accepts a catalog ID with no learning artifact', () => {
+  it('accepts a catalog ID without requesting a learning artifact', () => {
     expect(onboardingRequestSchema.safeParse(valid).success).toBe(true);
   });
 
-  it('rejects mutually inconsistent metadata', () => {
+  it('temporarily accepts legacy artifact metadata for rollout compatibility', () => {
     expect(onboardingRequestSchema.safeParse({
       ...valid,
+      learningSource: 'material',
       material: { name: 'notes.pdf', type: 'application/pdf', size: 100, lastModified: 1 },
-    }).success).toBe(false);
-  });
-
-  it('requires metadata for the chosen artifact type', () => {
-    expect(onboardingRequestSchema.safeParse({ ...valid, learningSource: 'recording' }).success).toBe(false);
+    }).success).toBe(true);
   });
 });
 
@@ -43,6 +41,21 @@ describe('quiz submission validation', () => {
       answers: [{ questionKey: 'amath-trig:v1:q01', answer: 2 }],
     });
     expect(result.success).toBe(true);
+  });
+
+  it('accepts database quiz option and set requests', () => {
+    expect(quizOptionsQuerySchema.safeParse({ subjectId: 'biology', topicId: 'biology-ecology' }).success).toBe(true);
+    expect(quizSetRequestSchema.safeParse({
+      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
+      topicId: 'biology-ecology',
+      mode: 'speed-round',
+    }).success).toBe(true);
+    expect(quizSetRequestSchema.safeParse({
+      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
+      topicId: 'biology-ecology',
+      mode: 'past-paper',
+      paperId: 'invented-paper',
+    }).success).toBe(false);
   });
 
   it('rejects client-invented key formats', () => {
@@ -61,7 +74,6 @@ describe('teaching context validation', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'teacher',
       schoolId: 'example-school',
-      learningSource: 'none',
       subjectId: 'biology',
       topicId: 'biology-cells',
       familiarity: 'well',
@@ -76,7 +88,6 @@ describe('teaching context validation', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'student',
       schoolId: 'example-school',
-      learningSource: 'none',
       subjectId: 'amath',
       topicId: 'amath-trig',
       familiarity: 'some',

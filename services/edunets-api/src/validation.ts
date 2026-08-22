@@ -35,7 +35,10 @@ export const onboardingRequestSchema = z.strictObject({
   // Accepted as a compatibility input for the existing selector. It is always
   // resolved against the fixed schools table; arbitrary values remain invalid.
   school: z.string().trim().min(1).max(255).optional(),
-  learningSource: z.enum(['material', 'recording', 'none']),
+  // Compatibility-only fields for clients cached before the simplified
+  // onboarding rollout. The route normalizes every new profile to `none` and
+  // ignores artifact metadata.
+  learningSource: z.enum(['material', 'recording', 'none']).optional(),
   material: optionalNullable(materialMetadataSchema),
   recording: optionalNullable(recordingMetadataSchema),
   subjectId: z.string().trim().min(1).max(64),
@@ -50,16 +53,6 @@ export const onboardingRequestSchema = z.strictObject({
   }
   if (value.schoolId && value.school) {
     context.addIssue({ code: 'custom', path: ['school'], message: 'Supply either schoolId or school, not both.' });
-  }
-
-  if (value.learningSource === 'material' && (!value.material || value.recording)) {
-    context.addIssue({ code: 'custom', path: ['material'], message: 'Material metadata is required exclusively.' });
-  }
-  if (value.learningSource === 'recording' && (!value.recording || value.material)) {
-    context.addIssue({ code: 'custom', path: ['recording'], message: 'Recording metadata is required exclusively.' });
-  }
-  if (value.learningSource === 'none' && (value.material || value.recording)) {
-    context.addIssue({ code: 'custom', path: ['learningSource'], message: 'No metadata is allowed for this source.' });
   }
 
   if (value.role === 'parent' && !value.child) {
@@ -82,7 +75,7 @@ export const updateTeachingScopesSchema = z.strictObject({
 });
 
 export const updateQuestionReviewSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2}$/),
+  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
   explanation: z.string().trim().min(1).max(2_000),
 });
 
@@ -94,12 +87,24 @@ export const quizSubmissionSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
   mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
-  paperId: z.string().trim().min(1).max(32).optional(),
+  paperId: z.enum(['paper-1', 'paper-2']).optional(),
   startedAt: z.iso.datetime({ offset: true }).optional(),
   answers: z.array(z.strictObject({
-    questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2}$/),
+    questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
     answer: z.union([z.string().max(4_000), z.number().int().nonnegative()]),
   })).min(1).max(50),
+});
+
+export const quizOptionsQuerySchema = z.strictObject({
+  subjectId: z.string().trim().min(1).max(64),
+  topicId: z.string().trim().min(1).max(128),
+});
+
+export const quizSetRequestSchema = z.strictObject({
+  submissionId: z.uuid(),
+  topicId: z.string().trim().min(1).max(128),
+  mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
+  paperId: z.enum(['paper-1', 'paper-2']).optional(),
 });
 
 export const quizHistoryQuerySchema = z.object({
@@ -143,5 +148,6 @@ export const addStudentToScopeSchema = z.strictObject({
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
 export type QuizSubmission = z.infer<typeof quizSubmissionSchema>;
+export type QuizSetRequest = z.infer<typeof quizSetRequestSchema>;
 export type CreateEnquiryRequest = z.infer<typeof createEnquirySchema>;
 export type SendEnquiryMessageRequest = z.infer<typeof sendEnquiryMessageSchema>;

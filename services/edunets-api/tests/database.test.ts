@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { assertDatabaseDeletionAllowed } from '../../../database/deleteDB.js';
 import { assertSchemaCanBeInitialized } from '../../../database/schema-safety.js';
 import {
+  quizQuestionSeed,
   schoolSeed,
   subjectSeed,
   topicSeed,
@@ -18,6 +19,7 @@ describe('database catalog seed', () => {
     expect(schoolSeed).toHaveLength(151);
     expect(subjectSeed).toHaveLength(8);
     expect(topicSeed).toHaveLength(51);
+    expect(quizQuestionSeed).toHaveLength(255);
   });
 
   it('uses unique school, subject, and topic IDs', () => {
@@ -31,6 +33,23 @@ describe('database catalog seed', () => {
 
     for (const topic of topicSeed) {
       expect(subjectIds.has(topic.subjectId), topic.id).toBe(true);
+    }
+  });
+
+  it('contains valid, uniquely keyed question fixture rows', () => {
+    const topicIds = new Set(topicSeed.map((topic) => topic.id));
+    expectUnique(quizQuestionSeed.map((question) => question.id));
+
+    for (const question of quizQuestionSeed) {
+      expect(topicIds.has(question.topicId), question.id).toBe(true);
+      expect(question.id).toMatch(new RegExp(`^${question.topicId}-q\\d{3}$`));
+      if (question.type === 'mcq') {
+        const options = JSON.parse(question.options ?? 'null') as unknown;
+        expect(Array.isArray(options), question.id).toBe(true);
+        expect(Number.isInteger(Number(question.correctAnswer)), question.id).toBe(true);
+        expect(Number(question.correctAnswer), question.id).toBeGreaterThanOrEqual(0);
+        expect(Number(question.correctAnswer), question.id).toBeLessThan((options as unknown[]).length);
+      }
     }
   });
 });

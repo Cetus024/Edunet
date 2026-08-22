@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type RefObject,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useAtom } from 'jotai';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
@@ -19,15 +11,10 @@ import {
   BookOpenCheck,
   Building2,
   Check,
-  FileCheck2,
   GraduationCap,
   Library,
-  Mic,
   Presentation,
   Search,
-  Sparkles,
-  Square,
-  UploadCloud,
   UsersRound,
   X,
 } from 'lucide-react';
@@ -36,13 +23,9 @@ import { toast } from 'sonner';
 
 import {
   type OnboardingFamiliarity,
-  type OnboardingLearningSource,
-  type OnboardingMaterialMetadata,
-  type OnboardingRecordingMetadata,
   type OnboardingRole,
 } from '@/features/onboarding/types';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
-import { useBrowserLiveTranscription } from '@/hooks/use-browser-live-transcription';
 import { getCurrentAccount, currentAccountQueryKey } from '@/lib/api/me';
 import {
   getStudyState,
@@ -123,48 +106,26 @@ const roleSubjectPrompts: Record<OnboardingRole, string> = {
   parent: "Which subject is your child's main focus?",
 };
 
-// Students walk through all five steps to place their first topic on the
+// Students walk through four steps to place their first topic on the
 // learning map. Teachers, tutors, and parents aren't studying a topic
 // themselves, so they only need enough to scope their workspace: role,
 // school, and one subject. The topic and familiarity backend requires are
 // filled in automatically (see finishOnboarding). Parents additionally
 // provide their child's name and email, so their dashboard can show the
 // child's real progress instead of their own (empty) one.
-type StepKey = 'role' | 'school' | 'material' | 'topic' | 'subject' | 'familiarity' | 'child';
+type StepKey = 'role' | 'school' | 'topic' | 'subject' | 'familiarity' | 'child';
 
-const studentStepKeys: readonly StepKey[] = ['role', 'school', 'material', 'topic', 'familiarity'];
+const studentStepKeys: readonly StepKey[] = ['role', 'school', 'topic', 'familiarity'];
 const staffStepKeys: readonly StepKey[] = ['role', 'school', 'subject'];
 const parentStepKeys: readonly StepKey[] = ['role', 'school', 'subject', 'child'];
 
-const studentStepLabels = ['About you', 'School', 'Starting point', 'First topic', 'Familiarity'] as const;
+const studentStepLabels = ['About you', 'School', 'First topic', 'Familiarity'] as const;
 const staffStepLabels = ['About you', 'School', 'Subject'] as const;
 const parentStepLabels = ['About you', 'School', 'Subject', 'Your child'] as const;
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDuration(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
-
-// Live transcript is powered by the browser's own (free) speech recognition
-// engine - no transcription API or cost involved. It only supports one
-// spoken language per session, so the recorder offers a choice of two.
-type TranscriptLanguage = 'en' | 'zh';
-
-const transcriptLanguageOptions: { value: TranscriptLanguage; label: string; recognitionLang: string }[] = [
-  { value: 'en', label: 'English', recognitionLang: 'en-SG' },
-  { value: 'zh', label: '中文', recognitionLang: 'zh-CN' },
-];
 
 type StepHeadingProps = {
   eyebrow: string;
@@ -339,222 +300,7 @@ function SchoolStep({ role, school, schools, onSelect, headingRef }: SchoolStepP
   );
 }
 
-type MaterialStepProps = {
-  source: OnboardingLearningSource | null;
-  material: OnboardingMaterialMetadata | null;
-  recording: OnboardingRecordingMetadata | null;
-  recordingStatus: 'idle' | 'requesting' | 'recording' | 'ready';
-  recordingElapsed: number;
-  onChooseFile: () => void;
-  onClearFile: () => void;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  onChooseNone: () => void;
-  reduceMotion: boolean;
-  headingRef: RefObject<HTMLHeadingElement | null>;
-  transcriptSupported: boolean;
-  transcriptLanguage: TranscriptLanguage;
-  onSelectTranscriptLanguage: (language: TranscriptLanguage) => void;
-  transcriptFinalText: string;
-  transcriptInterimText: string;
-  transcriptError: string | null;
-};
-
-function MaterialStep({
-  source,
-  material,
-  recording,
-  recordingStatus,
-  recordingElapsed,
-  onChooseFile,
-  onClearFile,
-  onStartRecording,
-  onStopRecording,
-  onChooseNone,
-  transcriptSupported,
-  transcriptLanguage,
-  onSelectTranscriptLanguage,
-  transcriptFinalText,
-  transcriptInterimText,
-  transcriptError,
-  reduceMotion,
-  headingRef,
-}: MaterialStepProps) {
-  return (
-    <div>
-      <StepHeading
-        eyebrow="Choose a starting point"
-        title="How would you like to begin?"
-        description="Bring one learning item, make a short recording, or start without materials. Only metadata is saved; the file or audio is not uploaded."
-        headingRef={headingRef}
-      />
-
-      <div className="mx-auto mt-5 grid max-w-5xl grid-cols-2 gap-3 sm:mt-6 md:grid-cols-3 md:gap-4">
-        <div
-          className={cn(
-            'rounded-[1.25rem] border-2 bg-white p-3 shadow-[0_12px_32px_rgba(29,58,98,0.07)] transition-colors sm:p-4',
-            source === 'material' ? 'border-[var(--edunets-light-blue)] bg-[#f6f9fd]' : 'border-[#e3e8ef]',
-          )}
-        >
-          <button
-            type="button"
-            onClick={onChooseFile}
-            className="flex min-h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#bdc9d9] px-3 text-center outline-none transition hover:border-[var(--edunets-light-blue)] hover:bg-[#eef4fb] focus-visible:ring-4 focus-visible:ring-[var(--edunets-light-blue)]/20 sm:min-h-36 sm:px-4"
-          >
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf1fb] text-[var(--edunets-light-blue)] sm:h-12 sm:w-12">
-              <UploadCloud className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <span className="mt-2 text-sm font-black text-[var(--edunets-ink)] sm:text-base">Upload material</span>
-            <span className="mt-1 hidden text-xs font-medium leading-4 text-[var(--edunets-ink)]/65 sm:inline sm:text-sm">
-              Notes, slides, photos, audio or video
-            </span>
-          </button>
-
-          {material ? (
-            <div className="mt-2 flex items-center gap-2 rounded-xl bg-[#eaf1fb] p-2">
-              <FileCheck2 className="h-5 w-5 shrink-0 text-[var(--edunets-light-blue)]" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-[var(--edunets-dark-blue)]">{material.name}</p>
-                <p className="mt-0.5 text-xs font-bold text-[var(--edunets-ink)]/65">{formatFileSize(material.size)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={onClearFile}
-                aria-label="Remove selected material"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--edunets-light-blue)]"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-          ) : (
-            <p className="mt-2 hidden text-center text-[11px] font-bold text-[var(--edunets-ink)]/65 sm:block">Metadata only — no extraction</p>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            'flex flex-col rounded-[1.25rem] border-2 bg-white p-3 text-center shadow-[0_12px_32px_rgba(29,58,98,0.07)] transition-colors sm:p-4',
-            source === 'recording' ? 'border-[var(--edunets-coral)] bg-[#fff8f6]' : 'border-[#e3e8ef]',
-          )}
-        >
-          <div className="flex min-h-32 flex-1 flex-col items-center justify-center px-2 sm:min-h-36 sm:px-3">
-            <motion.button
-              type="button"
-              onClick={recordingStatus === 'recording' ? onStopRecording : onStartRecording}
-              disabled={recordingStatus === 'requesting'}
-              whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-              className={cn(
-                'relative flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_14px_30px_rgba(29,58,98,0.18)] outline-none focus-visible:ring-4 focus-visible:ring-[var(--edunets-coral)]/25 disabled:cursor-wait disabled:opacity-60 sm:h-16 sm:w-16',
-                recordingStatus === 'recording'
-                  ? 'bg-[var(--edunets-coral)]'
-                  : 'bg-[var(--edunets-dark-blue)]',
-              )}
-              aria-label={recordingStatus === 'recording' ? 'Stop recording' : 'Start recording'}
-            >
-              {recordingStatus === 'recording' ? (
-                <Square className="h-6 w-6" aria-hidden="true" />
-              ) : (
-                <Mic className="h-7 w-7" aria-hidden="true" />
-              )}
-              {recordingStatus === 'recording' && !reduceMotion && (
-                <motion.span
-                  aria-hidden="true"
-                  className="absolute inset-0 rounded-full border-4 border-[var(--edunets-coral)]"
-                  animate={{ scale: [1, 1.35], opacity: [0.6, 0] }}
-                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }}
-                />
-              )}
-            </motion.button>
-            <h2 className="mt-2 text-sm font-black text-[var(--edunets-ink)] sm:text-base">Record a learning note</h2>
-            <p className="mt-1 hidden text-xs font-medium leading-4 text-[var(--edunets-ink)]/65 sm:block sm:text-sm">
-              Use your microphone for a short recording
-            </p>
-          </div>
-          <div className="mt-2 rounded-xl bg-[#f4f6f9] px-3 py-2 text-xs font-black text-[var(--edunets-dark-blue)] sm:text-sm" aria-live="polite">
-            {recordingStatus === 'requesting' && 'Requesting microphone…'}
-            {recordingStatus === 'recording' && `Recording ${formatDuration(recordingElapsed)}`}
-            {recordingStatus === 'ready' && recording && `Recorded ${formatDuration(recording.durationSeconds)}`}
-            {recordingStatus === 'idle' && 'Ready to record'}
-          </div>
-
-          {transcriptSupported && (
-            <>
-              <div className="mt-2 flex items-center justify-center gap-1 rounded-full bg-[#f4f6f9] p-1" role="radiogroup" aria-label="Live transcript language">
-                {transcriptLanguageOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={transcriptLanguage === option.value}
-                    disabled={recordingStatus === 'recording' || recordingStatus === 'requesting'}
-                    onClick={() => onSelectTranscriptLanguage(option.value)}
-                    className={cn(
-                      'flex-1 rounded-full px-2 py-1 text-[11px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                      transcriptLanguage === option.value
-                        ? 'bg-white text-[var(--edunets-dark-blue)] shadow-sm'
-                        : 'text-[var(--edunets-ink)]/55',
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {transcriptError && (
-                <p className="mt-2 text-center text-[11px] font-bold text-[var(--edunets-coral)]" role="alert">
-                  {transcriptError}
-                </p>
-              )}
-
-              {(transcriptFinalText || transcriptInterimText) && (
-                <div className="mt-2 max-h-24 overflow-y-auto rounded-xl bg-[#f4f6f9] p-2.5 text-left">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-[var(--edunets-ink)]/50">
-                    Live transcript
-                  </p>
-                  <p className="text-xs leading-relaxed text-[var(--edunets-ink)]">
-                    {transcriptFinalText}
-                    {transcriptInterimText && (
-                      <span className="text-[var(--edunets-ink)]/50 italic">
-                        {transcriptFinalText ? ' ' : ''}{transcriptInterimText}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={onChooseNone}
-          aria-pressed={source === 'none'}
-          className={cn(
-            'col-span-2 flex min-h-28 flex-col items-center justify-center rounded-[1.25rem] border-2 bg-white p-4 text-center shadow-[0_12px_32px_rgba(29,58,98,0.07)] outline-none transition-all hover:-translate-y-1 hover:border-[var(--edunets-yellow)] focus-visible:ring-4 focus-visible:ring-[var(--edunets-yellow)]/35 md:col-span-1 md:min-h-56 md:p-6',
-            source === 'none' ? 'border-[#c9aa39] bg-[#fffaf0]' : 'border-[#e3e8ef]',
-          )}
-        >
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--edunets-yellow)]/55 text-[var(--edunets-dark-blue)] sm:h-12 sm:w-12">
-            <Sparkles className="h-6 w-6" aria-hidden="true" />
-          </span>
-          <h2 className="mt-2 text-base font-black text-[var(--edunets-ink)] sm:text-lg">I have no material</h2>
-          <p className="mt-1 hidden max-w-xs text-xs font-medium leading-4 text-[var(--edunets-ink)]/65 sm:block sm:text-sm">
-            Start from scratch by choosing one O-Level subject and topic
-          </p>
-          {source === 'none' && (
-            <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-[var(--edunets-dark-blue)] px-3 py-1.5 text-xs font-black text-white">
-              <Check className="h-4 w-4" aria-hidden="true" />
-              Selected
-            </span>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 type TopicStepProps = {
-  source: OnboardingLearningSource;
   subjects: SubjectData[];
   selectedSubjectId: string;
   selectedTopicId: string;
@@ -564,7 +310,6 @@ type TopicStepProps = {
 };
 
 function TopicStep({
-  source,
   subjects,
   selectedSubjectId,
   selectedTopicId,
@@ -577,13 +322,9 @@ function TopicStep({
   return (
     <div>
       <StepHeading
-        eyebrow={source === 'none' ? 'Start from scratch' : 'Classify your first study set'}
+        eyebrow="Choose your starting point"
         title="Choose one topic to begin"
-        description={
-          source === 'none'
-            ? 'Select the first topic you want EduNets to place on your learning map.'
-            : 'Tell us which topic your material or recording belongs to. No automatic detection is used.'
-        }
+        description="Select the first topic you want EduNets to place on your learning map."
         headingRef={headingRef}
       />
 
@@ -854,22 +595,6 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<OnboardingRole | null>(null);
   const [school, setSchool] = useState('');
-  const [learningSource, setLearningSource] = useState<OnboardingLearningSource | null>(null);
-  const [material, setMaterial] = useState<OnboardingMaterialMetadata | null>(null);
-  const [recording, setRecording] = useState<OnboardingRecordingMetadata | null>(null);
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'requesting' | 'recording' | 'ready'>('idle');
-  const [recordingElapsed, setRecordingElapsed] = useState(0);
-  const [transcriptLanguage, setTranscriptLanguage] = useState<TranscriptLanguage>('en');
-  const [transcriptSupported, setTranscriptSupported] = useState(false);
-  const {
-    status: transcriptStatus,
-    finalTranscript: transcriptFinalText,
-    interimTranscript: transcriptInterimText,
-    error: transcriptError,
-    start: startTranscript,
-    stop: stopTranscript,
-    reset: resetTranscript,
-  } = useBrowserLiveTranscription();
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedTeachingSubjectIds, setSelectedTeachingSubjectIds] = useState<string[]>([]);
   const [classroomNames, setClassroomNames] = useState<Record<string, string>>({});
@@ -878,19 +603,9 @@ export default function OnboardingPage() {
   const [childName, setChildName] = useState('');
   const [childEmail, setChildEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordingTimerRef = useRef<number | null>(null);
-  const recordingStartedAtRef = useRef<number | null>(null);
-  const recordingRequestIdRef = useRef(0);
   const submissionInFlightRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setTranscriptSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
-  }, []);
 
   const subjects = useMemo<SubjectData[]>(() => (
     catalogQuery.data?.subjects.map((subject) => ({
@@ -929,147 +644,9 @@ export default function OnboardingPage() {
     return () => window.clearTimeout(timeoutId);
   }, [catalogQuery.isSuccess, reduceMotion, step]);
 
-  const releaseRecordingResources = useCallback(() => {
-    if (recordingTimerRef.current !== null) {
-      window.clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.stop();
-    }
-    mediaRecorderRef.current = null;
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      recordingRequestIdRef.current += 1;
-      releaseRecordingResources();
-    };
-  }, [releaseRecordingResources]);
-
-  const discardRecording = useCallback(() => {
-    recordingRequestIdRef.current += 1;
-    releaseRecordingResources();
-    recordingStartedAtRef.current = null;
-    setRecording(null);
-    setRecordingElapsed(0);
-    setRecordingStatus('idle');
-    if (transcriptStatus === 'recording' || transcriptStatus === 'connecting') {
-      void stopTranscript().catch(() => {});
-    } else {
-      resetTranscript();
-    }
-  }, [releaseRecordingResources, resetTranscript, stopTranscript, transcriptStatus]);
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    discardRecording();
-    setMaterial({
-      name: file.name,
-      type: file.type || 'application/octet-stream',
-      size: file.size,
-      lastModified: file.lastModified,
-    });
-    setLearningSource('material');
-    event.target.value = '';
-  };
-
-  const clearMaterial = () => {
-    setMaterial(null);
-    if (learningSource === 'material') setLearningSource(null);
-  };
-
-  const handleStartRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      toast.error('This browser does not support microphone recording.');
-      return;
-    }
-
-    discardRecording();
-    const requestId = ++recordingRequestIdRef.current;
-    setMaterial(null);
-    setLearningSource('recording');
-    setRecordingStatus('requesting');
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (recordingRequestIdRef.current !== requestId) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      const recorder = new MediaRecorder(stream);
-      mediaStreamRef.current = stream;
-      mediaRecorderRef.current = recorder;
-      recordingStartedAtRef.current = Date.now();
-      recorder.start();
-      setRecordingStatus('recording');
-      setRecordingElapsed(0);
-      recordingTimerRef.current = window.setInterval(() => {
-        const startedAt = recordingStartedAtRef.current;
-        if (startedAt === null) return;
-        setRecordingElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
-      }, 500);
-
-      // Live transcript is a nice-to-have on top of the recording itself, and
-      // only works in Chrome/Edge (the browser's own free speech recognition
-      // engine) - a failure here should never interrupt the actual recording.
-      if (transcriptSupported) {
-        const recognitionLang = transcriptLanguageOptions.find(
-          (option) => option.value === transcriptLanguage,
-        )?.recognitionLang ?? 'en-SG';
-        try {
-          await startTranscript(recognitionLang);
-        } catch {
-          // Ignored - the recording continues via MediaRecorder regardless.
-        }
-      }
-    } catch (error) {
-      if (recordingRequestIdRef.current !== requestId) return;
-      releaseRecordingResources();
-      setRecordingStatus('idle');
-      setLearningSource(null);
-      toast.error(
-        error instanceof Error ? error.message : 'Microphone permission was not granted.',
-      );
-    }
-  };
-
-  const handleStopRecording = () => {
-    const recorder = mediaRecorderRef.current;
-    const startedAt = recordingStartedAtRef.current;
-    const durationSeconds = startedAt
-      ? Math.max(1, Math.round((Date.now() - startedAt) / 1000))
-      : Math.max(1, recordingElapsed);
-    const mimeType = recorder?.mimeType || 'audio/webm';
-    releaseRecordingResources();
-    recordingStartedAtRef.current = null;
-    setRecording({ durationSeconds, mimeType });
-    setRecordingElapsed(durationSeconds);
-    setRecordingStatus('ready');
-    setLearningSource('recording');
-    if (transcriptStatus === 'recording' || transcriptStatus === 'connecting') {
-      void stopTranscript().catch(() => {});
-    }
-  };
-
-  const chooseNoMaterial = () => {
-    discardRecording();
-    setMaterial(null);
-    setLearningSource('none');
-  };
-
   const canContinue = useMemo(() => {
     if (currentStepKey === 'role') return role !== null;
     if (currentStepKey === 'school') return Boolean(school);
-    if (currentStepKey === 'material') {
-      if (learningSource === 'material') return material !== null;
-      if (learningSource === 'recording') return recording !== null && recordingStatus === 'ready';
-      return learningSource === 'none';
-    }
     if (currentStepKey === 'topic') return selectedSubject !== null && selectedTopic !== null;
     if (currentStepKey === 'subject') {
       if (isTeachingRole(role)) {
@@ -1080,13 +657,9 @@ export default function OnboardingPage() {
     }
     if (currentStepKey === 'child') return childName.trim().length > 0 && isValidEmail(childEmail);
     return familiarity !== null;
-  }, [childEmail, childName, classroomNames, currentStepKey, familiarity, learningSource, material, recording, recordingStatus, role, school, selectedSubject, selectedTeachingSubjectIds, selectedTopic]);
+  }, [childEmail, childName, classroomNames, currentStepKey, familiarity, role, school, selectedSubject, selectedTeachingSubjectIds, selectedTopic]);
 
   const handleBack = async () => {
-    if (recordingStatus === 'recording' || recordingStatus === 'requesting') {
-      discardRecording();
-      setLearningSource(null);
-    }
     if (step === 0) {
       await signOut('/signup');
       return;
@@ -1116,14 +689,12 @@ export default function OnboardingPage() {
   const finishOnboarding = async () => {
     if (submissionInFlightRef.current) return;
 
-    // Teachers, tutors, and parents skip the material and familiarity steps
-    // (see isSimplifiedFlow) - fill in values the backend still requires with
-    // sensible defaults instead of asking for them.
-    const effectiveLearningSource = isSimplifiedFlow ? 'none' : learningSource;
+    // Teachers, tutors, and parents skip the topic familiarity step, so use
+    // the primary subject's first topic and a neutral workspace default.
     const effectiveTopic = isSimplifiedFlow ? selectedSubject?.topics[0] ?? null : selectedTopic;
     const effectiveFamiliarity = isSimplifiedFlow ? 'well' : familiarity;
 
-    if (!role || !school || !effectiveLearningSource || !selectedSubject || !effectiveTopic || !effectiveFamiliarity) {
+    if (!role || !school || !selectedSubject || !effectiveTopic || !effectiveFamiliarity) {
       toast.error('Complete each onboarding step before continuing.');
       return;
     }
@@ -1146,9 +717,6 @@ export default function OnboardingPage() {
       await saveOnboarding({
         role,
         schoolId: selectedSchool.id,
-        learningSource: effectiveLearningSource,
-        material: effectiveLearningSource === 'material' ? material : null,
-        recording: effectiveLearningSource === 'recording' ? recording : null,
         subjectId: selectedSubject.id,
         topicId: effectiveTopic.id,
         familiarity: effectiveFamiliarity,
@@ -1237,14 +805,6 @@ export default function OnboardingPage() {
 
   return (
     <main className="relative h-[100svh] overflow-hidden bg-[linear-gradient(132deg,#1f559c_0%,#254f91_24%,#8e78a6_66%,#e7bb92_100%)] px-3 py-3 text-[var(--edunets-ink)] sm:px-5 sm:py-4 lg:px-8">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,image/*,audio/*,video/*"
-        onChange={handleFileChange}
-        className="hidden"
-      />
-
       <motion.div
         aria-hidden="true"
         className="pointer-events-none absolute -left-24 bottom-0 h-96 w-96 rounded-full bg-[#f2b8b5]/45 blur-3xl"
@@ -1330,31 +890,8 @@ export default function OnboardingPage() {
                     headingRef={headingRef}
                   />
                 )}
-                {currentStepKey === 'material' && (
-                  <MaterialStep
-                    source={learningSource}
-                    material={material}
-                    recording={recording}
-                    recordingStatus={recordingStatus}
-                    recordingElapsed={recordingElapsed}
-                    onChooseFile={() => fileInputRef.current?.click()}
-                    onClearFile={clearMaterial}
-                    onStartRecording={handleStartRecording}
-                    onStopRecording={handleStopRecording}
-                    onChooseNone={chooseNoMaterial}
-                    reduceMotion={Boolean(reduceMotion)}
-                    headingRef={headingRef}
-                    transcriptSupported={transcriptSupported}
-                    transcriptLanguage={transcriptLanguage}
-                    onSelectTranscriptLanguage={setTranscriptLanguage}
-                    transcriptFinalText={transcriptFinalText}
-                    transcriptInterimText={transcriptInterimText}
-                    transcriptError={transcriptError}
-                  />
-                )}
-                {currentStepKey === 'topic' && learningSource && (
+                {currentStepKey === 'topic' && (
                   <TopicStep
-                    source={learningSource}
                     subjects={subjects}
                     selectedSubjectId={selectedSubjectId}
                     selectedTopicId={selectedTopicId}

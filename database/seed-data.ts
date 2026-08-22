@@ -1,4 +1,4 @@
-import { CATALOG_SUBJECT_TOPIC_NAMES } from '../lib/quiz-question-bank.js';
+import quizCatalogFixtureJson from './fixtures/quiz-catalog.json';
 
 function slugify(value: string): string {
   return value
@@ -7,16 +7,38 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const SUBJECT_ICONS: Readonly<Record<string, string>> = {
-  Biology: '🧬',
-  Chemistry: '⚗️',
-  Physics: '⚛️',
-  History: '🏛️',
-  Geography: '🌍',
-  English: '📚',
-  'A-Math': '📐',
-  'E-Math': '🔢',
+type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
+
+type QuizCatalogFixture = {
+  version: number;
+  subjects: Array<{
+    id: string;
+    name: string;
+    icon: string | null;
+    position: number;
+    topics: Array<{
+      id: string;
+      name: string;
+      position: number;
+      questions: Array<{
+        id: string;
+        type: QuizQuestionType;
+        text: string;
+        correctAnswer: string;
+        explanation: string;
+        linkedConcept: string;
+        options: string[] | null;
+        blankWord: string | null;
+        wordLimit: number | null;
+        source: string | null;
+        resourceNumber: string | null;
+        diagramUrl: string | null;
+      }>;
+    }>;
+  }>;
 };
+
+export const quizCatalogFixture = quizCatalogFixtureJson as QuizCatalogFixture;
 
 // Singapore secondary schools (mainstream, religious, madrasah, and NT/special-needs
 // secondary schools), sourced from https://en.wikipedia.org/wiki/List_of_secondary_schools_in_Singapore.
@@ -181,21 +203,38 @@ export const schoolSeed = REAL_SCHOOL_NAMES.map((name, index) => ({
   position: index,
 }));
 
-export const subjectSeed = Object.keys(CATALOG_SUBJECT_TOPIC_NAMES).map((name, index) => ({
-  id: slugify(name),
-  name,
-  icon: SUBJECT_ICONS[name] ?? null,
-  position: index,
+export const subjectSeed = quizCatalogFixture.subjects.map((subject) => ({
+  id: subject.id,
+  name: subject.name,
+  icon: subject.icon,
+  position: subject.position,
 }));
 
-export const topicSeed = Object.entries(CATALOG_SUBJECT_TOPIC_NAMES).flatMap(
-  ([, topicNames], subjectIndex) => {
-    const subjectId = subjectSeed[subjectIndex]!.id;
-    return topicNames.map((topicName, topicIndex) => ({
-      id: `${subjectId}-${slugify(topicName)}`,
-      subjectId,
-      name: topicName,
-      position: topicIndex,
-    }));
-  },
-);
+export const topicSeed = quizCatalogFixture.subjects.flatMap((subject) => (
+  subject.topics.map((topic) => ({
+    id: topic.id,
+    subjectId: subject.id,
+    name: topic.name,
+    position: topic.position,
+  }))
+));
+
+export const quizQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
+  subject.topics.flatMap((topic) => (
+    topic.questions.map((question) => ({
+      id: question.id,
+      topicId: topic.id,
+      type: question.type,
+      text: question.text,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      linkedConcept: question.linkedConcept,
+      options: question.options ? JSON.stringify(question.options) : null,
+      blankWord: question.blankWord,
+      wordLimit: question.wordLimit,
+      source: question.source,
+      resourceNumber: question.resourceNumber,
+      diagramUrl: question.diagramUrl,
+    }))
+  ))
+));

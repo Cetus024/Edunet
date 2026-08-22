@@ -36,17 +36,6 @@ export type StudyStateResponse = {
 export type OnboardingInput = {
   role: 'student' | 'teacher' | 'tutor' | 'parent';
   schoolId: string;
-  learningSource: 'material' | 'recording' | 'none';
-  material: {
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-  } | null;
-  recording: {
-    durationSeconds: number;
-    mimeType: string;
-  } | null;
   subjectId: string;
   topicId: string;
   familiarity: 'new' | 'some' | 'well';

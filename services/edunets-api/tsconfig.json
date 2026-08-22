@@ -16,8 +16,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../database/**/*.ts",
-    "../../src/lib/quiz-question-bank.ts"
+    "../../database/**/*.ts"
   ],
   "exclude": ["dist", "node_modules", "tests"]
 }

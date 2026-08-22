@@ -235,7 +235,7 @@ footer{border-top:2px solid var(--border);margin-top:20px;padding:34px 0 60px;di
           <tr><td>Running and scaling the application</td><td><strong>CCE</strong></td><td>Deploys the EduNets frontend and backend in containers. It can restart failed containers and scale during high student traffic.</td></tr>
           <tr><td>Storing structured information</td><td><strong>RDS for PostgreSQL</strong></td><td>Stores users, schools, classrooms, quiz attempts, marks, memory scores and concept-web progress.</td></tr>
           <tr><td>Storing large files</td><td><strong>OBS</strong></td><td>Stores past-paper PDFs, notes, images, recordings, teacher resources and AI datasets.</td></tr>
-          <tr><td>Providing AI capabilities</td><td><strong>ModelArts</strong></td><td>Supports AI-generated concept questions, content summaries, learning recommendations and weak-topic analysis.</td></tr>
+          <tr><td>Providing AI capabilities</td><td><strong>ModelArts</strong></td><td>Supports content summaries, learning recommendations and weak-topic analysis.</td></tr>
           <tr><td>Controlling cloud access</td><td><strong>IAM</strong></td><td>Controls which developers and services can access RDS, OBS, CCE and ModelArts.</td></tr>
           <tr><td>Hosting a simple MVP</td><td><strong>ECS</strong></td><td>Runs the entire application on a virtual server when Kubernetes and automatic scaling are not yet required.</td></tr>
         </tbody>
@@ -299,7 +299,7 @@ IAM protects access to every service</pre>
       </article>
       <article class="card floaty">
         <h3>ModelArts</h3>
-        <p><code>lib/quiz-question-bank.ts</code></p>
+        <p><code>services/edunets-api/src/lib/question-bank.ts</code></p>
         <p>Top of file - marks where a real inference call would replace the static question bank.</p>
       </article>
       <article class="card floaty">

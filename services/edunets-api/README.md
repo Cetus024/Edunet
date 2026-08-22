@@ -50,6 +50,8 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `GET /api/v1/me`
 - `PUT /api/v1/me/onboarding`
 - `GET /api/v1/me/study-state`
+- `GET /api/v1/me/quiz-options?subjectId=biology&topicId=biology-ecology`
+- `POST /api/v1/me/quiz-sets`
 - `POST /api/v1/me/quiz-attempts`
 - `GET /api/v1/me/quiz-attempts?topicId=amath-trig&limit=20`
 - `GET /api/v1/me/question-recipients?subjectId=amath`
@@ -65,14 +67,13 @@ An onboarding request is:
 {
   "role": "student",
   "schoolId": "admiralty-secondary-school",
-  "learningSource": "none",
   "subjectId": "amath",
   "topicId": "amath-trig",
   "familiarity": "some"
 }
 ```
 
-For `learningSource: "material"`, add `material: { "name", "type", "size", "lastModified" }`. For `recording`, add `recording: { "durationSeconds", "mimeType" }`. Metadata types are mutually exclusive and no file/audio bytes are stored. The compatibility field `school` may be supplied instead of `schoolId`, but it must exactly match a catalog entry.
+Registration onboarding does not request or accept a learning artifact. Cached older clients may still send legacy material metadata during the rollout, but the API ignores it and stores `learningSource: "none"`. The compatibility field `school` may be supplied instead of `schoolId`, but it must exactly match a catalog entry.
 
 A quiz submission is:
 

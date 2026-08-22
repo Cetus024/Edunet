@@ -5,7 +5,7 @@ import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { quizAttemptAnswers, quizAttempts, questionReviews } from '../../../../database/schema/learning.js';
 import { users } from '../../../../database/schema/auth.js';
 import { ApiError } from '../errors.js';
-import { getKeyedQuestions } from '../lib/question-bank.js';
+import { getQuestionByKey, getQuestionsForTopic } from '../lib/question-bank.js';
 import { loadTeacherActor, listStudentsInScope } from './teacher-students.js';
 
 export type ReviewQuestion = {
@@ -35,7 +35,7 @@ export type QuizReviewResponse = {
  * grouped by topic, so teachers can review/refine the explanation shown for
  * each question. Scoped to concept-check only: past-paper and speed-round
  * attempts key every question under whichever single topic was selected in
- * the quiz-setup UI (see getKeyedQuestions call sites), so topic attribution
+   * the quiz-setup UI, so topic attribution
  * for those modes is not reliable enough to group by here.
  */
 export async function getQuizReviewForTeacher(
@@ -100,8 +100,8 @@ export async function getQuizReviewForTeacher(
     const topicName = topicNameById.get(topicId);
     if (!topicName) continue;
 
-    const keyedQuestions = getKeyedQuestions(topicId, subjectRow.name, topicName, 'concept-check');
-    if (!keyedQuestions) continue;
+    const keyedQuestions = await getQuestionsForTopic(topicId);
+    if (keyedQuestions.length === 0) continue;
     const questionByKey = new Map(keyedQuestions.map((question) => [question.questionKey, question]));
 
     const questions: ReviewQuestion[] = [];
@@ -133,9 +133,8 @@ export async function saveQuestionReview(
 ): Promise<void> {
   await loadTeacherActor(teacherUserId); // throws TEACHER_ONLY for non-teaching roles
 
-  const [topicId] = questionKey.split(':');
-  const [topicRow] = await db.select({ id: topics.id }).from(topics).where(eq(topics.id, topicId!)).limit(1);
-  if (!topicRow) throw new ApiError(400, 'INVALID_QUESTION_KEY', 'This question was not found.');
+  const question = await getQuestionByKey(questionKey);
+  if (!question) throw new ApiError(400, 'INVALID_QUESTION_KEY', 'This question was not found.');
 
   await db.insert(questionReviews).values({
     questionKey,

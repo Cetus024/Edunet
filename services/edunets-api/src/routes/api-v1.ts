@@ -17,7 +17,7 @@ import {
   userTopicProgress,
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
-import { getKeyedQuestions, gradeQuestion } from '../lib/question-bank.js';
+import { getKeyedQuestions, getQuizOptions, gradeQuestion } from '../lib/question-bank.js';
 import { buildQuizAttemptResponse } from '../lib/quiz-attempt-response.js';
 import {
   calculateMemoryScore,
@@ -41,7 +41,9 @@ import type { AppEnv } from '../types.js';
 import {
   addStudentToScopeSchema,
   onboardingRequestSchema,
+  quizOptionsQuerySchema,
   quizHistoryQuerySchema,
+  quizSetRequestSchema,
   quizSubmissionSchema,
   studentSearchQuerySchema,
   updateQuestionReviewSchema,
@@ -367,24 +369,18 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       },
     });
 
-    // HUAWEI CLOUD INTEGRATION POINT — OBS (Object Storage Service).
-    // Onboarding only persists material *metadata* (name/type/size below) -
-    // the actual file bytes for uploaded notes/PDFs and recorded audio are
-    // never stored today (see input.material / input.recording). Wiring
-    // real material storage means uploading those bytes to a Huawei OBS
-    // bucket here (obs-sdk-node PUT, or a presigned-URL upload from the
-    // client) and persisting the returned object key/URL alongside these
-    // metadata fields - the same swap point Capture Hub's material list
-    // and past-paper/teacher-resource storage would use.
+    // Registration onboarding no longer accepts learning artifacts. Keep the
+    // legacy nullable columns intact for historical profiles, but normalize
+    // every new onboarding record to `none` without touching Capture Hub.
     await transaction.insert(onboardingProfiles).values({
       userId,
-      learningSource: input.learningSource,
-      materialName: input.material?.name ?? null,
-      materialType: input.material?.type ?? null,
-      materialSize: input.material?.size ?? null,
-      materialLastModified: input.material?.lastModified ?? null,
-      recordingDurationSeconds: input.recording?.durationSeconds ?? null,
-      recordingMimeType: input.recording?.mimeType ?? null,
+      learningSource: 'none',
+      materialName: null,
+      materialType: null,
+      materialSize: null,
+      materialLastModified: null,
+      recordingDurationSeconds: null,
+      recordingMimeType: null,
       subjectId: selectedTopic.subjectId,
       topicId: selectedTopic.id,
       familiarity: input.familiarity,
@@ -396,13 +392,13 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
     }).onConflictDoUpdate({
       target: onboardingProfiles.userId,
       set: {
-        learningSource: input.learningSource,
-        materialName: input.material?.name ?? null,
-        materialType: input.material?.type ?? null,
-        materialSize: input.material?.size ?? null,
-        materialLastModified: input.material?.lastModified ?? null,
-        recordingDurationSeconds: input.recording?.durationSeconds ?? null,
-        recordingMimeType: input.recording?.mimeType ?? null,
+        learningSource: 'none',
+        materialName: null,
+        materialType: null,
+        materialSize: null,
+        materialLastModified: null,
+        recordingDurationSeconds: null,
+        recordingMimeType: null,
         subjectId: selectedTopic.subjectId,
         topicId: selectedTopic.id,
         familiarity: input.familiarity,
@@ -446,7 +442,7 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
         role: input.role,
         schoolId: school.id,
         schoolName: school.name,
-        learningSource: input.learningSource,
+        learningSource: 'none',
         subjectId: selectedTopic.subjectId,
         subjectName: selectedTopic.subjectName,
         topicId: selectedTopic.id,
@@ -533,34 +529,51 @@ api.put('/me/quiz-review', loadSession, requireSession, async (context) => {
   return context.json({ ok: true });
 });
 
-api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = quizSubmissionSchema.parse(await readJson(context));
+api.get('/me/quiz-options', loadSession, requireSession, async (context) => {
+  const input = quizOptionsQuerySchema.parse(context.req.query());
+  const options = await getQuizOptions(input.topicId, input.subjectId);
+  if (!options) {
+    throw new ApiError(400, 'INVALID_QUIZ_SELECTION', 'The topic does not belong to the selected subject.');
+  }
+  return context.json(options);
+});
 
-  const [selectedTopic] = await db.select({
-    id: topics.id,
-    name: topics.name,
-    subjectId: subjects.id,
-    subjectName: subjects.name,
-  })
-    .from(topics)
-    .innerJoin(subjects, eq(topics.subjectId, subjects.id))
-    .where(eq(topics.id, input.topicId))
-    .limit(1);
-
-  if (!selectedTopic) throw new ApiError(400, 'INVALID_TOPIC', 'Topic was not found.');
-
-  const questions = getKeyedQuestions(
-    selectedTopic.id,
-    selectedTopic.subjectName,
-    selectedTopic.name,
+api.post('/me/quiz-sets', loadSession, requireSession, async (context) => {
+  const input = quizSetRequestSchema.parse(await readJson(context));
+  const questionSet = await getKeyedQuestions(
+    input.topicId,
     input.mode,
     input.submissionId,
     input.paperId,
   );
-  if (!questions) {
+  if (!questionSet) {
+    throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The database has no complete question set for this quiz mode.');
+  }
+
+  return context.json({
+    submissionId: input.submissionId,
+    subjectId: questionSet.subjectId,
+    topicId: questionSet.topicId,
+    mode: input.mode,
+    ...(input.paperId ? { paperId: input.paperId } : {}),
+    questions: questionSet.questions,
+  });
+});
+
+api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = quizSubmissionSchema.parse(await readJson(context));
+
+  const questionSet = await getKeyedQuestions(
+    input.topicId,
+    input.mode,
+    input.submissionId,
+    input.paperId,
+  );
+  if (!questionSet) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');
   }
+  const questions = questionSet.questions;
 
   const submittedByKey = new Map(input.answers.map((answer) => [answer.questionKey, answer]));
   if (submittedByKey.size !== input.answers.length
@@ -624,10 +637,10 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       id: randomUUID(),
       submissionId: input.submissionId,
       userId,
-      subjectId: selectedTopic.subjectId,
-      topicId: selectedTopic.id,
+      subjectId: questionSet.subjectId,
+      topicId: questionSet.topicId,
       quizMode: input.mode,
-      questionSetVersion: 'v1',
+      questionSetVersion: 'db-v1',
       correctAnswers,
       totalQuestions: questions.length,
       percentCorrect,
@@ -678,7 +691,7 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
 
     await transaction.insert(userTopicProgress).values({
       userId,
-      topicId: selectedTopic.id,
+      topicId: questionSet.topicId,
       memoryScore: resultingMemoryScore,
       lastReviewedAt: now,
       nextReviewAt: calculateNextReviewAt(resultingMemoryScore, now),

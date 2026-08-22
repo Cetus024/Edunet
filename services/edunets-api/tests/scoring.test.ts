@@ -1,11 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { subjectSeed, topicSeed } from '../../../database/seed-data.js';
+
+import { quizQuestionSeed, topicSeed } from '../../../database/seed-data.js';
+import {
+  gradeQuestion,
+  questionKeyFromDatabaseId,
+  selectQuestionRows,
+  type QuestionPoolRow,
+  type QuizQuestion,
+} from '../src/lib/question-bank.js';
 import {
   calculateMemoryScore,
   calculateNextReviewAt,
   calculatePercentCorrect,
 } from '../src/lib/scoring.js';
-import { getKeyedQuestions, gradeQuestion, stableQuestionKey } from '../src/lib/question-bank.js';
+
+const topicById = new Map(topicSeed.map((topic) => [topic.id, topic]));
+const questionRows: QuestionPoolRow[] = quizQuestionSeed.map((question) => {
+  const topic = topicById.get(question.topicId)!;
+  return {
+    ...question,
+    topicName: topic.name,
+    topicPosition: topic.position,
+  };
+});
 
 describe('quiz scoring', () => {
   it.each([
@@ -25,12 +42,22 @@ describe('quiz scoring', () => {
     expect(calculatePercentCorrect(2, 5)).toBe(40);
   });
 
-  it('uses the shared static-bank grading rule', () => {
-    const questions = getKeyedQuestions('bio-ecology', 'Biology', 'Ecology');
-    expect(questions).not.toBeNull();
-    expect(gradeQuestion(questions![0]!, 0)).toBe(true);
-    expect(gradeQuestion(questions![0]!, '0')).toBe(false);
-    expect(gradeQuestion(questions![4]!, 'It causes habitat loss.')).toBe(true);
+  it('grades hydrated database answers without trusting client scores', () => {
+    const mcq: QuizQuestion = {
+      questionKey: 'biology-ecology:v1:q01',
+      type: 'mcq',
+      topic: 'Ecology',
+      text: 'Question',
+      options: ['A', 'B'],
+      correctAnswer: 0,
+      explanation: 'Explanation',
+      linkedConcept: 'Ecology',
+    };
+    const structured: QuizQuestion = { ...mcq, type: 'structured', correctAnswer: 'habitat loss' };
+
+    expect(gradeQuestion(mcq, 0)).toBe(true);
+    expect(gradeQuestion(mcq, '0')).toBe(false);
+    expect(gradeQuestion(structured, 'It causes habitat loss.')).toBe(true);
   });
 
   it('schedules 09:00 Singapore time independently of host timezone', () => {
@@ -38,79 +65,41 @@ describe('quiz scoring', () => {
     expect(result.toISOString()).toBe('2026-08-08T01:00:00.000Z');
   });
 
-  it('creates stable, padded question keys', () => {
-    expect(stableQuestionKey('amath-trig', 3)).toBe('amath-trig:v1:q03');
+  it('derives stable, padded historical keys from database IDs', () => {
+    expect(questionKeyFromDatabaseId('a-math-trigonometry-q003', 'a-math-trigonometry'))
+      .toBe('a-math-trigonometry:v1:q03');
   });
 
-  it('builds distinct question sets for each quiz mode', () => {
-    const paperOne = getKeyedQuestions(
-      'bio-ecology',
-      'Biology',
-      'Ecology',
-      'past-paper',
-      'paper-attempt',
-      'paper-1',
-    );
-    const paperTwo = getKeyedQuestions(
-      'bio-ecology',
-      'Biology',
-      'Ecology',
-      'past-paper',
-      'paper-attempt',
-      'paper-2',
-    );
-    const conceptCheck = getKeyedQuestions(
-      'bio-ecology',
-      'Biology',
-      'Ecology',
-      'concept-check',
-      'concept-attempt',
-    );
-    const speedRound = getKeyedQuestions(
-      'bio-ecology',
-      'Biology',
-      'Ecology',
-      'speed-round',
-      'speed-attempt',
-    );
-    const repeatedSpeedRound = getKeyedQuestions(
-      'bio-ecology',
-      'Biology',
-      'Ecology',
-      'speed-round',
-      'speed-attempt',
-    );
+  it('selects deterministic database-backed sets for all three modes', () => {
+    const biologyRows = questionRows.filter((row) => row.topicId.startsWith('biology-'));
+    const ecology = topicById.get('biology-ecology')!;
+    const paperOne = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'past-paper', 'paper-attempt', 'paper-1')!;
+    const paperTwo = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'past-paper', 'paper-attempt', 'paper-2')!;
+    const concept = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'concept-check', 'concept-attempt')!;
+    const speed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'speed-attempt')!;
+    const repeatedSpeed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'speed-attempt')!;
+    const differentSpeed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'another-attempt')!;
 
     expect(paperOne).toHaveLength(21);
-    expect(paperOne!.every((question) => question.type === 'mcq')).toBe(true);
+    expect(paperOne.every((question) => question.type === 'mcq')).toBe(true);
     expect(paperTwo).toHaveLength(14);
-    expect(paperTwo!.every((question) => question.type !== 'mcq')).toBe(true);
-    expect(conceptCheck).toHaveLength(5);
-    expect(conceptCheck!.every((question) => question.source === 'AI-generated concept check')).toBe(true);
-    expect(speedRound).toHaveLength(5);
-    expect(speedRound!.every((question) => question.type === 'mcq')).toBe(true);
-    expect(speedRound!.map((question) => question.text)).toEqual(
-      repeatedSpeedRound!.map((question) => question.text),
-    );
+    expect(paperTwo.every((question) => question.type !== 'mcq')).toBe(true);
+    expect(concept).toHaveLength(5);
+    expect(concept.every((question) => question.topicId === ecology.id)).toBe(true);
+    expect(speed).toHaveLength(5);
+    expect(speed.every((question) => question.type === 'mcq')).toBe(true);
+    expect(speed.map((question) => question.id)).toEqual(repeatedSpeed.map((question) => question.id));
+    expect(speed.map((question) => question.id)).not.toEqual(differentSpeed.map((question) => question.id));
   });
 
-  it('maps all 255 existing questions to stable catalog topic keys', () => {
-    const subjectNames = new Map(subjectSeed.map((subject) => [subject.id, subject.name]));
-    const keyedQuestions = topicSeed.flatMap((topic) => {
-      const questions = getKeyedQuestions(topic.id, subjectNames.get(topic.subjectId)!, topic.name);
-      expect(questions, topic.id).not.toBeNull();
-      expect(questions, topic.id).toHaveLength(5);
-      expect(questions!.map((question) => question.questionKey), topic.id).toEqual([
-        `${topic.id}:v1:q01`,
-        `${topic.id}:v1:q02`,
-        `${topic.id}:v1:q03`,
-        `${topic.id}:v1:q04`,
-        `${topic.id}:v1:q05`,
-      ]);
-      return questions!;
+  it('maps all fixture questions to existing topic IDs and stable keys', () => {
+    const keys = questionRows.map((question) => {
+      expect(topicById.has(question.topicId), question.id).toBe(true);
+      return questionKeyFromDatabaseId(question.id, question.topicId);
     });
 
     expect(topicSeed).toHaveLength(51);
-    expect(keyedQuestions).toHaveLength(255);
+    expect(questionRows).toHaveLength(255);
+    expect(new Set(keys).size).toBe(255);
   });
 });

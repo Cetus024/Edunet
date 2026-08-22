@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useAtom } from 'jotai';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
@@ -45,22 +45,29 @@ import {
 } from '@/lib/study-data';
 
 import {
-  getAvailablePastPapers,
-  getQuestionsForQuizMode,
-  getQuizQuestionKey,
-  isQuizAnswerCorrect,
+  generateQuizSet,
+  getQuizOptions,
+  submitQuizAttempt,
+  type QuizAttemptResult,
   type QuizQuestion,
-} from '@/lib/quiz-question-bank';
-import { submitQuizAttempt, type QuizAttemptResult } from '@/lib/api/quiz';
+} from '@/lib/api/quiz';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
 import { TeacherQuizReview } from '@/components/teacher-quiz-review';
 
 // Quiz mode types
 type QuizMode = 'past-paper' | 'concept-check' | 'speed-round';
+type QuizPaperId = 'paper-1' | 'paper-2';
 type QuizState = 'setup' | 'active' | 'results';
 
 type Question = QuizQuestion;
+
+function isQuizAnswerCorrect(question: Question, answer: string | number | null): boolean {
+  if (answer === null) return false;
+  if (question.type === 'mcq') return answer === question.correctAnswer;
+  return String(answer).trim().toLowerCase()
+    .includes(String(question.correctAnswer).trim().toLowerCase());
+}
 
 // Get memory score status
 function getMemoryStatus(score: number): { label: string; color: string; bgColor: string } {
@@ -156,6 +163,7 @@ function QuizSetupPanel({
   setSelectedPaperId,
   onGenerateQuiz,
   globalSubjects,
+  isGeneratingQuiz,
 }: {
   selectedSubject: string;
   setSelectedSubject: (s: string) => void;
@@ -164,23 +172,37 @@ function QuizSetupPanel({
   setSelectedTopicId: (id: string) => void;
   quizMode: QuizMode;
   setQuizMode: (m: QuizMode) => void;
-  selectedPaperId: string;
-  setSelectedPaperId: (id: string) => void;
+  selectedPaperId: QuizPaperId;
+  setSelectedPaperId: (id: QuizPaperId) => void;
   onGenerateQuiz: () => void;
   globalSubjects: SubjectData[];
+  isGeneratingQuiz: boolean;
 }) {
   const subjectData = globalSubjects.find((subject) => subject.name === selectedSubject) ?? null;
   const selectedGlobalTopic = subjectData?.topics.find((topic) => topic.name === selectedTopic);
+  const quizOptionsQuery = useQuery({
+    queryKey: ['quiz-options', subjectData?.id ?? '', selectedGlobalTopic?.id ?? ''],
+    queryFn: () => getQuizOptions(subjectData!.id, selectedGlobalTopic!.id),
+    enabled: Boolean(subjectData && selectedGlobalTopic),
+    staleTime: 5 * 60_000,
+  });
   const memoryScore = selectedGlobalTopic ? getEffectiveScore(selectedGlobalTopic) : null;
   const memoryStatus = memoryScore === null
     ? { label: 'Not Started', color: 'text-slate-500', bgColor: 'bg-slate-100' }
     : getMemoryStatus(memoryScore);
   const difficulty = getDifficulty(memoryScore ?? 0);
-  const availablePapers = selectedSubject ? getAvailablePastPapers(selectedSubject) : [];
+  const availablePapers = quizOptionsQuery.data?.modes.pastPaper ?? [];
   const selectedPaper = availablePapers.find((paper) => paper.id === selectedPaperId) ?? availablePapers[0];
-  const questionCount = selectedSubject && selectedTopic
-    ? (getQuestionsForQuizMode(selectedSubject, selectedTopic, quizMode, 'preview', selectedPaperId)?.length ?? 0)
-    : 0;
+  const questionCount = quizMode === 'past-paper'
+    ? selectedPaper?.questionCount ?? 0
+    : quizMode === 'concept-check'
+      ? quizOptionsQuery.data?.modes.conceptCheck.questionCount ?? 0
+      : quizOptionsQuery.data?.modes.speedRound.questionCount ?? 0;
+  const modeAvailable = quizMode === 'past-paper'
+    ? Boolean(selectedPaper?.available)
+    : quizMode === 'concept-check'
+      ? Boolean(quizOptionsQuery.data?.modes.conceptCheck.available)
+      : Boolean(quizOptionsQuery.data?.modes.speedRound.available);
   const modeDetails: Record<QuizMode, { button: string; summary: string }> = {
     'past-paper': {
       button: 'Start Full Paper',
@@ -190,7 +212,7 @@ function QuizSetupPanel({
     },
     'concept-check': {
       button: 'Generate Concept Quiz',
-      summary: `${questionCount || 5} AI-generated concept questions · ${difficulty} difficulty`,
+      summary: `${questionCount || 5} database concept questions · ${difficulty} difficulty`,
     },
     'speed-round': {
       button: 'Start Speed Round',
@@ -321,7 +343,7 @@ function QuizSetupPanel({
               exit={{ opacity: 0, height: 0 }}
             >
               <label className="text-sm font-semibold text-studynow-dark mb-2 block">Choose a Paper</label>
-              <Select value={selectedPaperId} onValueChange={setSelectedPaperId}>
+              <Select value={selectedPaperId} onValueChange={(value) => setSelectedPaperId(value as QuizPaperId)}>
                 <SelectTrigger className="w-full h-12 bg-card border-border/50 rounded-xl">
                   <SelectValue placeholder="Choose a paper..." />
                 </SelectTrigger>
@@ -357,12 +379,17 @@ function QuizSetupPanel({
       <div className="mt-6 pt-4 border-t border-border/30">
         <Button
           onClick={onGenerateQuiz}
-          disabled={!selectedSubject || !selectedTopic}
+          disabled={!selectedSubject || !selectedTopic || quizOptionsQuery.isPending || quizOptionsQuery.isError || !modeAvailable || isGeneratingQuiz}
           className="w-full h-14 bg-[#EAA93C] hover:bg-[#d99a2f] text-studynow-dark font-bold text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all gold-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          {modeDetail.button}
+          {isGeneratingQuiz ? 'Loading from database…' : modeDetail.button}
           <ChevronRight className="w-6 h-6 ml-2" />
         </Button>
+        {quizOptionsQuery.isError && (
+          <p className="mt-3 text-center text-xs font-semibold text-[#D9534F]">
+            Quiz options could not be loaded from the database.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1">
           {quizMode === 'past-paper' ? <FileText className="w-3 h-3" /> : quizMode === 'speed-round' ? <Zap className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
           {modeDetail.summary}
@@ -811,7 +838,7 @@ function AutoStartingState({ topic, isRescue, mode, paperLabel }: { topic: strin
     ? <>Randomly selecting five MCQs from <span className="font-semibold text-[#186636]">{topic}</span> and related topics.</>
     : mode === 'past-paper'
       ? <>Loading every question in <span className="font-semibold text-[#186636]">{paperLabel ?? 'this paper'}</span> for the selected subject.</>
-      : <>Preparing AI-generated concept questions for <span className="font-semibold text-[#186636]">{topic}</span>.</>;
+      : <>Loading database concept questions for <span className="font-semibold text-[#186636]">{topic}</span>.</>;
 
   return (
     <motion.div
@@ -860,7 +887,7 @@ function QuizEmptyState() {
       <div className="flex gap-6 mt-8">
         {[
           { icon: FileText, label: 'Past Paper', desc: 'Complete stored paper' },
-          { icon: Brain, label: 'Concept Checks', desc: 'AI-generated concepts' },
+          { icon: Brain, label: 'Concept Checks', desc: 'Database concept questions' },
           { icon: Zap, label: 'Speed Rounds', desc: 'Random 5-topic mix' },
         ].map((item, idx) => (
           <motion.div
@@ -1100,7 +1127,7 @@ function StudentQuizPage() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [quizMode, setQuizMode] = useState<QuizMode>('past-paper');
-  const [selectedPaperId, setSelectedPaperId] = useState('paper-1');
+  const [selectedPaperId, setSelectedPaperId] = useState<QuizPaperId>('paper-1');
   const [activeRescueId, setActiveRescueId] = useState<string | null>(null);
   const [quizState, setQuizState] = useState<QuizState>('setup');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -1108,6 +1135,7 @@ function StudentQuizPage() {
   const [submittedAnswers, setSubmittedAnswers] = useState<boolean[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [autoStarting, setAutoStarting] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [submissionId, setSubmissionId] = useState('');
   const [attemptStartedAt, setAttemptStartedAt] = useState('');
   const [attemptResult, setAttemptResult] = useState<QuizAttemptResult | null>(null);
@@ -1125,28 +1153,40 @@ function StudentQuizPage() {
     ? (getEffectiveScore(currentTopic) ?? 50)
     : 50);
 
-  const activateQuiz = useCallback((subject: string, topic: string, mode: QuizMode, paperId: string) => {
+  const activateQuiz = useCallback(async (topicId: string, mode: QuizMode, paperId: QuizPaperId) => {
     const nextSubmissionId = crypto.randomUUID();
-    const selectedQuestions = getQuestionsForQuizMode(subject, topic, mode, nextSubmissionId, paperId);
-    if (!selectedQuestions) {
+    const startedAt = new Date().toISOString();
+    setIsGeneratingQuiz(true);
+    try {
+      const questionSet = await generateQuizSet({
+        submissionId: nextSubmissionId,
+        topicId,
+        mode,
+        ...(mode === 'past-paper' ? { paperId } : {}),
+      });
+      const selectedQuestions = questionSet.questions;
+      if (selectedQuestions.length === 0) throw new Error('No database questions are available for this quiz mode.');
+
+      setQuestions(selectedQuestions);
+      setAnswers(new Array(selectedQuestions.length).fill(null));
+      setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
+      setCurrentQuestionIndex(0);
+      setSubmissionId(nextSubmissionId);
+      setAttemptStartedAt(startedAt);
+      setAttemptResult(null);
+      quizFinishNotifiedRef.current = false;
+      setQuizState('active');
+      return true;
+    } catch (error) {
       setQuestions([]);
       setAnswers([]);
       setSubmittedAnswers([]);
       setQuizState('setup');
-      toast.error('No questions available for this quiz mode');
+      toast.error(error instanceof Error ? error.message : 'The database question set could not be loaded.');
       return false;
+    } finally {
+      setIsGeneratingQuiz(false);
     }
-
-    setQuestions(selectedQuestions);
-    setAnswers(new Array(selectedQuestions.length).fill(null));
-    setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
-    setCurrentQuestionIndex(0);
-    setSubmissionId(nextSubmissionId);
-    setAttemptStartedAt(new Date().toISOString());
-    setAttemptResult(null);
-    quizFinishNotifiedRef.current = false;
-    setQuizState('active');
-    return true;
   }, []);
 
   // Auto-select subject and topic from URL params (from concept web navigation)
@@ -1190,8 +1230,8 @@ function StudentQuizPage() {
           
           // Auto-generate quiz after a brief delay for UI to update
           setTimeout(() => {
-            activateQuiz(urlSubject, matchingTopic.name, resolvedMode, selectedPaperId);
-            setAutoStarting(false);
+            void activateQuiz(matchingTopic.id, resolvedMode, selectedPaperId)
+              .finally(() => setAutoStarting(false));
           }, 500);
         }
       }
@@ -1200,7 +1240,8 @@ function StudentQuizPage() {
 
   // Handle quiz generation
   const handleGenerateQuiz = () => {
-    activateQuiz(selectedSubject, selectedTopic, quizMode, selectedPaperId);
+    if (!selectedTopicId) return;
+    void activateQuiz(selectedTopicId, quizMode, selectedPaperId);
   };
 
   // Handle answer submission
@@ -1248,7 +1289,7 @@ function StudentQuizPage() {
         paperId: quizMode === 'past-paper' ? selectedPaperId : undefined,
         startedAt: attemptStartedAt,
         answers: questions.map((question, index) => ({
-          questionKey: getQuizQuestionKey(selectedTopicId, question.id),
+          questionKey: question.questionKey,
           answer: answers[index] as string | number,
         })),
       });
@@ -1305,7 +1346,8 @@ function StudentQuizPage() {
 
   // Handle retake
   const handleRetake = () => {
-    activateQuiz(selectedSubject, selectedTopic, quizMode, selectedPaperId);
+    if (!selectedTopicId) return;
+    void activateQuiz(selectedTopicId, quizMode, selectedPaperId);
   };
 
   // Handle view concept web - deep-links into the concept web with this
@@ -1344,6 +1386,7 @@ function StudentQuizPage() {
               setSelectedPaperId={setSelectedPaperId}
               onGenerateQuiz={handleGenerateQuiz}
               globalSubjects={subjects}
+              isGeneratingQuiz={isGeneratingQuiz}
             />
           </CardContent>
         </Card>
@@ -1352,14 +1395,14 @@ function StudentQuizPage() {
       {/* Right Panel - Active Quiz / Results */}
       <div className="flex-1 min-h-[600px]">
         <AnimatePresence mode="wait">
-          {quizState === 'setup' && !autoStarting && <QuizEmptyState key="empty" />}
-          {quizState === 'setup' && autoStarting && (
+          {quizState === 'setup' && !autoStarting && !isGeneratingQuiz && <QuizEmptyState key="empty" />}
+          {quizState === 'setup' && (autoStarting || isGeneratingQuiz) && (
             <AutoStartingState
               key="auto-starting"
               topic={selectedTopic}
               isRescue={activeRescueId !== null}
               mode={quizMode}
-              paperLabel={selectedSubject ? getAvailablePastPapers(selectedSubject).find((paper) => paper.id === selectedPaperId)?.label : undefined}
+              paperLabel={selectedPaperId === 'paper-2' ? 'Practice Paper 2 (Structured)' : 'Practice Paper 1 (MCQ)'}
             />
           )}
           {quizState === 'active' && (

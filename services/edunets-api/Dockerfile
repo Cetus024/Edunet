@@ -9,7 +9,6 @@ RUN npm ci --no-audit --no-fund
 WORKDIR /app
 COPY services/edunets-api ./services/edunets-api
 COPY database ./database
-COPY src/lib/quiz-question-bank.ts ./src/lib/quiz-question-bank.ts
 RUN npm --prefix services/edunets-api run build
 
 FROM node:22-alpine AS runtime

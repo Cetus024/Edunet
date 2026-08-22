@@ -20,7 +20,7 @@ function ReviewBadge({ reviewed, label }: { reviewed: boolean; label?: string })
   if (reviewed) {
     return <Badge className="border-0 bg-primary text-primary-foreground">{label ?? 'Teacher-reviewed'}</Badge>;
   }
-  return <Badge className="border border-accent bg-card text-card-foreground">{label ?? 'AI-generated'}</Badge>;
+  return <Badge className="border border-accent bg-card text-card-foreground">{label ?? 'Database original'}</Badge>;
 }
 
 export function TeacherQuizReview() {
