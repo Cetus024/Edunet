@@ -56,7 +56,7 @@ export type ClassConceptWebResponse = {
 };
 
 /**
- * Loads the calling teacher/tutor's own school+subject scope. Reuses the
+ * Loads the calling teacher's own school+subject scope. Reuses the
  * enquiries actor loader since it already resolves exactly this (real
  * onboarded role/school/subject, with the same "complete onboarding first"
  * guard), rather than duplicating that query.
@@ -64,7 +64,7 @@ export type ClassConceptWebResponse = {
 export async function loadTeacherActor(teacherUserId: string, scopeId?: string): Promise<TeacherActor> {
   const actor = await loadEnquiryActor(teacherUserId);
   if (!isRecipientRole(actor.role)) {
-    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors have a student roster.');
+    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers have a student roster.');
   }
   if (!scopeId) return { ...actor, scopeId: null };
 

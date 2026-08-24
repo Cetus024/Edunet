@@ -5,7 +5,6 @@ export function calculateMemoryScore(percentCorrect: number): number {
   if (percentCorrect >= 40) return 45;
   return 28;
 }
-
 export function calculatePercentCorrect(correct: number, total: number): number {
   if (!Number.isInteger(correct) || !Number.isInteger(total) || total <= 0 || correct < 0 || correct > total) {
     throw new RangeError('Invalid quiz totals');
@@ -28,10 +27,4 @@ export function calculateNextReviewAt(score: number, now = new Date()): Date {
     0,
     0,
   ));
-}
-
-export function familiarityScore(familiarity: 'new' | 'some' | 'well'): 20 | 50 | 80 {
-  if (familiarity === 'new') return 20;
-  if (familiarity === 'some') return 50;
-  return 80;
 }

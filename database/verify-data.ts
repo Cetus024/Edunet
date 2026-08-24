@@ -30,6 +30,18 @@ async function verifyData() {
     Object.entries(byType).forEach(([type, count]) => {
       console.log(`    • ${type}: ${count}`);
     });
+    const placementByTopic = new Map<string, number>();
+    for (const question of questionCount) {
+      if (question.type === 'mcq' && (question.usage === 'placement' || question.usage === 'both')) {
+        placementByTopic.set(question.topicId, (placementByTopic.get(question.topicId) ?? 0) + 1);
+      }
+    }
+    const placementTotal = [...placementByTopic.values()].reduce((sum, count) => sum + count, 0);
+    console.log(`  Placement MCQs: ${placementTotal} (${placementByTopic.size} topics × 10)`);
+    if (placementByTopic.size !== topicCount.length
+      || [...placementByTopic.values()].some((count) => count !== 10)) {
+      throw new Error('Every topic must have exactly 10 placement MCQs.');
+    }
 
     // Sample a few questions
     console.log('\n  Sample questions:');

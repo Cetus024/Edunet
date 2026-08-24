@@ -60,12 +60,13 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `GET|POST /api/v1/me/enquiries`
 - `POST /api/v1/me/enquiries/:threadId/messages`
 - `PUT /api/v1/me/enquiries/:threadId/read`
+- `POST /api/v1/me/onboarding/placement-set`
 
 Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; the server validates it again before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
 
 Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted; different-email implicit linking remains disabled.
 
-An onboarding request is:
+Student onboarding first requests a placement set with a UUID, subject, and topic. The response contains exactly ten MCQs and deliberately omits correct answers and explanations. The same UUID and all ten answers are then submitted atomically with onboarding:
 
 ```json
 {
@@ -73,11 +74,17 @@ An onboarding request is:
   "schoolId": "admiralty-secondary-school",
   "subjectId": "amath",
   "topicId": "amath-trig",
-  "familiarity": "some"
+  "placement": {
+    "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
+    "startedAt": "2026-08-24T10:00:00.000Z",
+    "answers": [
+      { "questionKey": "amath-trig:v1:q01", "answer": 1 }
+    ]
+  }
 }
 ```
 
-Registration onboarding does not request or accept a learning artifact. Cached older clients may still send legacy material metadata during the rollout, but the API ignores it and stores `learningSource: "none"`. The compatibility field `school` may be supplied instead of `schoolId`, but it must exactly match a catalog entry.
+The example abbreviates the answers array; the API requires the exact ten keys issued for the set. It grades on the server, stores the placement attempt and answers, creates the first topic progress row, and completes onboarding in one transaction. Teacher onboarding instead requires `role`, `schoolId`, and one or more named `teachingScopes`. Only Student and Teacher roles are accepted.
 
 A quiz submission is:
 
@@ -99,9 +106,9 @@ A quiz submission is:
 
 The server requires exactly the five versioned keys from the static question bank, re-grades every answer, computes Memory Score and Next Review itself, then updates progress in the same transaction. The POST response includes `nextReviewAt`, calculated from that attempt's persisted `submittedAt` and resulting score. Repeating the same globally unique `submissionId` returns the stored per-question grading and original result without increasing the attempt count.
 
-Students and parents can create and read only their own real enquiry threads. Teachers and tutors can read and reply only to threads assigned to them. The recipient directory returns completed teacher/tutor profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
+Students can create and read only their own real enquiry threads. Teachers can read and reply only to threads assigned to them. The recipient directory returns completed Teacher profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
 
-The first teacher/tutor inbox request lazily creates three recipient-specific, clearly marked demo threads without creating fake auth users. Demo replies are normal persisted messages. Thread requesters include nullable `className`; it is `null` for real users until a future profile field captures class information.
+The first Teacher inbox request lazily creates three recipient-specific, clearly marked demo threads without creating fake auth users. Demo replies are normal persisted messages. Thread requesters include nullable `className`; it is `null` for real users until a future profile field captures class information.
 
 All service-generated failures use:
 

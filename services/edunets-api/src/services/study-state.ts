@@ -25,7 +25,7 @@ export type StudyStateSubject = {
  * The full subject/topic catalog with a given user's progress layered on
  * top. Shared by the user's own `/me/study-state` and by anything that
  * needs to read a *different* user's real progress read-only (e.g. a
- * parent viewing their linked child).
+ * another authorized view of the same learner).
  */
 export async function getStudyStateForUser(userId: string): Promise<{ subjects: StudyStateSubject[] }> {
   const [subjectRows, topicRows, progressRows] = await Promise.all([

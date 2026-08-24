@@ -8,6 +8,7 @@ function slugify(value: string): string {
 }
 
 type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
+type QuizQuestionUsage = 'practice' | 'placement' | 'both';
 
 type QuizCatalogFixture = {
   version: number;
@@ -219,12 +220,13 @@ export const topicSeed = quizCatalogFixture.subjects.flatMap((subject) => (
   }))
 ));
 
-export const quizQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
+const practiceQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
   subject.topics.flatMap((topic) => (
     topic.questions.map((question) => ({
       id: question.id,
       topicId: topic.id,
       type: question.type,
+      usage: (question.type === 'mcq' ? 'both' : 'practice') as QuizQuestionUsage,
       text: question.text,
       correctAnswer: question.correctAnswer,
       explanation: question.explanation,
@@ -238,3 +240,59 @@ export const quizQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) =>
     }))
   ))
 ));
+
+/**
+ * Placement needs ten MCQs for every selectable topic, while the existing
+ * practice modes must retain their original five-question concept checks and
+ * paper sizes. The fixed fixture supplies three MCQs per topic. These seven
+ * additional, placement-only concept-recognition questions are derived from
+ * the fixture's reviewed explanations and are still persisted as ordinary DB
+ * question rows by initializeDB.ts.
+ */
+const placementQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => {
+  const subjectExplanationPool = subject.topics.flatMap((topic) => (
+    topic.questions.map((question) => question.explanation)
+  ));
+
+  return subject.topics.flatMap((topic) => Array.from({ length: 7 }, (_, index) => {
+    const sourceQuestion = topic.questions[index % topic.questions.length]!;
+    const correctExplanation = sourceQuestion.explanation;
+    const offset = (topic.position * 7 + index) % subjectExplanationPool.length;
+    const rotatedPool = [
+      ...subjectExplanationPool.slice(offset),
+      ...subjectExplanationPool.slice(0, offset),
+    ];
+    const distractors = [...new Set(rotatedPool)]
+      .filter((candidate) => candidate !== correctExplanation)
+      .slice(0, 3);
+    if (distractors.length !== 3) {
+      throw new Error(`Topic ${topic.id} does not have enough distinct placement distractors.`);
+    }
+
+    const correctIndex = (topic.position + index) % 4;
+    const options = [...distractors];
+    options.splice(correctIndex, 0, correctExplanation);
+    const variant = index < topic.questions.length
+      ? `Which statement best explains "${sourceQuestion.linkedConcept}" in ${topic.name}?`
+      : `Which statement gives the most accurate account of "${sourceQuestion.linkedConcept}" when revising ${topic.name}?`;
+
+    return {
+      id: `${topic.id}-q${String(index + 6).padStart(3, '0')}`,
+      topicId: topic.id,
+      type: 'mcq' as const,
+      usage: 'placement' as const,
+      text: variant,
+      correctAnswer: String(correctIndex),
+      explanation: correctExplanation,
+      linkedConcept: sourceQuestion.linkedConcept,
+      options: JSON.stringify(options),
+      blankWord: null,
+      wordLimit: null,
+      source: 'EduNets placement bank',
+      resourceNumber: null,
+      diagramUrl: null,
+    };
+  }));
+});
+
+export const quizQuestionSeed = [...practiceQuestionSeed, ...placementQuestionSeed];

@@ -5,6 +5,7 @@ import {
   gradeQuestion,
   questionKeyFromDatabaseId,
   selectQuestionRows,
+  serializePlacementQuestions,
   type QuestionPoolRow,
   type QuizQuestion,
 } from '../src/lib/question-bank.js';
@@ -60,6 +61,23 @@ describe('quiz scoring', () => {
     expect(gradeQuestion(structured, 'It causes habitat loss.')).toBe(true);
   });
 
+  it('never exposes placement answers or explanations before submission', () => {
+    const question: QuizQuestion = {
+      questionKey: 'biology-ecology:v1:q01',
+      type: 'mcq',
+      topic: 'Ecology',
+      text: 'Question',
+      options: ['A', 'B'],
+      correctAnswer: 0,
+      explanation: 'Secret explanation',
+      linkedConcept: 'Ecology',
+    };
+    const [publicQuestion] = serializePlacementQuestions([question]);
+    expect(publicQuestion).not.toHaveProperty('correctAnswer');
+    expect(publicQuestion).not.toHaveProperty('explanation');
+    expect(publicQuestion).not.toHaveProperty('linkedConcept');
+  });
+
   it('schedules 09:00 Singapore time independently of host timezone', () => {
     const result = calculateNextReviewAt(95, new Date('2026-07-31T18:00:00.000Z'));
     expect(result.toISOString()).toBe('2026-08-08T01:00:00.000Z');
@@ -70,7 +88,7 @@ describe('quiz scoring', () => {
       .toBe('a-math-trigonometry:v1:q03');
   });
 
-  it('selects deterministic database-backed sets for all three modes', () => {
+  it('selects deterministic database-backed sets without placement changing practice modes', () => {
     const biologyRows = questionRows.filter((row) => row.topicId.startsWith('biology-'));
     const ecology = topicById.get('biology-ecology')!;
     const paperOne = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'past-paper', 'paper-attempt', 'paper-1')!;
@@ -79,6 +97,8 @@ describe('quiz scoring', () => {
     const speed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'speed-attempt')!;
     const repeatedSpeed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'speed-attempt')!;
     const differentSpeed = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'speed-round', 'another-attempt')!;
+    const placement = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'placement', 'placement-attempt')!;
+    const repeatedPlacement = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'placement', 'placement-attempt')!;
 
     expect(paperOne).toHaveLength(21);
     expect(paperOne.every((question) => question.type === 'mcq')).toBe(true);
@@ -90,6 +110,9 @@ describe('quiz scoring', () => {
     expect(speed.every((question) => question.type === 'mcq')).toBe(true);
     expect(speed.map((question) => question.id)).toEqual(repeatedSpeed.map((question) => question.id));
     expect(speed.map((question) => question.id)).not.toEqual(differentSpeed.map((question) => question.id));
+    expect(placement).toHaveLength(10);
+    expect(placement.every((question) => question.topicId === ecology.id && question.type === 'mcq')).toBe(true);
+    expect(placement.map((question) => question.id)).toEqual(repeatedPlacement.map((question) => question.id));
   });
 
   it('maps all fixture questions to existing topic IDs and stable keys', () => {
@@ -99,7 +122,7 @@ describe('quiz scoring', () => {
     });
 
     expect(topicSeed).toHaveLength(51);
-    expect(questionRows).toHaveLength(255);
-    expect(new Set(keys).size).toBe(255);
+    expect(questionRows).toHaveLength(612);
+    expect(new Set(keys).size).toBe(612);
   });
 });

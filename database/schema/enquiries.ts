@@ -7,9 +7,9 @@ import { subjects, topics } from './catalog.js';
 
 const edunetsSchema = pgSchema(EDUNETS_SCHEMA_NAME);
 
-const REQUESTER_ROLES = ['student', 'parent'] as const;
-const RECIPIENT_ROLES = ['teacher', 'tutor'] as const;
-const SENDER_ROLES = ['student', 'parent', 'teacher', 'tutor'] as const;
+const REQUESTER_ROLES = ['student'] as const;
+const RECIPIENT_ROLES = ['teacher'] as const;
+const SENDER_ROLES = ['student', 'teacher'] as const;
 
 export const enquiryRequesterRoleEnum = {
   enumValues: REQUESTER_ROLES,
@@ -62,6 +62,8 @@ export const enquiryThreads = edunetsSchema.table('enquiry_threads', {
     'enquiry_threads_topic_snapshot_check',
     sql`(${table.topicId} IS NULL AND ${table.topicNameSnapshot} IS NULL) OR (${table.topicId} IS NOT NULL AND ${table.topicNameSnapshot} IS NOT NULL)`,
   ),
+  check('enquiry_threads_requester_role_check', sql`${table.requesterRole} = 'student'`),
+  check('enquiry_threads_recipient_role_check', sql`${table.recipientRole} = 'teacher'`),
 ]);
 
 export const enquiryMessages = edunetsSchema.table('enquiry_messages', {
@@ -86,4 +88,5 @@ export const enquiryMessages = edunetsSchema.table('enquiry_messages', {
     'enquiry_messages_unread_read_at_check',
     sql`(${table.unread} = true AND ${table.readAt} IS NULL) OR (${table.unread} = false AND ${table.readAt} IS NOT NULL)`,
   ),
+  check('enquiry_messages_sender_role_check', sql`${table.senderRole} in ('student', 'teacher')`),
 ]);

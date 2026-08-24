@@ -123,7 +123,7 @@ async function loadDirectoryCandidates(subjectId: string): Promise<{
     .innerJoin(teachingScopes, eq(teachingScopes.userId, users.id))
     .where(and(
       eq(profiles.onboardingCompleted, true),
-      inArray(profiles.role, ['teacher', 'tutor']),
+      eq(profiles.role, 'teacher'),
       eq(teachingScopes.subjectId, subjectId),
     ));
 
@@ -150,7 +150,7 @@ export async function getQuestionRecipients(
   subjectId: string,
 ): Promise<{ scope: 'school' | 'global'; recipients: QuestionRecipient[] }> {
   if (!isRequesterRole(actor.role)) {
-    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students and parents can choose a recipient.');
+    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students can choose a recipient.');
   }
 
   const { candidates } = await loadDirectoryCandidates(subjectId);
@@ -271,7 +271,7 @@ export async function createEnquiry(
   input: CreateEnquiryRequest,
 ): Promise<{ thread: EnquiryThreadResponse; idempotentReplay: boolean }> {
   if (!isRequesterRole(actor.role)) {
-    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students and parents can create an enquiry.');
+    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students can create an enquiry.');
   }
   const requesterRole = actor.role;
 
@@ -296,7 +296,7 @@ export async function createEnquiry(
     throw new ApiError(
       400,
       'RECIPIENT_UNAVAILABLE',
-      'Select an available teacher or tutor for this subject.',
+      'Select an available teacher for this subject.',
     );
   }
 
@@ -467,8 +467,8 @@ export async function markEnquiryRead(
   await loadAuthorizedThread(actor, threadId);
   const now = new Date();
   const incomingRoles = isRequesterRole(actor.role)
-    ? ['teacher', 'tutor'] as const
-    : ['student', 'parent'] as const;
+    ? ['teacher'] as const
+    : ['student'] as const;
 
   await db.update(enquiryMessages).set({
     unread: false,

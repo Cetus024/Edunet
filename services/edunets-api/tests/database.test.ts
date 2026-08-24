@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -26,7 +28,7 @@ describe('database catalog seed', () => {
     expect(schoolSeed).toHaveLength(151);
     expect(subjectSeed).toHaveLength(8);
     expect(topicSeed).toHaveLength(51);
-    expect(quizQuestionSeed).toHaveLength(255);
+    expect(quizQuestionSeed).toHaveLength(612);
   });
 
   it('uses unique school, subject, and topic IDs', () => {
@@ -50,6 +52,7 @@ describe('database catalog seed', () => {
     for (const question of quizQuestionSeed) {
       expect(topicIds.has(question.topicId), question.id).toBe(true);
       expect(question.id).toMatch(new RegExp(`^${question.topicId}-q\\d{3}$`));
+      expect(['practice', 'placement', 'both']).toContain(question.usage);
       if (question.type === 'mcq') {
         const options = JSON.parse(question.options ?? 'null') as unknown;
         expect(Array.isArray(options), question.id).toBe(true);
@@ -57,6 +60,17 @@ describe('database catalog seed', () => {
         expect(Number(question.correctAnswer), question.id).toBeGreaterThanOrEqual(0);
         expect(Number(question.correctAnswer), question.id).toBeLessThan((options as unknown[]).length);
       }
+    }
+  });
+
+  it('provides ten placement MCQs per topic without changing practice sets', () => {
+    for (const topic of topicSeed) {
+      const rows = quizQuestionSeed.filter((question) => question.topicId === topic.id);
+      const placement = rows.filter((question) => question.type === 'mcq'
+        && (question.usage === 'placement' || question.usage === 'both'));
+      const practice = rows.filter((question) => question.usage === 'practice' || question.usage === 'both');
+      expect(placement, topic.id).toHaveLength(10);
+      expect(practice, topic.id).toHaveLength(5);
     }
   });
 });
@@ -155,6 +169,25 @@ describe('database schema ownership guard', () => {
 
     await expect(assertSchemaCanBeInitialized({ query } as unknown as Pool))
       .rejects.toThrow('invalid ownership marker');
+  });
+});
+
+describe('student and teacher role migration', () => {
+  it('deletes removed-role data before installing restrictive checks', () => {
+    const migrationPath = fileURLToPath(new URL(
+      '../../../database/migrations/0009_violet_shinobi_shaw.sql',
+      import.meta.url,
+    ));
+    const migration = readFileSync(migrationPath, 'utf8');
+    const deleteUsersAt = migration.indexOf('DELETE FROM "user"');
+    const roleCheckAt = migration.indexOf('ADD CONSTRAINT "profile_role_check"');
+
+    expect(migration).toContain("WHERE \"role\" IN ('parent', 'tutor')");
+    expect(migration).toContain('DELETE FROM "edunets"."enquiry_threads"');
+    expect(migration).toContain('DELETE FROM "question_review"');
+    expect(deleteUsersAt).toBeGreaterThanOrEqual(0);
+    expect(roleCheckAt).toBeGreaterThan(deleteUsersAt);
+    expect(migration).toContain("CHECK (\"profile\".\"role\" in ('student', 'teacher'))");
   });
 });
 

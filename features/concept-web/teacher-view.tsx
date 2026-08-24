@@ -343,7 +343,7 @@ export default function TeacherConceptWebView() {
         <Users className="h-10 w-10 text-muted-foreground" />
         <h1 className="text-xl font-black">Roster unavailable</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          {rosterError instanceof Error ? rosterError.message : 'Only teachers and tutors have a student roster.'}
+          {rosterError instanceof Error ? rosterError.message : 'Only teachers have a student roster.'}
         </p>
       </div>
     );

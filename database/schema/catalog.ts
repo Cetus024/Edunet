@@ -1,4 +1,5 @@
-import { pgTable, text, integer, primaryKey } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, pgTable, text, integer } from 'drizzle-orm/pg-core';
 
 export const schools = pgTable('schools', {
   id: text('id').primaryKey(),
@@ -30,6 +31,7 @@ export const quizQuestions = pgTable('quiz_questions', {
   id: text('id').primaryKey(),
   topicId: text('topic_id').notNull().references(() => topics.id),
   type: text('type', { enum: ['mcq', 'fill-blank', 'structured', 'diagram'] }).notNull(),
+  usage: text('usage', { enum: ['practice', 'placement', 'both'] as const }).notNull().default('practice'),
   text: text('text').notNull(),
   correctAnswer: text('correct_answer').notNull(),
   explanation: text('explanation').notNull(),
@@ -40,4 +42,6 @@ export const quizQuestions = pgTable('quiz_questions', {
   source: text('source'),
   resourceNumber: text('resource_number'),
   diagramUrl: text('diagram_url'),
-});
+}, (table) => [
+  check('quiz_questions_usage_check', sql`${table.usage} in ('practice', 'placement', 'both')`),
+]);

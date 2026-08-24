@@ -10,8 +10,8 @@ export type BuiltDemoEnquiry = {
   thread: {
     requesterUserId: string | null;
     recipientUserId: string;
-    requesterRole: 'student' | 'parent';
-    recipientRole: string;
+    requesterRole: 'student';
+    recipientRole: 'teacher';
     requesterDisplayName: string;
     requesterClassSnapshot: string | null;
     recipientDisplayName: string;
@@ -26,7 +26,7 @@ export type BuiltDemoEnquiry = {
   };
   message: {
     senderUserId: string | null;
-    senderRole: 'student' | 'parent';
+    senderRole: 'student';
     senderDisplayName: string;
     body: string;
     submissionId: string;
@@ -41,7 +41,7 @@ export interface DemoRecipient {
   userId: string;
   displayName: string;
   email: string;
-  role: string;
+  role: 'teacher';
 }
 
 export interface EnquiryDemoExecutor {
@@ -114,8 +114,8 @@ export function buildDemoEnquiries(
 }
 
 /**
- * Ensures every Teacher/Tutor account has three labelled demo enquiry
- * threads to review, seeded from a real onboarding profile's subject/topic
+ * Ensures every Teacher account has three labelled demo enquiry
+ * threads to review, seeded from a real onboarding profile's primary subject
  * so the demo content feels representative rather than arbitrary. Safe to
  * call repeatedly: threads are keyed by (recipient, demoKey) and messages by
  * submissionId, so a repeat call creates nothing new.
@@ -128,7 +128,7 @@ export async function ensureDemoEnquiryThreads(
   const executor = db as EnquiryDemoExecutor;
 
   const onboardingRows = await (executor.select().from(onboardingProfiles) as {
-    where: (...args: unknown[]) => { limit: (limit: number) => Promise<Array<{ subjectId: string; topicId: string }>> };
+    where: (...args: unknown[]) => { limit: (limit: number) => Promise<Array<{ subjectId: string; topicId: string | null }>> };
   }).where(eq(onboardingProfiles.userId, recipient.userId)).limit(1);
   const preferred = onboardingRows[0];
   if (!preferred) return { createdThreads: 0, createdMessages: 0 };

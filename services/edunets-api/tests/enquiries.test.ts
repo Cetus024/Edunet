@@ -22,9 +22,9 @@ const candidates: DirectoryCandidate[] = [
     subjectName: 'Additional Mathematics',
   },
   {
-    userId: 'tutor-school',
-    name: 'School Tutor',
-    role: 'tutor',
+    userId: 'teacher-school',
+    name: 'School Teacher',
+    role: 'teacher',
     schoolId: 'school-a',
     subjectId: 'amath',
     subjectName: 'Additional Mathematics',
@@ -54,7 +54,7 @@ describe('question recipient directory', () => {
   it('returns only matching-school recipients when any are available', () => {
     const result = selectQuestionRecipients(candidates, 'school-a');
     expect(result.scope).toBe('school');
-    expect(result.recipients.map((recipient) => recipient.id)).toEqual(['tutor-school']);
+    expect(result.recipients.map((recipient) => recipient.id)).toEqual(['teacher-school']);
   });
 
   it('falls back to all same-subject candidates and never copies undeclared fields', () => {

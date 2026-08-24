@@ -17,16 +17,21 @@ import {
   userTopicProgress,
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
-import { getKeyedQuestions, getQuizOptions, gradeQuestion } from '../lib/question-bank.js';
+import {
+  getKeyedQuestions,
+  getPlacementQuestions,
+  getQuizOptions,
+  gradeQuestion,
+  serializePlacementQuestions,
+  type QuizQuestion,
+} from '../lib/question-bank.js';
 import { buildQuizAttemptResponse } from '../lib/quiz-attempt-response.js';
 import {
   calculateMemoryScore,
   calculateNextReviewAt,
   calculatePercentCorrect,
-  familiarityScore,
 } from '../lib/scoring.js';
 import { loadSession, requireSession } from '../middleware/session.js';
-import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
 import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import {
@@ -41,6 +46,7 @@ import type { AppEnv } from '../types.js';
 import {
   addStudentToScopeSchema,
   onboardingRequestSchema,
+  placementSetRequestSchema,
   quizOptionsQuerySchema,
   quizHistoryQuerySchema,
   quizSetRequestSchema,
@@ -142,8 +148,8 @@ api.get('/me', loadSession, requireSession, async (context) => {
     subjectName: subjects.name,
     topicId: onboardingProfiles.topicId,
     topicName: topics.name,
-    familiarity: onboardingProfiles.familiarity,
     initialMemoryScore: onboardingProfiles.initialMemoryScore,
+    placementAttemptId: onboardingProfiles.placementAttemptId,
     completedAt: onboardingProfiles.completedAt,
   })
     .from(profiles)
@@ -190,8 +196,8 @@ api.get('/me', loadSession, requireSession, async (context) => {
       subjectName: profile.subjectName,
       topicId: profile.topicId,
       topicName: profile.topicName,
-      familiarity: profile.familiarity,
       initialMemoryScore: profile.initialMemoryScore,
+      placementAttemptId: profile.placementAttemptId,
       completedAt: profile.completedAt,
       teachingScopes: scopeRows,
     } : null,
@@ -206,8 +212,8 @@ api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
     .where(eq(profiles.userId, userId))
     .limit(1);
 
-  if (!profile || (profile.role !== 'teacher' && profile.role !== 'tutor')) {
-    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors can update teaching contexts.');
+  if (!profile || profile.role !== 'teacher') {
+    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers can update teaching contexts.');
   }
 
   const requestedSubjectIds = [...new Set(input.scopes.map((scope) => scope.subjectId))];
@@ -219,12 +225,6 @@ api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
   }
 
   const firstScope = input.scopes[0]!;
-  const [firstTopic] = await db.select({ id: topics.id })
-    .from(topics)
-    .where(eq(topics.subjectId, firstScope.subjectId))
-    .orderBy(asc(topics.position))
-    .limit(1);
-  if (!firstTopic) throw new ApiError(400, 'SUBJECT_HAS_NO_TOPICS', 'The primary subject has no topics.');
 
   const now = new Date();
   await db.transaction(async (transaction) => {
@@ -241,7 +241,7 @@ api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
     })));
     await transaction.update(onboardingProfiles).set({
       subjectId: firstScope.subjectId,
-      topicId: firstTopic.id,
+      topicId: null,
       updatedAt: now,
     }).where(eq(onboardingProfiles.userId, userId));
   });
@@ -272,185 +272,318 @@ api.put('/me/school', loadSession, requireSession, async (context) => {
   return context.json({ schoolId: school.id, schoolName: school.name });
 });
 
+type PlacementAttemptSummary = {
+  id: string;
+  submissionId: string;
+  topicId: string;
+  correctAnswers: number;
+  totalQuestions: number;
+  percentCorrect: number;
+  resultingMemoryScore: number;
+  submittedAt: Date;
+};
+
+type StoredPlacementAnswer = {
+  questionKey: string;
+  questionIndex: number;
+  submittedAnswer: string | number;
+  isCorrect: boolean;
+};
+
+function buildPlacementResult(
+  attempt: PlacementAttemptSummary,
+  storedAnswers: StoredPlacementAnswer[],
+  questions: QuizQuestion[],
+) {
+  const questionByKey = new Map(questions.map((question) => [question.questionKey, question]));
+  return {
+    id: attempt.id,
+    submissionId: attempt.submissionId,
+    topicId: attempt.topicId,
+    correctAnswers: attempt.correctAnswers,
+    totalQuestions: attempt.totalQuestions,
+    percentCorrect: attempt.percentCorrect,
+    resultingMemoryScore: attempt.resultingMemoryScore,
+    submittedAt: attempt.submittedAt,
+    nextReviewAt: calculateNextReviewAt(attempt.resultingMemoryScore, attempt.submittedAt),
+    answers: storedAnswers.map((answer) => {
+      const question = questionByKey.get(answer.questionKey);
+      if (!question) throw new Error(`Placement question ${answer.questionKey} could not be reconstructed.`);
+      return {
+        questionKey: answer.questionKey,
+        questionIndex: answer.questionIndex,
+        submittedAnswer: Number(answer.submittedAnswer),
+        isCorrect: answer.isCorrect,
+        correctAnswer: question.correctAnswer,
+        explanation: question.explanation,
+      };
+    }),
+  };
+}
+
+api.post('/me/onboarding/placement-set', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = placementSetRequestSchema.parse(await readJson(context));
+  const [profile] = await db.select({ onboardingCompleted: profiles.onboardingCompleted })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+  if (profile?.onboardingCompleted) {
+    throw new ApiError(409, 'ONBOARDING_ALREADY_COMPLETED', 'Your starting profile is already complete.');
+  }
+
+  const questionSet = await getPlacementQuestions(input.topicId, input.subjectId, input.submissionId);
+  if (!questionSet) {
+    throw new ApiError(409, 'PLACEMENT_SET_UNAVAILABLE', 'The database has no complete 10-question placement set for this topic.');
+  }
+
+  return context.json({
+    submissionId: input.submissionId,
+    subjectId: questionSet.subjectId,
+    topicId: questionSet.topicId,
+    questions: serializePlacementQuestions(questionSet.questions),
+  });
+});
+
 api.put('/me/onboarding', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = onboardingRequestSchema.parse(await readJson(context));
+  const placementSet = input.role === 'student'
+    ? await getPlacementQuestions(input.topicId, input.subjectId, input.placement.submissionId)
+    : null;
+  if (input.role === 'student' && !placementSet) {
+    throw new ApiError(409, 'PLACEMENT_SET_UNAVAILABLE', 'The database has no complete 10-question placement set for this topic.');
+  }
+
+  const submittedByKey = input.role === 'student'
+    ? new Map(input.placement.answers.map((answer) => [answer.questionKey, answer.answer]))
+    : new Map<string, number>();
+  if (input.role === 'student' && placementSet && (
+    submittedByKey.size !== input.placement.answers.length
+    || placementSet.questions.some((question) => !submittedByKey.has(question.questionKey))
+  )) {
+    throw new ApiError(400, 'INVALID_ANSWER_SET', 'Submit exactly one answer for every placement question.');
+  }
 
   const result = await db.transaction(async (transaction) => {
     const [existing] = await transaction.select({
       role: profiles.role,
       schoolId: profiles.schoolId,
+      schoolName: schools.name,
       onboardingCompleted: profiles.onboardingCompleted,
       onboardingCompletedAt: profiles.onboardingCompletedAt,
       learningSource: onboardingProfiles.learningSource,
       subjectId: onboardingProfiles.subjectId,
+      subjectName: subjects.name,
       topicId: onboardingProfiles.topicId,
-      familiarity: onboardingProfiles.familiarity,
+      topicName: topics.name,
       initialMemoryScore: onboardingProfiles.initialMemoryScore,
+      placementAttemptId: onboardingProfiles.placementAttemptId,
       completedAt: onboardingProfiles.completedAt,
     })
       .from(profiles)
+      .leftJoin(schools, eq(profiles.schoolId, schools.id))
       .leftJoin(onboardingProfiles, eq(profiles.userId, onboardingProfiles.userId))
+      .leftJoin(subjects, eq(onboardingProfiles.subjectId, subjects.id))
+      .leftJoin(topics, eq(onboardingProfiles.topicId, topics.id))
       .where(eq(profiles.userId, userId))
       .limit(1);
 
-    // PUT is idempotent after completion. This avoids resetting a later quiz
-    // score when a browser retries an already-committed onboarding request.
     if (existing?.onboardingCompleted) {
+      let placementResult = null;
+      if (input.role === 'student' && placementSet && existing.placementAttemptId) {
+        const [attempt] = await transaction.select({
+          id: quizAttempts.id,
+          submissionId: quizAttempts.submissionId,
+          topicId: quizAttempts.topicId,
+          correctAnswers: quizAttempts.correctAnswers,
+          totalQuestions: quizAttempts.totalQuestions,
+          percentCorrect: quizAttempts.percentCorrect,
+          resultingMemoryScore: quizAttempts.resultingMemoryScore,
+          submittedAt: quizAttempts.submittedAt,
+        }).from(quizAttempts).where(and(
+          eq(quizAttempts.id, existing.placementAttemptId),
+          eq(quizAttempts.submissionId, input.placement.submissionId),
+          eq(quizAttempts.userId, userId),
+        )).limit(1);
+        if (attempt) {
+          const storedAnswers = await transaction.select({
+            questionKey: quizAttemptAnswers.questionKey,
+            questionIndex: quizAttemptAnswers.questionIndex,
+            submittedAnswer: quizAttemptAnswers.submittedAnswer,
+            isCorrect: quizAttemptAnswers.isCorrect,
+          }).from(quizAttemptAnswers)
+            .where(eq(quizAttemptAnswers.attemptId, attempt.id))
+            .orderBy(asc(quizAttemptAnswers.questionIndex));
+          placementResult = buildPlacementResult(attempt, storedAnswers, placementSet.questions);
+        }
+      }
       return {
         alreadyCompleted: true,
         onboardingCompleted: true,
         profile: existing,
+        placementResult,
       };
     }
 
     const [school] = input.schoolId
       ? await transaction.select({ id: schools.id, name: schools.name })
-        .from(schools)
-        .where(eq(schools.id, input.schoolId))
-        .limit(1)
+        .from(schools).where(eq(schools.id, input.schoolId)).limit(1)
       : await transaction.select({ id: schools.id, name: schools.name })
-        .from(schools)
-        .where(eq(schools.name, input.school!))
-        .limit(1);
-
+        .from(schools).where(eq(schools.name, input.school!)).limit(1);
     if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Select a school from the catalog.');
 
+    const now = new Date();
+    if (input.role === 'teacher') {
+      const requestedSubjectIds = [...new Set(input.teachingScopes.map((scope) => scope.subjectId))];
+      const validSubjects = await transaction.select({ id: subjects.id, name: subjects.name })
+        .from(subjects).where(inArray(subjects.id, requestedSubjectIds));
+      if (validSubjects.length !== requestedSubjectIds.length) {
+        throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
+      }
+      const primaryScope = input.teachingScopes[0]!;
+      const primarySubject = validSubjects.find((subject) => subject.id === primaryScope.subjectId)!;
+
+      await transaction.insert(profiles).values({
+        userId, role: 'teacher', schoolId: school.id, onboardingCompleted: true,
+        onboardingCompletedAt: now, updatedAt: now,
+      }).onConflictDoUpdate({
+        target: profiles.userId,
+        set: { role: 'teacher', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
+      });
+      await transaction.insert(onboardingProfiles).values({
+        userId, learningSource: 'none', subjectId: primarySubject.id, topicId: null,
+        initialMemoryScore: null, placementAttemptId: null, completedAt: now, updatedAt: now,
+      }).onConflictDoUpdate({
+        target: onboardingProfiles.userId,
+        set: { subjectId: primarySubject.id, topicId: null, initialMemoryScore: null, placementAttemptId: null, completedAt: now, updatedAt: now },
+      });
+      await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
+      await transaction.insert(teachingScopes).values(input.teachingScopes.map((scope, position) => ({
+        id: randomUUID(), userId, schoolId: school.id, subjectId: scope.subjectId,
+        classroomName: scope.classroomName, position, createdAt: now, updatedAt: now,
+      })));
+
+      return {
+        alreadyCompleted: false,
+        onboardingCompleted: true,
+        profile: {
+          role: 'teacher' as const,
+          schoolId: school.id,
+          schoolName: school.name,
+          learningSource: 'none' as const,
+          subjectId: primarySubject.id,
+          subjectName: primarySubject.name,
+          topicId: null,
+          topicName: null,
+          initialMemoryScore: null,
+          placementAttemptId: null,
+          completedAt: now,
+          teachingScopes: input.teachingScopes,
+        },
+        placementResult: null,
+      };
+    }
+
+    const studentPlacementSet = placementSet!;
     const [selectedTopic] = await transaction.select({
       id: topics.id,
       name: topics.name,
       subjectId: subjects.id,
       subjectName: subjects.name,
-    })
-      .from(topics)
+    }).from(topics)
       .innerJoin(subjects, eq(topics.subjectId, subjects.id))
       .where(and(eq(topics.id, input.topicId), eq(topics.subjectId, input.subjectId)))
       .limit(1);
+    if (!selectedTopic) throw new ApiError(400, 'INVALID_TOPIC', 'The topic does not belong to the selected subject.');
 
-    if (!selectedTopic) {
-      throw new ApiError(400, 'INVALID_TOPIC', 'The topic does not belong to the selected subject.');
-    }
-
-    const requestedTeachingScopes = input.role === 'teacher' || input.role === 'tutor'
-      ? input.teachingScopes ?? [{
-        subjectId: selectedTopic.subjectId,
-        classroomName: `${selectedTopic.subjectName} class`,
-      }]
-      : [];
-    if (requestedTeachingScopes.length > 0) {
-      const requestedSubjectIds = [...new Set(requestedTeachingScopes.map((scope) => scope.subjectId))];
-      const validTeachingSubjects = await transaction.select({ id: subjects.id })
-        .from(subjects)
-        .where(inArray(subjects.id, requestedSubjectIds));
-      if (validTeachingSubjects.length !== requestedSubjectIds.length) {
-        throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
-      }
-    }
-
-    const now = new Date();
-    const initialMemoryScore = familiarityScore(input.familiarity);
+    const gradedAnswers = studentPlacementSet.questions.map((question, questionIndex) => {
+      const submittedAnswer = submittedByKey.get(question.questionKey)!;
+      return {
+        questionKey: question.questionKey,
+        questionIndex,
+        submittedAnswer,
+        isCorrect: gradeQuestion(question, submittedAnswer),
+      };
+    });
+    const correctAnswers = gradedAnswers.filter((answer) => answer.isCorrect).length;
+    const percentCorrect = calculatePercentCorrect(correctAnswers, gradedAnswers.length);
+    const initialMemoryScore = calculateMemoryScore(percentCorrect);
     const nextReviewAt = calculateNextReviewAt(initialMemoryScore, now);
 
-    await transaction.insert(profiles).values({
+    const [attempt] = await transaction.insert(quizAttempts).values({
+      id: randomUUID(),
+      submissionId: input.placement.submissionId,
       userId,
-      role: input.role,
-      schoolId: school.id,
-      onboardingCompleted: true,
-      onboardingCompletedAt: now,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: profiles.userId,
-      set: {
-        role: input.role,
-        schoolId: school.id,
-        onboardingCompleted: true,
-        onboardingCompletedAt: now,
-        updatedAt: now,
-      },
-    });
-
-    // Registration onboarding no longer accepts learning artifacts. Keep the
-    // legacy nullable columns intact for historical profiles, but normalize
-    // every new onboarding record to `none` without touching Capture Hub.
-    await transaction.insert(onboardingProfiles).values({
-      userId,
-      learningSource: 'none',
-      materialName: null,
-      materialType: null,
-      materialSize: null,
-      materialLastModified: null,
-      recordingDurationSeconds: null,
-      recordingMimeType: null,
       subjectId: selectedTopic.subjectId,
       topicId: selectedTopic.id,
-      familiarity: input.familiarity,
-      initialMemoryScore,
-      childName: input.child?.name ?? null,
-      childEmail: input.child?.email ?? null,
-      completedAt: now,
-      updatedAt: now,
+      quizMode: 'placement',
+      questionSetVersion: 'placement-db-v1',
+      correctAnswers,
+      totalQuestions: gradedAnswers.length,
+      percentCorrect,
+      resultingMemoryScore: initialMemoryScore,
+      startedAt: input.placement.startedAt ? new Date(input.placement.startedAt) : null,
+      submittedAt: now,
+    }).onConflictDoNothing({ target: quizAttempts.submissionId }).returning({
+      id: quizAttempts.id,
+      submissionId: quizAttempts.submissionId,
+      topicId: quizAttempts.topicId,
+      correctAnswers: quizAttempts.correctAnswers,
+      totalQuestions: quizAttempts.totalQuestions,
+      percentCorrect: quizAttempts.percentCorrect,
+      resultingMemoryScore: quizAttempts.resultingMemoryScore,
+      submittedAt: quizAttempts.submittedAt,
+    });
+    if (!attempt) throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
+
+    await transaction.insert(profiles).values({
+      userId, role: 'student', schoolId: school.id, onboardingCompleted: true,
+      onboardingCompletedAt: now, updatedAt: now,
+    }).onConflictDoUpdate({
+      target: profiles.userId,
+      set: { role: 'student', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
+    });
+    await transaction.insert(quizAttemptAnswers).values(gradedAnswers.map((answer) => ({
+      attemptId: attempt.id,
+      ...answer,
+    })));
+    await transaction.insert(onboardingProfiles).values({
+      userId, learningSource: 'none', subjectId: selectedTopic.subjectId, topicId: selectedTopic.id,
+      initialMemoryScore, placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
     }).onConflictDoUpdate({
       target: onboardingProfiles.userId,
       set: {
-        learningSource: 'none',
-        materialName: null,
-        materialType: null,
-        materialSize: null,
-        materialLastModified: null,
-        recordingDurationSeconds: null,
-        recordingMimeType: null,
-        subjectId: selectedTopic.subjectId,
-        topicId: selectedTopic.id,
-        familiarity: input.familiarity,
-        initialMemoryScore,
-        childName: input.child?.name ?? null,
-        childEmail: input.child?.email ?? null,
-        completedAt: now,
-        updatedAt: now,
+        subjectId: selectedTopic.subjectId, topicId: selectedTopic.id, initialMemoryScore,
+        placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
       },
     });
-
-    if (requestedTeachingScopes.length > 0) {
-      await transaction.insert(teachingScopes).values(requestedTeachingScopes.map((scope, position) => ({
-        id: randomUUID(),
-        userId,
-        schoolId: school.id,
-        subjectId: scope.subjectId,
-        classroomName: scope.classroomName,
-        position,
-        createdAt: now,
-        updatedAt: now,
-      })));
-    }
-
     await transaction.insert(userTopicProgress).values({
-      userId,
-      topicId: selectedTopic.id,
-      memoryScore: initialMemoryScore,
-      lastReviewedAt: now,
-      nextReviewAt,
-      quizAttempts: 0,
-      updatedAt: now,
-    }).onConflictDoNothing({
+      userId, topicId: selectedTopic.id, memoryScore: initialMemoryScore,
+      lastReviewedAt: now, nextReviewAt, quizAttempts: 1, updatedAt: now,
+    }).onConflictDoUpdate({
       target: [userTopicProgress.userId, userTopicProgress.topicId],
+      set: { memoryScore: initialMemoryScore, lastReviewedAt: now, nextReviewAt, quizAttempts: 1, updatedAt: now },
     });
 
     return {
       alreadyCompleted: false,
       onboardingCompleted: true,
       profile: {
-        role: input.role,
+        role: 'student' as const,
         schoolId: school.id,
         schoolName: school.name,
-        learningSource: 'none',
+        learningSource: 'none' as const,
         subjectId: selectedTopic.subjectId,
         subjectName: selectedTopic.subjectName,
         topicId: selectedTopic.id,
         topicName: selectedTopic.name,
-        familiarity: input.familiarity,
         initialMemoryScore,
+        placementAttemptId: attempt.id,
         completedAt: now,
+        teachingScopes: [],
       },
+      placementResult: buildPlacementResult(attempt, gradedAnswers, studentPlacementSet.questions),
     };
   });
 
@@ -461,12 +594,6 @@ api.get('/me/study-state', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const state = await getStudyStateForUser(userId);
   return context.json(state);
-});
-
-api.get('/me/child', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const result = await getChildForParent(userId);
-  return context.json(result);
 });
 
 api.get('/me/students', loadSession, requireSession, async (context) => {
@@ -623,11 +750,14 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       .limit(1);
 
     if (prior) {
-      if (prior.userId !== userId) {
+      if (prior.userId !== userId
+        || prior.mode !== input.mode
+        || prior.topicId !== input.topicId) {
         throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
       }
       return {
         ...prior,
+        mode: input.mode,
         idempotentReplay: true,
         answers: await loadStoredAnswerGrading(prior.id),
       };
@@ -674,11 +804,15 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
         submittedAt: quizAttempts.submittedAt,
       }).from(quizAttempts).where(eq(quizAttempts.submissionId, input.submissionId)).limit(1);
 
-      if (!racedAttempt || racedAttempt.userId !== userId) {
+      if (!racedAttempt
+        || racedAttempt.userId !== userId
+        || racedAttempt.mode !== input.mode
+        || racedAttempt.topicId !== input.topicId) {
         throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
       }
       return {
         ...racedAttempt,
+        mode: input.mode,
         idempotentReplay: true,
         answers: await loadStoredAnswerGrading(racedAttempt.id),
       };
@@ -710,6 +844,7 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
 
     return {
       ...attempt,
+      mode: input.mode,
       idempotentReplay: false,
       answers: gradedAnswers.map(({ questionKey, questionIndex, isCorrect }) => ({
         questionKey,

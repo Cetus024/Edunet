@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
 import TeacherDashboardPage from '@/features/teacher-dashboard';
-import ParentDashboardPage from '@/features/parent-dashboard';
 import {
   subjectSummariesAtom,
   priorityQueueAtom,
@@ -695,6 +694,5 @@ export default function DashboardPage() {
   const role = account?.profile?.role ?? null;
 
   if (isTeachingRole(role)) return <TeacherDashboardPage />;
-  if (role === 'parent') return <ParentDashboardPage />;
   return <StudentDashboard />;
 }

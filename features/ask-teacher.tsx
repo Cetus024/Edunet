@@ -45,7 +45,7 @@ export default function AskTeacherPage() {
 
   const { user, profile } = accountQuery.data;
 
-  if (profile.role === 'teacher' || profile.role === 'tutor') {
+  if (profile.role === 'teacher') {
     return (
       <TeacherEnquiriesWorkspace
         userId={user.id}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createEnquirySchema,
   onboardingRequestSchema,
+  placementSetRequestSchema,
   questionRecipientsQuerySchema,
   quizOptionsQuerySchema,
   quizSetRequestSchema,
@@ -20,24 +21,47 @@ describe('authentication extension validation', () => {
 });
 
 describe('onboarding validation', () => {
+  const answers = Array.from({ length: 10 }, (_, index) => ({
+    questionKey: `amath-trig:v1:q${String(index + 1).padStart(2, '0')}`,
+    answer: index % 4,
+  }));
   const valid = {
     role: 'student',
     schoolId: 'example-school',
     subjectId: 'amath',
     topicId: 'amath-trig',
-    familiarity: 'some',
+    placement: {
+      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
+      startedAt: '2026-08-24T10:00:00.000Z',
+      answers,
+    },
   } as const;
 
-  it('accepts a catalog ID without requesting a learning artifact', () => {
+  it('accepts a student with exactly ten placement answers', () => {
     expect(onboardingRequestSchema.safeParse(valid).success).toBe(true);
   });
 
-  it('temporarily accepts legacy artifact metadata for rollout compatibility', () => {
+  it('rejects removed roles and incomplete placement answers', () => {
+    expect(onboardingRequestSchema.safeParse({ ...valid, role: 'parent' }).success).toBe(false);
+    expect(onboardingRequestSchema.safeParse({ ...valid, role: 'tutor' }).success).toBe(false);
     expect(onboardingRequestSchema.safeParse({
       ...valid,
-      learningSource: 'material',
-      material: { name: 'notes.pdf', type: 'application/pdf', size: 100, lastModified: 1 },
+      placement: { ...valid.placement, answers: answers.slice(0, 9) },
+    }).success).toBe(false);
+  });
+
+  it('accepts a placement-set request without accepting client scoring data', () => {
+    expect(placementSetRequestSchema.safeParse({
+      submissionId: valid.placement.submissionId,
+      subjectId: valid.subjectId,
+      topicId: valid.topicId,
     }).success).toBe(true);
+    expect(placementSetRequestSchema.safeParse({
+      submissionId: valid.placement.submissionId,
+      subjectId: valid.subjectId,
+      topicId: valid.topicId,
+      score: 100,
+    }).success).toBe(false);
   });
 });
 
@@ -83,9 +107,6 @@ describe('teaching context validation', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'teacher',
       schoolId: 'example-school',
-      subjectId: 'biology',
-      topicId: 'biology-cells',
-      familiarity: 'well',
       teachingScopes: [
         { subjectId: 'biology', classroomName: 'Biology 4A' },
         { subjectId: 'chemistry', classroomName: 'Chemistry 4B' },
@@ -99,7 +120,6 @@ describe('teaching context validation', () => {
       schoolId: 'example-school',
       subjectId: 'amath',
       topicId: 'amath-trig',
-      familiarity: 'some',
       teachingScopes: [{ subjectId: 'amath', classroomName: '4A' }],
     }).success).toBe(false);
     expect(updateTeachingScopesSchema.safeParse({ scopes: [] }).success).toBe(false);

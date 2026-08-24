@@ -62,20 +62,21 @@ The routing adapter in `src/lib/navigation.tsx` preserves the screens' existing 
 | Route | Existing feature |
 | --- | --- |
 | `/` | Public EduNets presentation and product introduction |
-| `/dashboard` | Student/Parent dashboard; Teacher/Tutor accounts are redirected to enquiries |
-| `/quiz` | Student quiz or role-based Teacher/Tutor demonstration review |
-| `/concept-web` | Student concept web or role-based Teacher/Tutor demonstration class view |
+| `/dashboard` | Student dashboard or Teacher class overview |
+| `/quiz` | Student quiz or Teacher demonstration review |
+| `/concept-web` | Student concept web or Teacher demonstration class view |
 | `/capture-hub` | Note and question capture |
 | `/profile` | Student profile |
 | `/study-squad` | Collaborative study squad |
-| `/ask-teacher` | Student/Parent question flow or Teacher/Tutor Students' Enquiries workspace |
+| `/ask-teacher` | Student question flow or Teacher Students' Enquiries workspace |
 | `/rescue-room` | Rescue room |
 | `/rescue-join` | Rescue room join flow |
 | `/login` | Google login |
 | `/signup` | Google account creation with an optional referral code |
 | `/onboarding` | Required first-account setup |
+| `/placement-result` | Student starting-point quiz result and answer review |
 
-Teacher and Tutor accounts use a dark three-page workspace containing Smart Quiz, Concept Web, and Students' Enquiries. The first two pages are explicitly marked demonstration views; enquiries are persisted in Supabase PostgreSQL, scoped to the authenticated participants, and include three clearly labelled demo threads for each Teacher/Tutor account.
+EduNets supports Student and Teacher accounts. New Students complete a database-backed, ten-question topic placement quiz during onboarding; Teachers configure one or more teaching subjects and classrooms without taking the quiz. Enquiries are persisted in Supabase PostgreSQL and scoped to the authenticated Student and assigned Teacher.
 
 ## Power Apps deployment
 

@@ -20,8 +20,7 @@ export type TeachingScope = {
   position: number;
 };
 
-export type OnboardingProfileResponse = {
-  role: 'student' | 'teacher' | 'tutor' | 'parent';
+type OnboardingProfileBase = {
   schoolId: string;
   schoolName: string;
   learningSource: 'material' | 'recording' | 'none';
@@ -29,13 +28,29 @@ export type OnboardingProfileResponse = {
   recording: unknown | null;
   subjectId: string;
   subjectName: string;
-  topicId: string;
-  topicName: string;
-  familiarity: 'new' | 'some' | 'well';
-  initialMemoryScore: number;
   completedAt: string;
   teachingScopes: TeachingScope[];
 };
+
+export type StudentOnboardingProfileResponse = OnboardingProfileBase & {
+  role: 'student';
+  topicId: string;
+  topicName: string;
+  initialMemoryScore: number;
+  placementAttemptId: string | null;
+};
+
+export type TeacherOnboardingProfileResponse = OnboardingProfileBase & {
+  role: 'teacher';
+  topicId: null;
+  topicName: null;
+  initialMemoryScore: null;
+  placementAttemptId: null;
+};
+
+export type OnboardingProfileResponse =
+  | StudentOnboardingProfileResponse
+  | TeacherOnboardingProfileResponse;
 
 export type CurrentAccount = {
   user: CurrentUser;

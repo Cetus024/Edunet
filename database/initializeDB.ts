@@ -74,6 +74,7 @@ async function replaceCatalog(): Promise<void> {
         set: {
           topicId: sql`excluded.topic_id`,
           type: sql`excluded.type`,
+          usage: sql`excluded.usage`,
           text: sql`excluded.text`,
           correctAnswer: sql`excluded.correct_answer`,
           explanation: sql`excluded.explanation`,
@@ -96,6 +97,15 @@ async function verifyCatalogCounts(): Promise<void> {
     subjects: sql<number>`(select count(*) from ${subjects})`,
     topics: sql<number>`(select count(*) from ${topics})`,
     questions: sql<number>`(select count(*) from ${quizQuestions})`,
+    placementQuestions: sql<number>`(
+      select count(*) from ${quizQuestions}
+      where ${quizQuestions.type} = 'mcq'
+        and ${quizQuestions.usage} in ('placement', 'both')
+    )`,
+    practiceQuestions: sql<number>`(
+      select count(*) from ${quizQuestions}
+      where ${quizQuestions.usage} in ('practice', 'both')
+    )`,
   }).from(schools).limit(1);
 
   const counts = {
@@ -103,6 +113,8 @@ async function verifyCatalogCounts(): Promise<void> {
     subjects: Number(row?.subjects ?? 0),
     topics: Number(row?.topics ?? 0),
     questions: Number(row?.questions ?? 0),
+    placementQuestions: Number(row?.placementQuestions ?? 0),
+    practiceQuestions: Number(row?.practiceQuestions ?? 0),
   };
 
   const mismatches = Object.entries(EXPECTED_CATALOG_COUNTS)
@@ -113,7 +125,19 @@ async function verifyCatalogCounts(): Promise<void> {
     throw new Error(`Catalog verification failed: ${mismatches.join('; ')}`);
   }
 
-  console.log(`✅ Catalog verified: ${counts.schools} schools, ${counts.subjects} subjects, ${counts.topics} topics, ${counts.questions} questions.`);
+  const incompletePlacementTopics = await db.execute(sql`
+    select ${quizQuestions.topicId}
+    from ${quizQuestions}
+    where ${quizQuestions.type} = 'mcq'
+      and ${quizQuestions.usage} in ('placement', 'both')
+    group by ${quizQuestions.topicId}
+    having count(*) <> 10
+  `);
+  if (incompletePlacementTopics.rows.length > 0) {
+    throw new Error(`Catalog verification failed: ${incompletePlacementTopics.rows.length} topics do not have exactly 10 placement MCQs.`);
+  }
+
+  console.log(`✅ Catalog verified: ${counts.schools} schools, ${counts.subjects} subjects, ${counts.topics} topics, ${counts.questions} questions (${counts.placementQuestions} placement MCQs).`);
 }
 
 async function initializeDatabase(): Promise<void> {

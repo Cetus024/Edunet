@@ -1,19 +1,15 @@
-export type EduNetsRole = 'student' | 'teacher' | 'tutor' | 'parent';
+export type EduNetsRole = 'student' | 'teacher';
 
 export function isTeachingRole(
   role: EduNetsRole | null | undefined,
-): role is 'teacher' | 'tutor' {
-  return role === 'teacher' || role === 'tutor';
+): role is 'teacher' {
+  return role === 'teacher';
 }
 
 export function getRoleLabel(role: EduNetsRole | null | undefined): string {
   switch (role) {
     case 'teacher':
       return 'Teacher';
-    case 'tutor':
-      return 'Tutor';
-    case 'parent':
-      return 'Parent';
     case 'student':
       return 'Student';
     default:

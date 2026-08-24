@@ -1,5 +1,5 @@
-export type RequesterRole = 'student' | 'parent';
-export type RecipientRole = 'teacher' | 'tutor';
+export type RequesterRole = 'student';
+export type RecipientRole = 'teacher';
 export type EnquiryRole = RequesterRole | RecipientRole;
 
 export type EnquiryActor = {
@@ -94,11 +94,11 @@ export type EnquiryThreadResponse = {
 };
 
 export function isRequesterRole(role: string | null): role is RequesterRole {
-  return role === 'student' || role === 'parent';
+  return role === 'student';
 }
 
 export function isRecipientRole(role: string | null): role is RecipientRole {
-  return role === 'teacher' || role === 'tutor';
+  return role === 'teacher';
 }
 
 export function canAccessThread(

@@ -33,21 +33,69 @@ export type StudyStateResponse = {
   subjects: SubjectData[];
 };
 
-export type OnboardingInput = {
-  role: 'student' | 'teacher' | 'tutor' | 'parent';
+export type PlacementQuestion = {
+  questionKey: string;
+  type: 'mcq';
+  topic: string;
+  text: string;
+  options: string[];
+  source?: string;
+};
+
+export type PlacementSetResponse = {
+  submissionId: string;
+  subjectId: string;
+  topicId: string;
+  questions: PlacementQuestion[];
+};
+
+export type PlacementAnswerResult = {
+  questionKey: string;
+  questionIndex: number;
+  submittedAnswer: number;
+  isCorrect: boolean;
+  correctAnswer: number;
+  explanation: string;
+};
+
+export type PlacementResult = {
+  id: string;
+  submissionId: string;
+  topicId: string;
+  correctAnswers: number;
+  totalQuestions: number;
+  percentCorrect: number;
+  resultingMemoryScore: number;
+  submittedAt: string;
+  nextReviewAt: string;
+  answers: PlacementAnswerResult[];
+};
+
+export type StudentOnboardingInput = {
+  role: 'student';
   schoolId: string;
   subjectId: string;
   topicId: string;
-  familiarity: 'new' | 'some' | 'well';
-  teachingScopes?: Array<{ subjectId: string; classroomName: string }>;
-  // Parent role only.
-  child?: { name: string; email: string } | null;
+  placement: {
+    submissionId: string;
+    startedAt?: string;
+    answers: Array<{ questionKey: string; answer: number }>;
+  };
 };
+
+export type TeacherOnboardingInput = {
+  role: 'teacher';
+  schoolId: string;
+  teachingScopes: Array<{ subjectId: string; classroomName: string }>;
+};
+
+export type OnboardingInput = StudentOnboardingInput | TeacherOnboardingInput;
 
 export type OnboardingResponse = {
   alreadyCompleted: boolean;
   onboardingCompleted: true;
   profile: unknown;
+  placementResult: PlacementResult | null;
 };
 
 export const catalogQueryKey = ['catalog'] as const;
@@ -93,6 +141,18 @@ export function useStudyState({
 export function saveOnboarding(input: OnboardingInput) {
   return apiRequest<OnboardingResponse>('/api/v1/me/onboarding', {
     method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function generatePlacementSet(input: {
+  submissionId: string;
+  subjectId: string;
+  topicId: string;
+}) {
+  return apiRequest<PlacementSetResponse>('/api/v1/me/onboarding/placement-set', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });

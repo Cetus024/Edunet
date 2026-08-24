@@ -37,14 +37,9 @@ const demoTopics = [
 
 describe('enquiry database schema', () => {
   it('restricts recipient roles and supports nullable demo requesters', () => {
-    expect(enquiryRequesterRoleEnum.enumValues).toEqual(['student', 'parent']);
-    expect(enquiryRecipientRoleEnum.enumValues).toEqual(['teacher', 'tutor']);
-    expect(enquirySenderRoleEnum.enumValues).toEqual([
-      'student',
-      'parent',
-      'teacher',
-      'tutor',
-    ]);
+    expect(enquiryRequesterRoleEnum.enumValues).toEqual(['student']);
+    expect(enquiryRecipientRoleEnum.enumValues).toEqual(['teacher']);
+    expect(enquirySenderRoleEnum.enumValues).toEqual(['student', 'teacher']);
     expect(enquiryThreads.requesterUserId.notNull).toBe(false);
     expect(enquiryThreads.recipientUserId.notNull).toBe(true);
     expect(enquiryThreads.requesterClassSnapshot.notNull).toBe(false);
@@ -70,6 +65,8 @@ describe('enquiry database schema', () => {
       expect.arrayContaining([
         'enquiry_threads_demo_requester_check',
         'enquiry_threads_topic_snapshot_check',
+        'enquiry_threads_requester_role_check',
+        'enquiry_threads_recipient_role_check',
       ]),
     );
 
@@ -81,9 +78,10 @@ describe('enquiry database schema', () => {
         'enquiry_messages_thread_unread_idx',
       ]),
     );
-    expect(messageConfig.checks.map((check) => check.name)).toContain(
+    expect(messageConfig.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       'enquiry_messages_unread_read_at_check',
-    );
+      'enquiry_messages_sender_role_check',
+    ]));
   });
 
   it('has a strictly additive committed migration', () => {
@@ -131,7 +129,7 @@ describe('demo enquiry seed', () => {
     const first = buildDemoEnquiries(recipient, subject, demoTopics, fixedNow);
     const repeat = buildDemoEnquiries(recipient, subject, demoTopics, fixedNow);
     const otherRecipient = buildDemoEnquiries(
-      { ...recipient, userId: 'recipient-2', role: 'tutor' },
+      { ...recipient, userId: 'recipient-2' },
       subject,
       demoTopics,
       fixedNow,

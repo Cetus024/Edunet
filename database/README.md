@@ -21,7 +21,7 @@ npm run db:setup:supabase
 The command performs three guarded, repeatable stages:
 
 1. Create the marked `edunets` schema and apply committed Drizzle migrations with `DATABASE_DIRECT_URL`.
-2. Reconcile the fixed catalog and verify exactly 151 schools, 8 subjects, 51 topics, and 255 questions.
+2. Reconcile the fixed catalog and verify exactly 151 schools, 8 subjects, 51 topics, and 612 questions, including 10 placement MCQs per topic.
 3. Create/update the least-privilege `edunets_app` role and remove `anon`/`authenticated` access to application schemas, tables, sequences, and functions.
 
 Run the same command again to verify migration and seed idempotency. The ownership guard refuses to initialize an existing foreign schema or a marker with the wrong value.

@@ -1,4 +1,5 @@
-import { bigint, boolean, integer, pgTable, primaryKey, real, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, check, integer, pgTable, primaryKey, real, text, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './auth.js';
 import { schools, subjects, topics } from './catalog.js';
 
@@ -9,7 +10,9 @@ export const profiles = pgTable('profile', {
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => [
+  check('profile_role_check', sql`${table.role} in ('student', 'teacher')`),
+]);
 
 export const onboardingProfiles = pgTable('onboarding_profile', {
   userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
@@ -21,14 +24,9 @@ export const onboardingProfiles = pgTable('onboarding_profile', {
   recordingDurationSeconds: integer('recording_duration_seconds'),
   recordingMimeType: text('recording_mime_type'),
   subjectId: text('subject_id').notNull().references(() => subjects.id),
-  topicId: text('topic_id').notNull().references(() => topics.id),
-  familiarity: text('familiarity').notNull(),
-  initialMemoryScore: real('initial_memory_score').notNull(),
-  // Parent role only: the child they want to follow, linked by email once
-  // the child has their own account. Nullable - every other role leaves
-  // these unset, same as the material/recording columns above.
-  childName: text('child_name'),
-  childEmail: text('child_email'),
+  topicId: text('topic_id').references(() => topics.id),
+  initialMemoryScore: real('initial_memory_score'),
+  placementAttemptId: text('placement_attempt_id').unique().references(() => quizAttempts.id, { onDelete: 'set null' }),
   completedAt: timestamp('completed_at').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -70,7 +68,7 @@ export const quizAttempts = pgTable('quiz_attempt', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: text('subject_id').notNull(),
   topicId: text('topic_id').notNull(),
-  quizMode: text('quiz_mode', { enum: ['past-paper', 'concept-check', 'speed-round'] as const }).notNull(),
+  quizMode: text('quiz_mode', { enum: ['past-paper', 'concept-check', 'speed-round', 'placement'] as const }).notNull(),
   questionSetVersion: text('question_set_version').notNull(),
   correctAnswers: integer('correct_answers').notNull(),
   totalQuestions: integer('total_questions').notNull(),
