@@ -1,12 +1,6 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import { adminPool as pool } from './admin-client.js';
 
 async function checkTables() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 10000,
-  });
-
   try {
     // Check all tables across relevant schemas
     const res = await pool.query(`
@@ -16,7 +10,7 @@ async function checkTables() {
       ORDER BY table_schema, table_name
     `);
 
-    console.log('Tables in Neon:');
+    console.log('EduNets tables:');
     for (const row of res.rows) {
       console.log(`  ${row.table_schema}.${row.table_name}`);
     }

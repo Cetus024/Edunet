@@ -3,14 +3,15 @@ import { Pool } from 'pg';
 
 import { getDatabaseEnvironment } from './env.js';
 import * as schema from './schema/index.js';
+import { assertSupabaseRuntimeConnection, parseSupabaseConnection } from './supabase-safety.js';
 
-// HUAWEI CLOUD INTEGRATION POINT — RDS for PostgreSQL.
-// This pool talks to plain wire-protocol PostgreSQL via `pg` + Drizzle, so
-// it is already Huawei-RDS-compatible: swap `DATABASE_URL` (see
-// database/env.ts) for a Huawei Cloud RDS for PostgreSQL instance's
-// connection string and nothing else here needs to change. No vendor SDK,
-// no proprietary client - the entire schema/query layer is standard SQL.
+// Runtime traffic uses Supabase's transaction-mode pooler through standard
+// PostgreSQL wire protocol. Migrations use the separate admin client so DDL
+// never runs through the serverless runtime connection.
 const environment = getDatabaseEnvironment();
+if (process.env.NODE_ENV !== 'test') {
+  assertSupabaseRuntimeConnection(parseSupabaseConnection(environment.databaseUrl, 'DATABASE_URL'));
+}
 
 export const pool = new Pool({
   connectionString: environment.databaseUrl,

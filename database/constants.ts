@@ -9,4 +9,5 @@ export const EXPECTED_CATALOG_COUNTS = {
   schools: 151,
   subjects: 8,
   topics: 51,
+  questions: 255,
 } as const;

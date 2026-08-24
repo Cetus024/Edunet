@@ -2,10 +2,7 @@ import { z } from 'zod';
 
 const optionalNullable = <T extends z.ZodType>(schema: T) => schema.nullish();
 
-export const signUpExtensionSchema = z.looseObject({
-  name: z.string().max(120).refine((name) => name.trim().length > 0),
-  signupReferralCode: z.string().max(64).optional(),
-});
+export const signupReferralCodeSchema = z.string().trim().max(64);
 
 export const materialMetadataSchema = z.strictObject({
   name: z.string().trim().min(1).max(255),

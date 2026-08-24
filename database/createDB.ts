@@ -1,14 +1,15 @@
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
+import { adminDb, adminPool } from './admin-client.js';
 import { EDUNETS_SCHEMA_NAME } from './constants.js';
-import { db, pool } from './index.js';
-import { assertSchemaCanBeInitialized } from './schema-safety.js';
+import { assertSchemaCanBeInitialized, ensureOwnershipMarker } from './schema-safety.js';
 
 async function createDatabase(): Promise<void> {
-  await assertSchemaCanBeInitialized(pool);
-  await pool.query(`CREATE SCHEMA IF NOT EXISTS "${EDUNETS_SCHEMA_NAME}"`);
+  await assertSchemaCanBeInitialized(adminPool);
+  await adminPool.query(`CREATE SCHEMA IF NOT EXISTS "${EDUNETS_SCHEMA_NAME}"`);
+  await ensureOwnershipMarker(adminPool);
 
-  await migrate(db, {
+  await migrate(adminDb, {
     migrationsFolder: './database/migrations',
     migrationsTable: '__drizzle_migrations',
     migrationsSchema: EDUNETS_SCHEMA_NAME,
@@ -18,9 +19,9 @@ async function createDatabase(): Promise<void> {
 }
 
 createDatabase()
-  .then(() => pool.end())
+  .then(() => adminPool.end())
   .catch(async (error: unknown) => {
     console.error('❌ Migration failed:', error);
-    await pool.end();
+    await adminPool.end();
     process.exitCode = 1;
   });

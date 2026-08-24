@@ -1,23 +1,25 @@
 # EduNets API
 
-Independent Node.js API for EduNets authentication and per-user learning data. It uses Hono, Better Auth, Drizzle ORM, and PostgreSQL. Browser clients never receive the Neon connection string or password hashes.
+Independent Node.js API for EduNets authentication and per-user learning data. It uses Hono, Better Auth, Drizzle ORM, and Supabase PostgreSQL. Browser clients never receive database connection strings or OAuth secrets.
 
 ## Configuration
 
-The service loads the repository root `.env.local`, then `.env.api.local`. Values in `.env.api.local` override the corresponding file values; variables supplied by the shell or container take precedence over both. Copy this directory's `.env.example` to the repository root as `.env.api.local` and set:
+The service loads the repository root `.env.local`; variables supplied by the shell or container take precedence. Copy the repository root `.env.example` to `.env.local` and set:
 
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Server-only Neon PostgreSQL connection string. |
+| `DATABASE_URL` | Supabase transaction-mode runtime URL using the `edunets_app` role. |
+| `DATABASE_DIRECT_URL` | Supabase direct/session-mode admin URL for migration and bootstrap commands. |
 | `BETTER_AUTH_SECRET` | Random secret of at least 32 characters. Never expose it to Next.js. |
 | `BETTER_AUTH_URL` | Public API origin, for example `http://localhost:8787`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials. |
 | `CORS_ORIGINS` | Comma-separated exact frontend origins. Wildcards are rejected. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
-Initialize the database from the repository root before starting the API:
+Initialize and harden a new Supabase database from the repository root before starting the API:
 
 ```powershell
-npm run db:initialize
+npm run db:setup:supabase
 ```
 
 ## Local development
@@ -43,7 +45,7 @@ Public endpoints:
 - `GET /health` — process liveness.
 - `GET /ready` — PostgreSQL readiness; returns `503` while unavailable.
 - `GET /api/v1/catalog` — fixed schools plus nested subjects, topics, and aliases.
-- `GET|POST /api/auth/*` — Better Auth email/password endpoints. In particular: `/sign-up/email`, `/sign-in/email`, `/get-session`, and `/sign-out`.
+- `GET|POST /api/auth/*` — Better Auth Google OAuth, session, and sign-out endpoints. Email/password registration and login are disabled.
 
 Authenticated endpoints require the Better Auth HttpOnly cookie and browser requests must use `credentials: "include"`:
 
@@ -59,7 +61,9 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `POST /api/v1/me/enquiries/:threadId/messages`
 - `PUT /api/v1/me/enquiries/:threadId/read`
 
-Signup accepts Better Auth's standard `{ name, email, password }` fields plus optional `signupReferralCode` (maximum 64 characters). The referral code is stored but deliberately omitted from auth and business responses.
+Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; the server validates it again before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
+
+Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted; different-email implicit linking remains disabled.
 
 An onboarding request is:
 
@@ -119,7 +123,7 @@ The build requires the repository root as its context because the service intent
 
 ```powershell
 docker build -f services/edunets-api/Dockerfile -t edunets-api .
-docker run --rm -p 8787:8787 --env-file .env.api.local edunets-api
+docker run --rm -p 8787:8787 --env-file .env.local edunets-api
 ```
 
 Use frontend and API hosts under the same production parent domain when possible. The default `SameSite=Lax` cookie works for localhost ports and same-site subdomains; a genuinely cross-site deployment needs an explicit secure-cookie design and browser acceptance testing.

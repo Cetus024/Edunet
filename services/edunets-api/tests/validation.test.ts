@@ -7,8 +7,17 @@ import {
   quizSetRequestSchema,
   quizSubmissionSchema,
   sendEnquiryMessageSchema,
+  signupReferralCodeSchema,
   updateTeachingScopesSchema,
 } from '../src/validation.js';
+
+describe('authentication extension validation', () => {
+  it('normalizes a referral code and enforces its OAuth-safe limit', () => {
+    expect(signupReferralCodeSchema.parse('  SCHOOL-2026  ')).toBe('SCHOOL-2026');
+    expect(signupReferralCodeSchema.safeParse('x'.repeat(65)).success).toBe(false);
+    expect(signupReferralCodeSchema.safeParse({ code: 'SCHOOL-2026' }).success).toBe(false);
+  });
+});
 
 describe('onboarding validation', () => {
   const valid = {

@@ -27,21 +27,19 @@ function loadEnvironmentFiles(startDirectory = process.cwd()): void {
   const repositoryRoot = findRepositoryRoot(startDirectory);
   const protectedKeys = new Set(Object.keys(process.env));
 
-  for (const filename of ['.env.local', '.env.api.local']) {
-    const path = join(repositoryRoot, filename);
-    if (!existsSync(path)) continue;
+  const path = join(repositoryRoot, '.env.local');
+  if (!existsSync(path)) return;
 
-    const values = parseDotenv(readFileSync(path));
-    for (const [key, value] of Object.entries(values)) {
-      if (!protectedKeys.has(key)) process.env[key] = value;
-    }
+  const values = parseDotenv(readFileSync(path));
+  for (const [key, value] of Object.entries(values)) {
+    if (!protectedKeys.has(key)) process.env[key] = value;
   }
 }
 
 loadEnvironmentFiles();
 
 export function getDatabaseEnvironment() {
-  const databaseUrl = process.env.DATABASE_URL ?? '';
+  const databaseUrl = process.env.DATABASE_URL?.trim() ?? '';
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
   }
@@ -51,5 +49,25 @@ export function getDatabaseEnvironment() {
     poolMax: Number(process.env.DATABASE_POOL_MAX ?? 10),
     poolIdleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MILLIS ?? 30000),
     poolConnectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MILLIS ?? 10000), // Increased from 2000 to 10000
+  } as const;
+}
+
+/**
+ * Administrative database commands intentionally use a separate connection.
+ * Supabase's transaction pooler is appropriate for short-lived application
+ * traffic, while migrations and bootstrap DDL need a direct or session-mode
+ * connection.
+ */
+export function getDatabaseAdminEnvironment() {
+  const databaseUrl = process.env.DATABASE_DIRECT_URL?.trim() ?? '';
+  if (!databaseUrl) {
+    throw new Error('DATABASE_DIRECT_URL is required for database administration');
+  }
+
+  return {
+    databaseUrl,
+    poolMax: 1,
+    poolIdleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MILLIS ?? 30000),
+    poolConnectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MILLIS ?? 10000),
   } as const;
 }

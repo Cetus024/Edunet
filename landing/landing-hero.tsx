@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowRight, BookOpenCheck, LogIn, Network, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowRight, BookOpenCheck, LogIn, Network } from 'lucide-react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
 
 type LandingHeroProps = {
@@ -161,22 +161,12 @@ export function LandingHero({ onGetStarted, onLogin }: LandingHeroProps) {
         className="relative z-10 mx-auto flex min-h-[calc(100svh-8.5rem)] max-w-7xl items-center justify-center pb-20 pt-10 sm:pb-24 sm:pt-14 lg:pb-16 lg:pt-12"
       >
         <div className="mx-auto w-full max-w-5xl text-center">
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/90 bg-white/75 px-4 py-2 text-[11px] font-black uppercase tracking-[0.17em] text-[var(--edunets-dark-blue)] shadow-[0_10px_30px_rgba(29,58,98,0.09)] backdrop-blur-xl sm:text-xs"
-          >
-            <Sparkles className="h-4 w-4 text-[var(--edunets-coral)]" aria-hidden="true" />
-            Built for Cambridge O-Level revision
-          </motion.div>
-
           <motion.h1
             id="landing-title"
             initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08, duration: 0.62, ease: 'easeOut' }}
-            className="mx-auto mt-7 max-w-4xl text-4xl font-black leading-[1.02] tracking-[-0.045em] text-[var(--edunets-ink)] sm:text-5xl md:text-6xl lg:text-7xl"
+            className="mx-auto max-w-4xl text-4xl font-black leading-[1.02] tracking-[-0.045em] text-[var(--edunets-ink)] sm:text-5xl md:text-6xl lg:text-7xl"
           >
             You knew Cell Division in March.
             <span className="mt-1 block text-[var(--edunets-dark-blue)]">Do you still?</span>

@@ -25,16 +25,13 @@ export function loadEnvironmentFiles(startDirectory = process.cwd()): void {
   const repositoryRoot = findRepositoryRoot(startDirectory);
   const protectedKeys = new Set(Object.keys(process.env));
 
-  for (const filename of ['.env.local', '.env.api.local']) {
-    const path = join(repositoryRoot, filename);
-    if (!existsSync(path)) continue;
+  const path = join(repositoryRoot, '.env.local');
+  if (!existsSync(path)) return;
 
-    const values = parseDotenv(readFileSync(path));
-    for (const [key, value] of Object.entries(values)) {
-      if (!protectedKeys.has(key)) process.env[key] = value;
-    }
+  const values = parseDotenv(readFileSync(path));
+  for (const [key, value] of Object.entries(values)) {
+    if (!protectedKeys.has(key)) process.env[key] = value;
   }
-
 }
 
 loadEnvironmentFiles();
@@ -44,6 +41,8 @@ const rawEnvironmentSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must contain at least 32 characters'),
   BETTER_AUTH_URL: z.url().default('http://localhost:8787'),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+  GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
   HOST: z.string().min(1).default('0.0.0.0'),
@@ -80,6 +79,8 @@ export const env = Object.freeze({
   databaseUrl: rawEnvironment.DATABASE_URL,
   betterAuthSecret: rawEnvironment.BETTER_AUTH_SECRET,
   betterAuthUrl: betterAuthUrl.origin,
+  googleClientId: rawEnvironment.GOOGLE_CLIENT_ID,
+  googleClientSecret: rawEnvironment.GOOGLE_CLIENT_SECRET,
   corsOrigins: parseOrigins(rawEnvironment.CORS_ORIGINS),
   port: rawEnvironment.PORT,
   host: rawEnvironment.HOST,

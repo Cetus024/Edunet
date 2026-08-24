@@ -1,71 +1,35 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Check, LockKeyhole, Mail } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Check } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 
-import { authClient, getAuthErrorMessage } from '@/lib/api/auth-client';
-import { currentAccountQueryKey, getCurrentAccount } from '@/lib/api/me';
+import {
+  GoogleAuthButton,
+  startGoogleAuth,
+  useOAuthErrorToast,
+} from '@/features/auth/google-auth';
+import { getAuthErrorMessage } from '@/lib/api/auth-client';
 import { useNavigate } from '@/lib/navigation';
-import { getAuthenticatedHome } from '@/lib/roles';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function EduNetsLogin() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGooglePending, setIsGooglePending] = useState(false);
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useOAuthErrorToast();
 
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail || !password.trim()) {
-      toast.error('Add your email and password to log in.');
-      return;
-    }
-
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      toast.error('Enter a valid email address.');
-      return;
-    }
-
-    setIsSubmitting(true);
+  const handleGoogleLogin = async () => {
+    setIsGooglePending(true);
     try {
-      const result = await authClient.signIn.email({
-        email: normalizedEmail,
-        password,
-      });
-      if (result.error) {
-        toast.error(
-          getAuthErrorMessage(result.error, 'Email or password is incorrect.'),
-        );
-        return;
-      }
-
-      const account = await getCurrentAccount();
-      if (!account) {
-        throw new Error('The account session could not be confirmed. Please try again.');
-      }
-
-      queryClient.setQueryData(currentAccountQueryKey, account);
-      toast.success('Welcome back to EduNets.');
-      navigate(
-        account.onboardingCompleted
-          ? getAuthenticatedHome(account.profile?.role)
-          : '/onboarding',
-        { replace: true },
-      );
+      const result = await startGoogleAuth({ errorPath: '/login' });
+      if (result.error) throw result.error;
     } catch (error) {
-      toast.error(
-        getAuthErrorMessage(error, 'EduNets could not log you in. Please try again.'),
-      );
-    } finally {
-      setIsSubmitting(false);
+      toast.error(getAuthErrorMessage(
+        error,
+        'EduNets could not start Google sign-in. Please try again.',
+      ));
+      setIsGooglePending(false);
     }
   };
 
@@ -136,64 +100,13 @@ export default function EduNetsLogin() {
               </p>
             </div>
 
-            <form className="mt-9 space-y-6" onSubmit={handleLogin} noValidate>
-              <div>
-                <label
-                  htmlFor="login-email"
-                  className="mb-2 block text-sm font-bold text-[var(--edunets-dark-blue)]"
-                >
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail
-                    className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--edunets-light-blue)]/70"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="email"
-                    id="login-email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
-                    className="h-14 w-full rounded-xl border border-[#cbd7e6] bg-white pl-12 pr-4 text-base text-[var(--edunets-ink)] shadow-[0_2px_7px_rgba(29,58,98,0.08)] outline-none transition-all placeholder:text-[#a8b5c8] focus:border-[var(--edunets-light-blue)] focus:ring-2 focus:ring-[var(--edunets-light-blue)]/25"
-                    placeholder="Enter your email"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="login-password"
-                  className="mb-2 block text-sm font-bold text-[var(--edunets-dark-blue)]"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <LockKeyhole
-                    className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--edunets-light-blue)]/70"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="password"
-                    id="login-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete="current-password"
-                    className="h-14 w-full rounded-xl border border-[#cbd7e6] bg-white pl-12 pr-4 text-base text-[var(--edunets-ink)] shadow-[0_2px_7px_rgba(29,58,98,0.08)] outline-none transition-all placeholder:text-[#a8b5c8] focus:border-[var(--edunets-light-blue)] focus:ring-2 focus:ring-[var(--edunets-light-blue)]/25"
-                    placeholder="Enter your password"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                aria-busy={isSubmitting}
-                className="group flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[#3f6fbe] via-[#5c718e] to-[#876512] px-5 text-base font-black text-white shadow-[0_12px_28px_rgba(63,111,190,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(63,111,190,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--edunets-light-blue)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-              >
-                {isSubmitting ? 'Logging In…' : 'Log In'}
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-              </button>
+            <div className="mt-9 space-y-6">
+              <GoogleAuthButton
+                label="Continue with Google"
+                busy={isGooglePending}
+                disabled={isGooglePending}
+                onClick={() => void handleGoogleLogin()}
+              />
 
               <p className="text-center text-sm font-medium text-[var(--edunets-ink)]/65 sm:text-base">
                 Don’t have an account?{' '}
@@ -205,7 +118,7 @@ export default function EduNetsLogin() {
                   Create Account
                 </button>
               </p>
-            </form>
+            </div>
           </div>
         </section>
       </div>

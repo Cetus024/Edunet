@@ -3,8 +3,9 @@ import { defineConfig } from 'drizzle-kit';
 import { EDUNETS_SCHEMA_NAME } from './database/constants';
 
 // A deliberately unusable fallback lets schema-only generation run without
-// credentials. Commands that connect to PostgreSQL must provide DATABASE_URL.
-const databaseUrl = process.env.DATABASE_URL
+// credentials. Commands that connect to PostgreSQL must provide
+// DATABASE_DIRECT_URL.
+const databaseUrl = process.env.DATABASE_DIRECT_URL
   ?? 'postgresql://invalid:invalid@127.0.0.1:1/invalid';
 
 export default defineConfig({

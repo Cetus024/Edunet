@@ -11,7 +11,6 @@ import {
   requestContext,
   securityHeaders,
 } from './middleware/request-context.js';
-import { signUpExtensionSchema } from './validation.js';
 import type { AppEnv } from './types.js';
 import { apiV1 } from './routes/api-v1.js';
 import { enquiriesApi } from './routes/enquiries.js';
@@ -49,20 +48,6 @@ app.get('/ready', async (context) => {
 });
 
 app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
-  const pathname = new URL(context.req.url).pathname;
-  if (context.req.method === 'POST' && pathname === '/api/auth/sign-up/email') {
-    let body: unknown;
-    try {
-      body = await context.req.raw.clone().json();
-    } catch {
-      throw new ApiError(400, 'INVALID_JSON', 'Request body must contain valid JSON.');
-    }
-
-    if (!signUpExtensionSchema.safeParse(body).success) {
-      throw new ApiError(400, 'INVALID_REQUEST', 'Name or referral code is invalid.');
-    }
-  }
-
   const response = await auth.handler(context.req.raw);
   if (response.status < 400) return response;
 

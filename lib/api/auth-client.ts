@@ -12,10 +12,12 @@ export const authClient = createAuthClient({
 });
 
 type AuthErrorLike = {
+  code?: string;
   message?: string;
   status?: number;
   statusText?: string;
   error?: {
+    code?: string;
     message?: string;
   };
 };

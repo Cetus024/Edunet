@@ -1,24 +1,10 @@
 import { notInArray, sql } from 'drizzle-orm';
 
-import { EDUNETS_SCHEMA_NAME, EXPECTED_CATALOG_COUNTS, SCHEMA_OWNER_KEY, SCHEMA_OWNER_VALUE } from './constants.js';
-import { db, pool } from './index.js';
+import { adminDb as db, adminPool as pool } from './admin-client.js';
+import { EXPECTED_CATALOG_COUNTS } from './constants.js';
 import { assertSchemaCanBeInitialized } from './schema-safety.js';
 import { quizQuestions, schools, subjects, topicAliases, topics } from './schema/catalog.js';
 import { quizQuestionSeed, schoolSeed, subjectSeed, topicSeed } from './seed-data.js';
-
-async function ensureOwnershipMarker(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS "${EDUNETS_SCHEMA_NAME}".schema_metadata (
-      key text PRIMARY KEY,
-      value text NOT NULL
-    )
-  `);
-  await pool.query(`
-    INSERT INTO "${EDUNETS_SCHEMA_NAME}".schema_metadata (key, value)
-    VALUES ('${SCHEMA_OWNER_KEY}', '${SCHEMA_OWNER_VALUE}')
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-  `);
-}
 
 /**
  * The catalog (schools/subjects/topics) is fixed, deterministic reference
@@ -31,14 +17,20 @@ async function ensureOwnershipMarker(): Promise<void> {
  * as it should, if a genuinely-removed topic is still referenced by
  * existing user data - that is a real conflict, not a bug in this script).
  *
- * Topic aliases are catalog-derived and have no incoming foreign keys, so
- * they are cleared outright. Quiz questions are upserted from the standalone
- * database fixture instead: this keeps fresh environments reproducible while
- * preserving any additional questions managed directly in PostgreSQL.
+ * Topic aliases and quiz questions are catalog-derived and have no incoming
+ * foreign keys, so stale rows can be removed before the fixed fixture is
+ * upserted. This keeps fresh and repeated initialization deterministic.
  */
 async function replaceCatalog(): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(topicAliases);
+
+    if (quizQuestionSeed.length > 0) {
+      await tx.delete(quizQuestions).where(notInArray(
+        quizQuestions.id,
+        quizQuestionSeed.map((question) => question.id),
+      ));
+    }
 
     if (schoolSeed.length > 0) {
       await tx.delete(schools).where(notInArray(schools.id, schoolSeed.map((school) => school.id)));
@@ -121,16 +113,11 @@ async function verifyCatalogCounts(): Promise<void> {
     throw new Error(`Catalog verification failed: ${mismatches.join('; ')}`);
   }
 
-  if (counts.questions < quizQuestionSeed.length) {
-    throw new Error(`Quiz fixture verification failed: expected at least ${quizQuestionSeed.length}, found ${counts.questions}`);
-  }
-
   console.log(`✅ Catalog verified: ${counts.schools} schools, ${counts.subjects} subjects, ${counts.topics} topics, ${counts.questions} questions.`);
 }
 
 async function initializeDatabase(): Promise<void> {
   await assertSchemaCanBeInitialized(pool);
-  await ensureOwnershipMarker();
   await replaceCatalog();
   await verifyCatalogCounts();
 }

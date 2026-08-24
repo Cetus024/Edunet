@@ -295,7 +295,7 @@ export const rescueActivityCompletionsAtom = atomWithStorage<RescueActivityCompl
   []
 );
 
-// Authenticated learning state is hydrated from Neon. Keep only an in-memory
+// Authenticated learning state is hydrated from the EduNets API. Keep only an in-memory
 // mirror for the existing feature components so one user's data can never be
 // restored for another user from localStorage.
 export const subjectsAtom = atom<SubjectData[]>(createEmptySubjectData());
