@@ -2,6 +2,7 @@
 
 import { NavLink, useLocation } from '@/lib/navigation';
 import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { motion } from 'motion/react';
 import Image from 'next/image';
 import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
@@ -11,34 +12,46 @@ import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 
 import { cn } from '@/lib/utils';
-import { getRoleLabel, isTeachingRole, type EduNetsRole } from '@/lib/roles';
+import { isTeachingRole, type EduNetsRole } from '@/lib/roles';
 import { useTeachingContext } from '@/lib/teaching-context';
 import { TeachingContextSelect } from '@/components/teaching-context-select';
+import { LanguageToggle } from '@/components/language-toggle';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 
 
-type NavItem = { path: string; label: string; icon: LucideIcon };
+// `shortKey` feeds the mobile bottom bar. English used to derive it with
+// `label.split(' ')[0]`, which produces nothing useful for Chinese — it has no
+// word breaks, so the full label would render into a 10px slot.
+type NavItem = { path: string; labelKey: TranslationKey; shortKey: TranslationKey; icon: LucideIcon };
+
 const learnerNavItems: NavItem[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/quiz', label: 'Smart Quiz', icon: Brain },
-  { path: '/concept-web', label: 'Concept Web', icon: Share2 },
-  { path: '/ask-teacher', label: 'Ask Teacher', icon: MessageCircle },
-  { path: '/capture-hub', label: 'Capture Hub', icon: Inbox },
-  { path: '/study-squad', label: 'Study Squad', icon: Users },
-  { path: '/profile', label: 'My Profile', icon: User },
+  { path: '/dashboard', labelKey: 'nav.dashboard', shortKey: 'nav.dashboard.short', icon: LayoutDashboard },
+  { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
+  { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
+  { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
+  { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
+  { path: '/study-squad', labelKey: 'nav.studySquad', shortKey: 'nav.studySquad.short', icon: Users },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 
 const teachingNavItems: NavItem[] = [
-  { path: '/dashboard', label: 'Teacher Home', icon: LayoutDashboard },
-  { path: '/quiz', label: 'Smart Quiz', icon: Brain },
-  { path: '/concept-web', label: 'Concept Web', icon: Share2 },
-  { path: '/ask-teacher', label: 'Messages', icon: MessageCircle },
-  { path: '/profile', label: 'My Profile', icon: User },
+  { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: LayoutDashboard },
+  { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
+  { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
+  { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
+
+const roleLabelKeys: Record<'teacher' | 'student', TranslationKey> = {
+  teacher: 'role.teacher',
+  student: 'role.student',
+};
 
 
 export function AppSidebar() {
   const location = useLocation();
   const signOut = useSafeSignOut();
+  const { t } = useTranslation();
   const { data: account } = useCurrentAccount();
   const user = account?.user ?? null;
   const role = account?.profile?.role ?? null;
@@ -101,7 +114,7 @@ export function AppSidebar() {
                 )}
               >
                 <Icon className="w-5 h-5" />
-                <span className="text-[10px] mt-1 font-medium">{item.label.split(' ')[0]}</span>
+                <span className="text-[10px] mt-1 font-medium">{t(item.shortKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadMessages}</span>
                 )}
@@ -135,6 +148,7 @@ function SidebarContent({
   onTeachingScopeChange: (scopeId: string) => void;
   onLogout: () => Promise<boolean>;
 }) {
+  const { t, locale } = useTranslation();
   const initials = user?.name
     .split(/\s+/)
     .filter(Boolean)
@@ -157,7 +171,7 @@ function SidebarContent({
             height={459}
             className="h-9 w-auto select-none"
           />
-          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">Weave stronger bonds, retain every lesson</p>
+          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">{t('sidebar.tagline')}</p>
         </motion.div>
       </div>
 
@@ -180,10 +194,14 @@ function SidebarContent({
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-card-foreground truncate">
-              {user?.name || 'EduNets member'}
+              {user?.name || t('role.member')}
             </p>
             <p className="text-xs font-semibold text-muted-foreground">
-              {getRoleLabel(role)} · {format(new Date(), 'dd MMM yyyy')}
+              {role ? t(roleLabelKeys[role]) : t('role.member')}
+              {' · '}
+              {format(new Date(), locale === 'zh' ? 'yyyy年M月d日' : 'dd MMM yyyy', {
+                locale: locale === 'zh' ? zhCN : undefined,
+              })}
             </p>
           </div>
         </div>
@@ -222,7 +240,7 @@ function SidebarContent({
                 )}
               >
                 <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadMessages}</span>
                 )}
@@ -234,19 +252,18 @@ function SidebarContent({
 
       {/* Footer */}
       <div className="space-y-3 border-t border-sidebar-border p-4">
+        <LanguageToggle />
         <button
           type="button"
           onClick={() => void onLogout()}
           className="flex w-full items-center justify-center gap-2 rounded-[1.15rem] border border-sidebar-border bg-card px-3 py-2.5 text-xs font-black text-foreground transition-colors hover:bg-secondary"
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
-          Log Out
+          {t('sidebar.logOut')}
         </button>
         <div className="rounded-[1.15rem] bg-secondary text-secondary-foreground p-3 text-center shadow-[0_14px_30px_rgba(29,58,98,0.10)]">
           <p className="text-xs font-bold leading-relaxed">
-            {isTeachingRole(role)
-              ? 'Guide O-Level learning with clarity'
-              : 'Built for O-Level momentum'}
+            {isTeachingRole(role) ? t('sidebar.footer.teacher') : t('sidebar.footer.learner')}
           </p>
         </div>
       </div>
