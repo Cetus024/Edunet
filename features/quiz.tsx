@@ -44,6 +44,7 @@ import {
   type QuizAttemptResult,
   type QuizQuestion,
   type QuizSubmissionMode,
+  type FormulaSymbol,
   type SpeedFinishResponse,
   type SpeedSessionResponse,
 } from '@/lib/api/quiz';
@@ -52,15 +53,19 @@ import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { isTeachingRole } from '@/lib/roles';
 import { getKnowledgeScoreColor } from '@/lib/score-color';
 import {
+  formatModelDays,
+  formatModelNumber,
+  formatModelPercent,
+  formatModelValue,
+  formatPercentageValue,
+} from '@/lib/knowledge-number-format';
+import {
   rescueNudgeLogsAtom,
   subjectsAtom,
   type RescueNudgeLog,
 } from '@/lib/study-data';
 
 type QuizState = 'setup' | 'active' | 'results';
-
-const percent = (value: number) => `${(value * 100).toFixed(2)}%`;
-const precise = (value: number) => value.toFixed(10);
 
 function FormulaCard({
   step,
@@ -69,6 +74,8 @@ function FormulaCard({
   substitution,
   calculation,
   result,
+  explanation,
+  symbols,
   detail,
 }: {
   step: string;
@@ -77,18 +84,39 @@ function FormulaCard({
   substitution: string;
   calculation: string;
   result: string;
+  explanation: string;
+  symbols: FormulaSymbol[];
   detail?: string;
 }) {
   return (
     <section className="rounded-xl border border-border/60 bg-card p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div><p className="text-[10px] font-black uppercase tracking-wider text-[#EAA93C]">{step}</p><p className="mt-0.5 text-xs font-black text-[#186636]">{title}</p></div>
+      <div><p className="text-[10px] font-black uppercase tracking-wider text-[#EAA93C]">{step}</p><p className="mt-0.5 text-xs font-black text-[#186636]">{title}</p></div>
+      <code className="mt-2 block whitespace-pre-wrap break-words text-xs font-bold leading-5">{symbolic}</code>
+      <div className="mt-3 rounded-lg border border-border/50 bg-muted/15 p-2.5">
+        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">What this formula means</p>
+        <p className="mt-1 text-[11px] font-semibold leading-5 text-foreground/80">{explanation}</p>
+      </div>
+      <div className="mt-3">
+        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Symbols</p>
+        <dl className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+          {symbols.map((entry) => (
+            <div key={`${entry.symbol}-${entry.meaning}`} className="rounded-lg bg-muted/25 px-2.5 py-2">
+              <dt className="font-mono text-[11px] font-black text-[#186636]">{entry.symbol}</dt>
+              <dd className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+                {entry.meaning}
+                {entry.value !== undefined && <span className="ml-1 font-mono font-bold text-foreground">Current: {formatModelValue(entry.value, entry.unit)}</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <code className="mt-1 block whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">Substitute: {substitution}</code>
+      <code className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-muted/30 px-2 py-1.5 text-xs leading-5">Calculate: {calculation}</code>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+        <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Result</span>
         <strong className="shrink-0 rounded-lg bg-[#186636]/10 px-2 py-1 font-mono text-xs text-[#186636]">{result}</strong>
       </div>
       {detail && <p className="mt-2 text-[11px] font-semibold text-muted-foreground">{detail}</p>}
-      <code className="mt-2 block whitespace-pre-wrap break-words text-xs font-bold leading-5">{symbolic}</code>
-      <code className="mt-1 block whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">Substitute: {substitution}</code>
-      <code className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-muted/30 px-2 py-1.5 text-xs leading-5">Calculate: {calculation}</code>
     </section>
   );
 }
@@ -182,9 +210,9 @@ function SetupPanel({
 
       {selectedTopic && (
         <div className="mt-6 rounded-2xl bg-muted/25 p-4 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Current Memory</span><strong style={{ color: memoryColor.fill }}>{selectedTopic.memoryScore === null ? 'Not Started' : `${selectedTopic.memoryScore.toFixed(2)}%`}</strong></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Current Memory</span><strong style={{ color: memoryColor.fill }}>{selectedTopic.memoryScore === null ? 'Not Started' : formatPercentageValue(selectedTopic.memoryScore)}</strong></div>
           {selectedTopic.masteryScore !== undefined && selectedTopic.masteryScore !== null && (
-            <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Stored Mastery</span><strong style={{ color: masteryColor.fill }}>{selectedTopic.masteryScore.toFixed(2)}%</strong></div>
+            <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Stored Mastery</span><strong style={{ color: masteryColor.fill }}>{formatPercentageValue(selectedTopic.masteryScore)}</strong></div>
           )}
         </div>
       )}
@@ -225,6 +253,7 @@ function KnowledgePanel({
       : 'P(Lt-1) from the previous question';
   const startingCorrect = session.model.startingBranches.correct;
   const startingWrong = session.model.startingBranches.wrong;
+  const startingPrior = startingCorrect.trace[0]!;
   const masteryColor = getKnowledgeScoreColor(session.model.currentMastery * 100);
   const predictedColor = getKnowledgeScoreColor(session.model.predictedCorrectness === null ? null : session.model.predictedCorrectness * 100);
 
@@ -258,15 +287,15 @@ function KnowledgePanel({
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg bg-card/80 px-1 py-1.5">
               <p className="text-[9px] font-bold text-muted-foreground">{label}</p>
-              <p className="font-mono text-[11px] font-black">{Number(value).toFixed(2)}</p>
+              <p className="font-mono text-[11px] font-black">{formatModelNumber(Number(value))}</p>
             </div>
           ))}
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl p-3" style={{ backgroundColor: masteryColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Mastery</p><p className="mt-1 text-lg font-black" style={{ color: masteryColor.fill }}>{percent(session.model.currentMastery)}</p></div>
-        <div className="rounded-xl p-3" style={{ backgroundColor: predictedColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Predicted</p><p className="mt-1 text-lg font-black" style={{ color: predictedColor.fill }}>{session.model.predictedCorrectness === null ? '—' : percent(session.model.predictedCorrectness)}</p></div>
+        <div className="rounded-xl p-3" style={{ backgroundColor: masteryColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Mastery</p><p className="mt-1 text-lg font-black" style={{ color: masteryColor.fill }}>{formatModelPercent(session.model.currentMastery)}</p></div>
+        <div className="rounded-xl p-3" style={{ backgroundColor: predictedColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Predicted</p><p className="mt-1 text-lg font-black" style={{ color: predictedColor.fill }}>{session.model.predictedCorrectness === null ? '—' : formatModelPercent(session.model.predictedCorrectness)}</p></div>
         <div className="rounded-xl bg-muted/30 p-3"><p className="text-[10px] font-bold uppercase text-muted-foreground">Raw</p><p className="mt-1 text-lg font-black">{session.session.correct}/{session.session.answered}</p></div>
       </div>
 
@@ -285,7 +314,7 @@ function KnowledgePanel({
                 style={{ borderColor: selected ? pointColor.fill : undefined, backgroundColor: selected ? pointColor.background : undefined }}
               >
                 <span className={point.isCorrect === true ? 'text-[#186636]' : point.isCorrect === false ? 'text-[#D9534F]' : 'text-muted-foreground'}>{point.label}</span>
-                <strong className="mt-0.5 block" style={{ color: pointColor.fill }}>{(point.mastery * 100).toFixed(1)}</strong>
+                <strong className="mt-0.5 block" style={{ color: pointColor.fill }}>{formatPercentageValue(point.mastery * 100)}</strong>
               </button>
             );
           })}
@@ -300,12 +329,24 @@ function KnowledgePanel({
               <p className="mt-1 text-xs leading-5 text-muted-foreground">Both Bayesian branches are calculated by the backend from your fixed P(L0)=0.35 before Q1.</p>
             </div>
             <FormulaCard
+              step="Step 0"
+              title={startingPrior.label}
+              symbolic={startingPrior.symbolic}
+              substitution={startingPrior.substitution}
+              calculation={startingPrior.calculation}
+              explanation={startingPrior.explanation}
+              symbols={startingPrior.symbols}
+              result={`${formatModelNumber(startingPrior.value)} (${formatPercentageValue(startingPrior.percentageValue)})`}
+            />
+            <FormulaCard
               step="Step 1A · if correct"
               title="Bayesian evidence update"
               symbolic={startingCorrect.trace[1]!.symbolic}
               substitution={startingCorrect.trace[1]!.substitution}
               calculation={startingCorrect.trace[1]!.calculation}
-              result={`${precise(startingCorrect.posteriorMastery)} (${startingCorrect.trace[1]!.percentageValue.toFixed(10)}%)`}
+              explanation={startingCorrect.trace[1]!.explanation}
+              symbols={startingCorrect.trace[1]!.symbols}
+              result={`${formatModelNumber(startingCorrect.posteriorMastery)} (${formatPercentageValue(startingCorrect.trace[1]!.percentageValue)})`}
             />
             <FormulaCard
               step="Step 1B · if wrong"
@@ -313,23 +354,29 @@ function KnowledgePanel({
               symbolic={startingWrong.trace[1]!.symbolic}
               substitution={startingWrong.trace[1]!.substitution}
               calculation={startingWrong.trace[1]!.calculation}
-              result={`${precise(startingWrong.posteriorMastery)} (${startingWrong.trace[1]!.percentageValue.toFixed(10)}%)`}
+              explanation={startingWrong.trace[1]!.explanation}
+              symbols={startingWrong.trace[1]!.symbols}
+              result={`${formatModelNumber(startingWrong.posteriorMastery)} (${formatPercentageValue(startingWrong.trace[1]!.percentageValue)})`}
             />
             <FormulaCard
               step="Step 2"
               title="Learning transition"
-              symbolic="P(Lt) = posterior + (1-posterior) × P(T)"
-              substitution={`posterior + (1-posterior) × ${parameters.transition}`}
+              symbolic={startingCorrect.trace[2]!.symbolic}
+              substitution={`posterior + (1-posterior) × ${formatModelNumber(parameters.transition)}`}
               calculation="The exact branch result is shown after each answer"
+              explanation={startingCorrect.trace[2]!.explanation}
+              symbols={startingCorrect.trace[2]!.symbols}
               result="P(Lt)"
             />
             <FormulaCard
               step="Step 3"
               title="Mastery score"
-              symbolic="Mastery Score = 100 × P(Lt)"
-              substitution={`100 × ${precise(session.model.initialMastery)}`}
-              calculation={`${(session.model.initialMastery * 100).toFixed(10)}% at session start`}
-              result={`${(session.model.initialMastery * 100).toFixed(2)}%`}
+              symbolic={projection.trace.mastery.symbolic}
+              substitution={projection.trace.mastery.substitution}
+              calculation={projection.trace.mastery.calculation}
+              explanation={projection.trace.mastery.explanation}
+              symbols={projection.trace.mastery.symbols}
+              result={formatPercentageValue(session.model.initialMastery * 100)}
             />
             <FormulaCard
               step="Step 4 · live preview"
@@ -337,7 +384,9 @@ function KnowledgePanel({
               symbolic={projection.trace.stability.symbolic}
               substitution={projection.trace.stability.substitution}
               calculation={projection.trace.stability.calculation}
-              result={`${precise(projection.stabilityDays)} days`}
+              explanation={projection.trace.stability.explanation}
+              symbols={projection.trace.stability.symbols}
+              result={formatModelDays(projection.stabilityDays)}
               detail={`n: ${projection.successfulReviewsBefore} → ${projection.successfulReviewsAfter} if the quiz ended at this state`}
             />
             <FormulaCard
@@ -346,8 +395,10 @@ function KnowledgePanel({
               symbolic={projection.trace.memory.symbolic}
               substitution={projection.trace.memory.substitution}
               calculation={projection.trace.memory.calculation}
-              result={percent(projection.memoryNow)}
-              detail={projection.reviewNow ? 'Mastery is below 80% → Review Now' : `Next review in ${projection.nextReviewInDays?.toFixed(10)} days`}
+              explanation={projection.trace.memory.explanation}
+              symbols={projection.trace.memory.symbols}
+              result={formatModelPercent(projection.memoryNow)}
+              detail={projection.reviewNow ? 'Mastery is below 80% → Review Now' : `Next review in ${formatModelDays(projection.nextReviewInDays!)}`}
             />
           </div>
         ) : (
@@ -357,13 +408,25 @@ function KnowledgePanel({
               <div><p className="font-black">Q{answer.questionIndex + 1}: {answer.isCorrect ? 'Correct' : 'Wrong'}</p><p className="text-[11px] text-muted-foreground">Prior source: {priorSourceLabel}</p></div>
             </div>
             <FormulaCard
+              step="Step 0"
+              title={answer.model.trace[0]!.label}
+              symbolic={answer.model.trace[0]!.symbolic}
+              substitution={answer.model.trace[0]!.substitution}
+              calculation={answer.model.trace[0]!.calculation}
+              explanation={answer.model.trace[0]!.explanation}
+              symbols={answer.model.trace[0]!.symbols}
+              result={`${formatModelNumber(answer.model.trace[0]!.value)} (${formatPercentageValue(answer.model.trace[0]!.percentageValue)})`}
+            />
+            <FormulaCard
               step={`Step 1 · ${answer.isCorrect ? 'correct branch' : 'wrong branch'}`}
               title="Bayesian evidence update"
               symbolic={answer.model.trace[1]!.symbolic}
               substitution={answer.model.trace[1]!.substitution}
               calculation={answer.model.trace[1]!.calculation}
-              result={`${precise(answer.model.posteriorMastery)} (${answer.model.trace[1]!.percentageValue.toFixed(10)}%)`}
-              detail={`Prior p=${precise(answer.model.priorMastery)} · numerator=${precise(answer.model.trace[1]!.numerator!)} · denominator=${precise(answer.model.trace[1]!.denominator!)}`}
+              explanation={answer.model.trace[1]!.explanation}
+              symbols={answer.model.trace[1]!.symbols}
+              result={`${formatModelNumber(answer.model.posteriorMastery)} (${formatPercentageValue(answer.model.trace[1]!.percentageValue)})`}
+              detail={`Prior p=${formatModelNumber(answer.model.priorMastery)} · numerator=${formatModelNumber(answer.model.trace[1]!.numerator!)} · denominator=${formatModelNumber(answer.model.trace[1]!.denominator!)}`}
             />
             <FormulaCard
               step="Step 2"
@@ -371,8 +434,10 @@ function KnowledgePanel({
               symbolic={answer.model.trace[2]!.symbolic}
               substitution={answer.model.trace[2]!.substitution}
               calculation={answer.model.trace[2]!.calculation}
-              result={`${precise(answer.model.currentMastery)} (${answer.model.trace[2]!.percentageValue.toFixed(10)}%)`}
-              detail={`Learning gain = (1-posterior) × P(T) = ${precise(answer.model.learningGain)}`}
+              explanation={answer.model.trace[2]!.explanation}
+              symbols={answer.model.trace[2]!.symbols}
+              result={`${formatModelNumber(answer.model.currentMastery)} (${formatPercentageValue(answer.model.trace[2]!.percentageValue)})`}
+              detail={`Learning gain = (1-posterior) × P(T) = ${formatModelNumber(answer.model.learningGain)}`}
             />
             <FormulaCard
               step="Step 3A"
@@ -380,7 +445,9 @@ function KnowledgePanel({
               symbolic={projection.trace.mastery.symbolic}
               substitution={projection.trace.mastery.substitution}
               calculation={projection.trace.mastery.calculation}
-              result={`${answer.model.masteryScore.toFixed(10)}%`}
+              explanation={projection.trace.mastery.explanation}
+              symbols={projection.trace.mastery.symbols}
+              result={formatPercentageValue(answer.model.masteryScore)}
             />
             <FormulaCard
               step="Step 3B"
@@ -388,7 +455,9 @@ function KnowledgePanel({
               symbolic={answer.model.trace[3]!.symbolic}
               substitution={answer.model.trace[3]!.substitution}
               calculation={answer.model.trace[3]!.calculation}
-              result={`${precise(answer.model.predictedCorrectness)} (${answer.model.trace[3]!.percentageValue.toFixed(10)}%)`}
+              explanation={answer.model.trace[3]!.explanation}
+              symbols={answer.model.trace[3]!.symbols}
+              result={`${formatModelNumber(answer.model.predictedCorrectness)} (${formatPercentageValue(answer.model.trace[3]!.percentageValue)})`}
             />
             <FormulaCard
               step="Step 4 · provisional until Q10"
@@ -396,8 +465,10 @@ function KnowledgePanel({
               symbolic={projection.trace.stability.symbolic}
               substitution={projection.trace.stability.substitution}
               calculation={projection.trace.stability.calculation}
-              result={`${precise(projection.stabilityDays)} days`}
-              detail={`Success threshold: ${parameters.successThreshold.toFixed(2)} · n: ${projection.successfulReviewsBefore} → ${projection.successfulReviewsAfter}`}
+              explanation={projection.trace.stability.explanation}
+              symbols={projection.trace.stability.symbols}
+              result={formatModelDays(projection.stabilityDays)}
+              detail={`Success threshold: ${formatModelNumber(parameters.successThreshold)} · n: ${projection.successfulReviewsBefore} → ${projection.successfulReviewsAfter}`}
             />
             {[projection.trace.memory, projection.trace.memoryIn6Hours, projection.trace.memoryIn1Day].map((trace) => (
               <FormulaCard
@@ -407,8 +478,10 @@ function KnowledgePanel({
                 symbolic={trace.symbolic}
                 substitution={trace.substitution}
                 calculation={trace.calculation}
-                result={trace.value === null ? '—' : `${precise(trace.value)} (${percent(trace.value)})`}
-                detail={`Δt = ${trace.deltaDays} day${trace.deltaDays === 1 ? '' : 's'}`}
+                explanation={trace.explanation}
+                symbols={trace.symbols}
+                result={trace.value === null ? '—' : `${formatModelNumber(trace.value)} (${formatModelPercent(trace.value)})`}
+                detail={`Δt = ${formatModelNumber(trace.deltaDays)} day${trace.deltaDays === 1 ? '' : 's'}`}
               />
             ))}
             <FormulaCard
@@ -417,8 +490,10 @@ function KnowledgePanel({
               symbolic={projection.trace.nextReview.symbolic}
               substitution={projection.trace.nextReview.substitution}
               calculation={projection.trace.nextReview.calculation}
-              result={projection.reviewNow ? 'Review Now' : `${projection.nextReviewInDays?.toFixed(10)} days`}
-              detail={`Retention target R=${parameters.retentionTarget.toFixed(2)} · final decision is committed after Q10`}
+              explanation={projection.trace.nextReview.explanation}
+              symbols={projection.trace.nextReview.symbols}
+              result={projection.reviewNow ? 'Review Now' : formatModelDays(projection.nextReviewInDays!)}
+              detail={`Retention target R=${formatModelNumber(parameters.retentionTarget)} · final decision is committed after Q10`}
             />
           </div>
         )}
@@ -543,9 +618,9 @@ function SpeedResults({ result, topic, onRetake, onConceptWeb }: {
         <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Raw score', value: `${summary.correctAnswers}/${summary.totalQuestions}`, color: rawColor },
-            { label: 'Estimated Mastery', value: `${summary.masteryScore.toFixed(2)}%`, color: masteryColor },
-            { label: 'Stability', value: `${summary.stabilityDays.toFixed(4)} days` },
-            { label: 'Memory now', value: percent(summary.memoryNow), color: memoryNowColor },
+            { label: 'Estimated Mastery', value: formatPercentageValue(summary.masteryScore), color: masteryColor },
+            { label: 'Stability', value: formatModelDays(summary.stabilityDays) },
+            { label: 'Memory now', value: formatModelPercent(summary.memoryNow), color: memoryNowColor },
           ].map(({ label, value, color }) => <div key={label} className="rounded-2xl p-4" style={{ backgroundColor: color?.background ?? undefined }}><p className="text-xs font-black uppercase text-muted-foreground">{label}</p><p className="mt-2 text-xl font-black" style={{ color: color?.fill }}>{value}</p></div>)}
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -553,7 +628,7 @@ function SpeedResults({ result, topic, onRetake, onConceptWeb }: {
             { label: 'Now', value: summary.memoryNow, color: memoryNowColor },
             { label: 'In 6 hours', value: summary.memoryIn6Hours, color: memory6HoursColor },
             { label: 'In 1 day', value: summary.memoryIn1Day, color: memory1DayColor },
-          ].map((item) => <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: item.color.fill, backgroundColor: item.color.background }}><span className="text-sm text-muted-foreground">{item.label}</span><strong className="float-right" style={{ color: item.color.fill }}>{percent(item.value)}</strong></div>)}
+          ].map((item) => <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: item.color.fill, backgroundColor: item.color.background }}><span className="text-sm text-muted-foreground">{item.label}</span><strong className="float-right" style={{ color: item.color.fill }}>{formatModelPercent(item.value)}</strong></div>)}
         </div>
         <div className="mt-5 rounded-2xl p-5" style={{ backgroundColor: masteryColor.background }}>
           <div className="flex items-start gap-3"><CalendarClock className="mt-0.5 h-5 w-5" /><div><p className="font-black">{summary.reviewNow ? 'Review Now' : `Next review ${new Date(summary.nextReviewAt!).toLocaleString()}`}</p><p className="mt-1 text-sm text-muted-foreground">Successful reviews: {summary.successfulReviewsBefore} → {summary.successfulReviewsAfter}</p></div></div>
@@ -575,13 +650,15 @@ function SpeedResults({ result, topic, onRetake, onConceptWeb }: {
               symbolic={trace.symbolic}
               substitution={trace.substitution}
               calculation={trace.calculation}
+              explanation={trace.explanation}
+              symbols={trace.symbols}
               result={trace.value === null
                 ? 'Review Now'
                 : trace.unit === 'probability'
-                  ? `${precise(trace.value)} (${percent(trace.value)})`
+                  ? `${formatModelNumber(trace.value)} (${formatModelPercent(trace.value)})`
                   : trace.unit === 'percent'
-                    ? `${trace.value.toFixed(10)}%`
-                    : `${precise(trace.value)} days`}
+                    ? formatPercentageValue(trace.value)
+                    : formatModelDays(trace.value)}
             />
           ))}
         </div>

@@ -30,12 +30,21 @@ export type BktParameters = {
   successThreshold: number;
 };
 
+export type FormulaSymbol = {
+  symbol: string;
+  meaning: string;
+  value?: number;
+  unit?: 'probability' | 'percent' | 'days' | 'count';
+};
+
 export type FormulaTraceStep = {
   step: 'prior' | 'bayesian_update' | 'learning_transition' | 'prediction';
   label: string;
   symbolic: string;
   substitution: string;
   calculation: string;
+  explanation: string;
+  symbols: FormulaSymbol[];
   inputs: Record<string, number | boolean>;
   numerator?: number;
   denominator?: number;
@@ -48,6 +57,8 @@ export type DetailedFormula = {
   symbolic: string;
   substitution: string;
   calculation: string;
+  explanation: string;
+  symbols: FormulaSymbol[];
   value: number | null;
   unit: 'probability' | 'percent' | 'days';
 };

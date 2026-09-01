@@ -11,12 +11,21 @@ export const BKT_PARAMETERS = Object.freeze({
   successThreshold: 0.80,
 });
 
+export type FormulaSymbol = {
+  symbol: string;
+  meaning: string;
+  value?: number;
+  unit?: 'probability' | 'percent' | 'days' | 'count';
+};
+
 export type FormulaTraceStep = {
   step: 'prior' | 'bayesian_update' | 'learning_transition' | 'prediction';
   label: string;
   symbolic: string;
   substitution: string;
   calculation: string;
+  explanation: string;
+  symbols: FormulaSymbol[];
   inputs: Record<string, number | boolean>;
   numerator?: number;
   denominator?: number;
@@ -65,6 +74,8 @@ export type DetailedFormula = {
   symbolic: string;
   substitution: string;
   calculation: string;
+  explanation: string;
+  symbols: FormulaSymbol[];
   value: number | null;
   unit: 'probability' | 'percent' | 'days';
 };
@@ -81,8 +92,8 @@ function assertProbability(value: number, name: string): void {
   }
 }
 
-function formulaNumber(value: number): string {
-  return Number(value.toFixed(10)).toString();
+export function formatFormulaNumber(value: number): string {
+  return Number(value.toFixed(4)).toString();
 }
 
 export function calculateQuestionUpdate(priorMastery: number, isCorrect: boolean): QuestionModelUpdate {
@@ -102,8 +113,18 @@ export function calculateQuestionUpdate(priorMastery: number, isCorrect: boolean
     ? 'P(L|C) = p(1-Slip) / [p(1-Slip) + (1-p)Guess]'
     : 'P(L|W) = p×Slip / [p×Slip + (1-p)(1-Guess)]';
   const evidenceSubstitution = isCorrect
-    ? `${formulaNumber(priorMastery)}×(1-${slip}) / [${formulaNumber(priorMastery)}×(1-${slip}) + (1-${formulaNumber(priorMastery)})×${guess}]`
-    : `${formulaNumber(priorMastery)}×${slip} / [${formulaNumber(priorMastery)}×${slip} + (1-${formulaNumber(priorMastery)})×(1-${guess})]`;
+    ? `${formatFormulaNumber(priorMastery)}×(1-${formatFormulaNumber(slip)}) / [${formatFormulaNumber(priorMastery)}×(1-${formatFormulaNumber(slip)}) + (1-${formatFormulaNumber(priorMastery)})×${formatFormulaNumber(guess)}]`
+    : `${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(slip)} / [${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(slip)} + (1-${formatFormulaNumber(priorMastery)})×(1-${formatFormulaNumber(guess)})]`;
+  const evidenceExplanation = isCorrect
+    ? 'Uses the correct answer as evidence to estimate how likely the learner was already in the learned state.'
+    : 'Uses the wrong answer as evidence to estimate how likely the learner was still in the learned state despite a possible slip.';
+  const evidenceSymbols: FormulaSymbol[] = [
+    { symbol: 'L', meaning: 'The learner is in the learned state.' },
+    { symbol: isCorrect ? 'C' : 'W', meaning: isCorrect ? 'The observed answer is correct.' : 'The observed answer is wrong.' },
+    { symbol: 'p', meaning: 'Prior mastery probability before this answer.', value: priorMastery, unit: 'probability' },
+    { symbol: 'Slip', meaning: 'Probability of answering incorrectly despite knowing the skill.', value: slip, unit: 'probability' },
+    { symbol: 'Guess', meaning: 'Probability of answering correctly without knowing the skill.', value: guess, unit: 'probability' },
+  ];
 
   return {
     version: KNOWLEDGE_MODEL_VERSION,
@@ -118,30 +139,52 @@ export function calculateQuestionUpdate(priorMastery: number, isCorrect: boolean
     trace: [
       {
         step: 'prior', label: 'Prior mastery', symbolic: 'p = P(Lt-1)',
-        substitution: `p = ${formulaNumber(priorMastery)}`,
-        calculation: `${formulaNumber(priorMastery)} = ${(priorMastery * 100).toFixed(10)}%`,
+        substitution: `p = ${formatFormulaNumber(priorMastery)}`,
+        calculation: `${formatFormulaNumber(priorMastery)} = ${formatFormulaNumber(priorMastery * 100)}%`,
+        explanation: 'Shows the model\'s estimate of mastery immediately before the current answer is observed.',
+        symbols: [
+          { symbol: 'p', meaning: 'The prior mastery probability.', value: priorMastery, unit: 'probability' },
+          { symbol: 'P', meaning: 'Probability of an event.' },
+          { symbol: 'L', meaning: 'The learner is in the learned state.' },
+          { symbol: 't-1', meaning: 'The state immediately before the current question.' },
+        ],
         inputs: { priorMastery }, value: priorMastery, percentageValue: priorMastery * 100,
       },
       {
         step: 'bayesian_update', label: `Bayesian update after ${isCorrect ? 'correct' : 'wrong'}`,
         symbolic: evidenceFormula, substitution: evidenceSubstitution,
-        calculation: `${formulaNumber(numerator)} / ${formulaNumber(denominator)} = ${formulaNumber(posteriorMastery)}`,
+        calculation: `${formatFormulaNumber(numerator)} / ${formatFormulaNumber(denominator)} = ${formatFormulaNumber(posteriorMastery)}`,
+        explanation: evidenceExplanation,
+        symbols: evidenceSymbols,
         inputs: { priorMastery, slip, guess, isCorrect }, numerator, denominator,
         value: posteriorMastery, percentageValue: posteriorMastery * 100,
       },
       {
         step: 'learning_transition', label: 'Learning transition',
         symbolic: 'P(Lt) = posterior + (1-posterior)×T',
-        substitution: `${formulaNumber(posteriorMastery)} + (1-${formulaNumber(posteriorMastery)})×${transition}`,
-        calculation: `${formulaNumber(posteriorMastery)} + ${formulaNumber(learningGain)} = ${formulaNumber(currentMastery)}`,
+        substitution: `${formatFormulaNumber(posteriorMastery)} + (1-${formatFormulaNumber(posteriorMastery)})×${formatFormulaNumber(transition)}`,
+        calculation: `${formatFormulaNumber(posteriorMastery)} + ${formatFormulaNumber(learningGain)} = ${formatFormulaNumber(currentMastery)}`,
+        explanation: 'Adds the chance that the learner acquired the skill from this learning opportunity after the answer was observed.',
+        symbols: [
+          { symbol: 'P(Lt)', meaning: 'Mastery probability after the current learning opportunity.', value: currentMastery, unit: 'probability' },
+          { symbol: 'posterior', meaning: 'Mastery probability after the Bayesian evidence update.', value: posteriorMastery, unit: 'probability' },
+          { symbol: 'T', meaning: 'Probability of learning the skill during this opportunity.', value: transition, unit: 'probability' },
+        ],
         inputs: { posteriorMastery, transition, learningGain },
         value: currentMastery, percentageValue: currentMastery * 100,
       },
       {
         step: 'prediction', label: 'Predicted next correctness',
         symbolic: 'P(CorrectNext) = P(Lt)(1-Slip) + (1-P(Lt))Guess',
-        substitution: `${formulaNumber(currentMastery)}×(1-${slip}) + (1-${formulaNumber(currentMastery)})×${guess}`,
-        calculation: `${formulaNumber(knownContribution)} + ${formulaNumber(guessContribution)} = ${formulaNumber(predictedCorrectness)}`,
+        substitution: `${formatFormulaNumber(currentMastery)}×(1-${formatFormulaNumber(slip)}) + (1-${formatFormulaNumber(currentMastery)})×${formatFormulaNumber(guess)}`,
+        calculation: `${formatFormulaNumber(knownContribution)} + ${formatFormulaNumber(guessContribution)} = ${formatFormulaNumber(predictedCorrectness)}`,
+        explanation: 'Combines the chance of a learned student answering without slipping and an unlearned student guessing correctly.',
+        symbols: [
+          { symbol: 'CorrectNext', meaning: 'The next answer is correct.' },
+          { symbol: 'P(Lt)', meaning: 'Current mastery probability after learning transition.', value: currentMastery, unit: 'probability' },
+          { symbol: 'Slip', meaning: 'Probability of answering incorrectly despite knowing the skill.', value: slip, unit: 'probability' },
+          { symbol: 'Guess', meaning: 'Probability of answering correctly without knowing the skill.', value: guess, unit: 'probability' },
+        ],
         inputs: { currentMastery, slip, guess, knownContribution, guessContribution },
         value: predictedCorrectness, percentageValue: predictedCorrectness * 100,
       },
@@ -209,8 +252,16 @@ export function calculateReviewSummary(
   const memoryTrace = (label: string, deltaDays: number, value: number) => ({
     label,
     symbolic: 'Memory(t) = Mastery × exp(-Δt/Stability)',
-    substitution: `${formulaNumber(mastery)} × exp(-${formulaNumber(deltaDays)}/${formulaNumber(stabilityDays)})`,
-    calculation: `${formulaNumber(mastery)} × ${formulaNumber(Math.exp(-deltaDays / stabilityDays))} = ${formulaNumber(value)} = ${(value * 100).toFixed(10)}%`,
+    substitution: `${formatFormulaNumber(mastery)} × exp(-${formatFormulaNumber(deltaDays)}/${formatFormulaNumber(stabilityDays)})`,
+    calculation: `${formatFormulaNumber(mastery)} × ${formatFormulaNumber(Math.exp(-deltaDays / stabilityDays))} = ${formatFormulaNumber(value)} = ${formatFormulaNumber(value * 100)}%`,
+    explanation: 'Projects retained accessible memory by applying exponential decay to the current mastery estimate over elapsed time.',
+    symbols: [
+      { symbol: 'Memory(t)', meaning: 'Projected retained memory at time t.', value, unit: 'probability' as const },
+      { symbol: 'Mastery', meaning: 'Mastery probability at the latest review.', value: mastery, unit: 'probability' as const },
+      { symbol: 'exp', meaning: 'The exponential function.' },
+      { symbol: 'Δt', meaning: 'Elapsed time since the latest review, measured in days.', value: deltaDays, unit: 'days' as const },
+      { symbol: 'Stability', meaning: 'The current forgetting-curve time scale, measured in days.', value: stabilityDays, unit: 'days' as const },
+    ],
     value,
     unit: 'probability' as const,
     deltaDays,
@@ -225,16 +276,29 @@ export function calculateReviewSummary(
       mastery: {
         label: 'Mastery score',
         symbolic: 'Mastery Score = 100 × P(Lt)',
-        substitution: `100 × ${formulaNumber(mastery)}`,
-        calculation: `${(mastery * 100).toFixed(10)}%`,
+        substitution: `100 × ${formatFormulaNumber(mastery)}`,
+        calculation: `${formatFormulaNumber(mastery * 100)}%`,
+        explanation: 'Converts the current mastery probability into the percentage shown to the learner.',
+        symbols: [
+          { symbol: 'P(Lt)', meaning: 'Current mastery probability after the latest learning transition.', value: mastery, unit: 'probability' },
+        ],
         value: mastery * 100,
         unit: 'percent',
       },
       stability: {
         label: 'Stability',
         symbolic: 'S = S0 × [1 + k × (P(Lt)-Guess)/(1-Guess)]^n',
-        substitution: `${initialStabilityDays} × [1 + ${stabilityGrowth} × (${formulaNumber(mastery)}-${guess})/(1-${guess})]^${successfulReviewsAfter}`,
-        calculation: `${initialStabilityDays} × [1 + ${formulaNumber(growthAdjustment)}]^${successfulReviewsAfter} = ${initialStabilityDays} × ${formulaNumber(stabilityPower)} = ${formulaNumber(stabilityDays)} days`,
+        substitution: `${formatFormulaNumber(initialStabilityDays)} × [1 + ${formatFormulaNumber(stabilityGrowth)} × (${formatFormulaNumber(mastery)}-${formatFormulaNumber(guess)})/(1-${formatFormulaNumber(guess)})]^${successfulReviewsAfter}`,
+        calculation: `${formatFormulaNumber(initialStabilityDays)} × [1 + ${formatFormulaNumber(growthAdjustment)}]^${successfulReviewsAfter} = ${formatFormulaNumber(initialStabilityDays)} × ${formatFormulaNumber(stabilityPower)} = ${formatFormulaNumber(stabilityDays)} days`,
+        explanation: 'Estimates how slowly memory should decay from normalized mastery and the number of successful reviews.',
+        symbols: [
+          { symbol: 'S', meaning: 'Calculated stability in days.', value: stabilityDays, unit: 'days' },
+          { symbol: 'S0', meaning: 'Initial stability before successful-review growth.', value: initialStabilityDays, unit: 'days' },
+          { symbol: 'k', meaning: 'Growth strength applied at each successful review.', value: stabilityGrowth },
+          { symbol: 'P(Lt)', meaning: 'Current mastery probability.', value: mastery, unit: 'probability' },
+          { symbol: 'Guess', meaning: 'Guess probability used as the baseline mastery level.', value: guess, unit: 'probability' },
+          { symbol: 'n', meaning: 'Number of successful reviews after applying this result.', value: successfulReviewsAfter, unit: 'count' },
+        ],
         value: stabilityDays,
         unit: 'days',
       },
@@ -243,11 +307,25 @@ export function calculateReviewSummary(
       memoryIn1Day: memoryTrace('Memory after 1 day', 1, memoryIn1Day),
       nextReview: {
         label: successful ? 'Next review delay' : 'Immediate review trigger',
-        symbolic: successful ? 'Δt = -S × ln(retentionTarget)' : 'Mastery < 0.80 → Review Now',
-        substitution: successful ? `-${formulaNumber(stabilityDays)} × ln(${retentionTarget})` : `${formulaNumber(mastery)} < ${BKT_PARAMETERS.successThreshold}`,
+        symbolic: successful ? 'Δt = -S × ln(retentionTarget)' : 'Mastery < 0.8 → Review Now',
+        substitution: successful ? `-${formatFormulaNumber(stabilityDays)} × ln(${formatFormulaNumber(retentionTarget)})` : `${formatFormulaNumber(mastery)} < ${formatFormulaNumber(BKT_PARAMETERS.successThreshold)}`,
         calculation: successful
-          ? `-${formulaNumber(stabilityDays)} × ${formulaNumber(Math.log(retentionTarget))} = ${formulaNumber(nextReviewInDays!)} days`
-          : `${(mastery * 100).toFixed(10)}% < ${(BKT_PARAMETERS.successThreshold * 100).toFixed(2)}% → Review Now`,
+          ? `-${formatFormulaNumber(stabilityDays)} × ${formatFormulaNumber(Math.log(retentionTarget))} = ${formatFormulaNumber(nextReviewInDays!)} days`
+          : `${formatFormulaNumber(mastery * 100)}% < ${formatFormulaNumber(BKT_PARAMETERS.successThreshold * 100)}% → Review Now`,
+        explanation: successful
+          ? 'Solves the exponential decay curve for the time when retained memory reaches the configured fraction of current mastery.'
+          : 'Requests immediate review because the final mastery is below the configured success threshold.',
+        symbols: successful
+          ? [
+              { symbol: 'Δt', meaning: 'Delay until the next review, measured in days.', value: nextReviewInDays!, unit: 'days' },
+              { symbol: 'S', meaning: 'Current stability in days.', value: stabilityDays, unit: 'days' },
+              { symbol: 'ln', meaning: 'The natural logarithm.' },
+              { symbol: 'retentionTarget', meaning: 'Target retained fraction of current mastery.', value: retentionTarget, unit: 'probability' },
+            ]
+          : [
+              { symbol: 'Mastery', meaning: 'Current mastery probability.', value: mastery, unit: 'probability' },
+              { symbol: 'successThreshold', meaning: 'Minimum mastery required for a successful review.', value: BKT_PARAMETERS.successThreshold, unit: 'probability' },
+            ],
         value: nextReviewInDays,
         unit: 'days',
         valueDays: nextReviewInDays,
@@ -270,6 +348,23 @@ export function calculateLiveQuestion(
     projection: calculateReviewSummary(update.currentMastery, successfulReviewsBefore, answeredAt),
     projectionIsProvisional: true,
   };
+}
+
+export function restoreLiveQuestionCalculation(
+  stored: Pick<QuestionModelUpdate, 'priorMastery' | 'isCorrect'> & {
+    priorSource?: LiveQuestionCalculation['priorSource'];
+  },
+  fallbackPriorSource: LiveQuestionCalculation['priorSource'],
+  successfulReviewsBefore: number,
+  answeredAt: Date,
+): LiveQuestionCalculation {
+  return calculateLiveQuestion(
+    stored.priorMastery,
+    stored.isCorrect,
+    stored.priorSource ?? fallbackPriorSource,
+    successfulReviewsBefore,
+    answeredAt,
+  );
 }
 
 export function calculateDynamicProgress(

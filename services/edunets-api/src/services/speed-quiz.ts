@@ -16,6 +16,7 @@ import {
   calculateLiveQuestion,
   calculateQuestionUpdate,
   calculateReviewSummary,
+  restoreLiveQuestionCalculation,
   type LiveQuestionCalculation,
 } from '../lib/knowledge-model.js';
 import { getKeyedQuestions } from '../lib/question-bank.js';
@@ -116,9 +117,29 @@ async function loadSpeedSession(userId: string, submissionId: string, resumed: b
       .orderBy(asc(quizAttemptAnswers.questionIndex)),
   ]);
   const questionByKey = new Map(questionRows.map((question) => [question.questionKey, question]));
+  const initialMastery = attempt.initialMastery ?? BKT_PARAMETERS.initialMastery;
+  const successfulReviewsBefore = attempt.successfulReviewsBefore ?? 0;
   const answers = answerRows.map((answer) => {
     const question = questionByKey.get(answer.questionKey);
     if (!question) throw new Error(`Speed question ${answer.questionKey} snapshot is missing.`);
+    const storedTrace = answer.calculationTrace as Partial<StoredTrace> | null;
+    const priorMastery = answer.priorMastery ?? storedTrace?.priorMastery ?? initialMastery;
+    const answeredAt = answer.answeredAt ?? attempt.submittedAt ?? attempt.startedAt ?? new Date(0);
+    const fallbackPriorSource: LiveQuestionCalculation['priorSource'] = answer.questionIndex > 0
+      ? 'previous_question'
+      : priorMastery === BKT_PARAMETERS.initialMastery
+        ? 'initial_model'
+        : 'stored_mastery';
+    const model = restoreLiveQuestionCalculation(
+      {
+        priorMastery,
+        isCorrect: answer.isCorrect,
+        ...(storedTrace?.priorSource ? { priorSource: storedTrace.priorSource } : {}),
+      },
+      fallbackPriorSource,
+      successfulReviewsBefore,
+      answeredAt,
+    );
     return {
       questionKey: answer.questionKey,
       questionIndex: answer.questionIndex,
@@ -127,12 +148,10 @@ async function loadSpeedSession(userId: string, submissionId: string, resumed: b
       correctAnswer: question.correctAnswer,
       explanation: question.explanation,
       linkedConcept: question.linkedConcept,
-      answeredAt: answer.answeredAt,
-      model: answer.calculationTrace as StoredTrace,
+      answeredAt,
+      model,
     };
   });
-  const initialMastery = attempt.initialMastery ?? BKT_PARAMETERS.initialMastery;
-  const successfulReviewsBefore = attempt.successfulReviewsBefore ?? 0;
   const initialProjection = calculateReviewSummary(
     initialMastery,
     successfulReviewsBefore,
