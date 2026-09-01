@@ -47,8 +47,9 @@ export default function PlacementResultPage() {
               <h1 className="mt-2 text-3xl font-black sm:text-4xl">{result.correctAnswers}/10 correct</h1>
               <p className="mt-3 font-semibold text-white/80">{subjectName} · {topicName}</p>
               <div className="mx-auto mt-6 max-w-md rounded-2xl bg-white/10 p-5">
-                <div className="flex items-end justify-between gap-4"><span className="text-sm font-bold text-white/75">Starting memory score</span><span className="text-4xl font-black">{result.resultingMemoryScore}%</span></div>
-                <Progress value={result.resultingMemoryScore} className="mt-4 h-2 bg-white/20" />
+                <div className="flex items-end justify-between gap-4"><span className="text-sm font-bold text-white/75">Starting mastery</span><span className="text-4xl font-black">{result.masteryScore.toFixed(2)}%</span></div>
+                <Progress value={result.masteryScore} className="mt-4 h-2 bg-white/20" />
+                <p className="mt-3 text-left text-xs font-semibold text-white/65">Stability {result.stabilityDays.toFixed(4)} days · {result.successfulReviews} successful review</p>
               </div>
             </div>
 

@@ -1,34 +1,30 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams } from '@/lib/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
-  ChevronRight,
-  Clock,
-  FileText,
-  Zap,
-  Brain,
-  CheckCircle2,
-  XCircle,
   ArrowRight,
+  Brain,
+  CalendarClock,
+  CheckCircle2,
+  ChevronRight,
+  FlaskConical,
+  LoaderCircle,
   RotateCcw,
   Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
+  Trash2,
+  XCircle,
+  Zap,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+
+import { TeacherQuizReview } from '@/components/teacher-quiz-review';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { useMascotFeedback } from '@/features/mascot';
 import {
   Select,
   SelectContent,
@@ -36,1402 +32,836 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useMascotFeedback } from '@/features/mascot';
 import {
-  subjectsAtom,
-  rescueNudgeLogsAtom,
-  getEffectiveScore,
-  type SubjectData,
-  type RescueNudgeLog,
-} from '@/lib/study-data';
-
-import {
+  abandonSpeedQuiz,
+  finishSpeedQuiz,
   generateQuizSet,
   getQuizOptions,
   submitQuizAttempt,
+  submitSpeedAnswer,
   type QuizAttemptResult,
   type QuizQuestion,
+  type QuizSubmissionMode,
+  type SpeedFinishResponse,
+  type SpeedSessionResponse,
 } from '@/lib/api/quiz';
 import { useCurrentAccount } from '@/lib/api/me';
+import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { isTeachingRole } from '@/lib/roles';
-import { TeacherQuizReview } from '@/components/teacher-quiz-review';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
+import {
+  rescueNudgeLogsAtom,
+  subjectsAtom,
+  type RescueNudgeLog,
+} from '@/lib/study-data';
 
-// Quiz mode types
-type QuizMode = 'past-paper' | 'concept-check' | 'speed-round';
-type QuizPaperId = 'paper-1' | 'paper-2';
 type QuizState = 'setup' | 'active' | 'results';
 
-type Question = QuizQuestion;
+const percent = (value: number) => `${(value * 100).toFixed(2)}%`;
+const precise = (value: number) => value.toFixed(10);
 
-function isQuizAnswerCorrect(question: Question, answer: string | number | null): boolean {
-  if (answer === null) return false;
-  if (question.type === 'mcq') return answer === question.correctAnswer;
-  return String(answer).trim().toLowerCase()
-    .includes(String(question.correctAnswer).trim().toLowerCase());
-}
-
-// Get memory score status
-function getMemoryStatus(score: number): { label: string; color: string; bgColor: string } {
-  if (score >= 70) return { label: 'Strong', color: 'text-[var(--success)]', bgColor: 'bg-[#186636]/10' };
-  if (score >= 40) return { label: 'Needs Review', color: 'text-[#EAA93C]', bgColor: 'bg-[#EAA93C]/10' };
-  return { label: 'Weak', color: 'text-[#D9534F]', bgColor: 'bg-[#D9534F]/10' };
-}
-
-// Get difficulty based on score
-function getDifficulty(score: number): string {
-  if (score >= 70) return 'Hard';
-  if (score >= 40) return 'Medium';
-  return 'Easy';
-}
-
-// Animated circular gauge component
-function AnimatedGauge({ score, previousScore, size = 160 }: { score: number; previousScore?: number; size?: number }) {
-  const radius = (size - 20) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (score / 100) * circumference;
-  
-  const getColor = (s: number) => {
-    if (s >= 70) return '#186636';
-    if (s >= 40) return '#EAA93C';
-    return '#D9534F';
-  };
-
-  const improved = previousScore !== undefined && score > previousScore;
-  const declined = previousScore !== undefined && score < previousScore;
-
+function FormulaCard({
+  step,
+  title,
+  symbolic,
+  substitution,
+  calculation,
+  result,
+  detail,
+}: {
+  step: string;
+  title: string;
+  symbolic: string;
+  substitution: string;
+  calculation: string;
+  result: string;
+  detail?: string;
+}) {
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="rotate-[-90deg]">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={12}
-          className="text-muted/20"
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={getColor(score)}
-          strokeWidth={12}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset }}
-          transition={{ duration: 1.5, ease: 'easeOut' }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <motion.span
-          className="text-4xl font-bold"
-          style={{ color: getColor(score) }}
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-        >
-          {score}%
-        </motion.span>
-        {previousScore !== undefined && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1 }}
-            className={`flex items-center gap-1 text-sm font-medium ${improved ? 'text-[var(--success)]' : declined ? 'text-[#D9534F]' : 'text-muted-foreground'}`}
-          >
-            {improved ? <TrendingUp className="w-4 h-4" /> : declined ? <TrendingDown className="w-4 h-4" /> : null}
-            {improved ? `+${score - previousScore}` : declined ? `${score - previousScore}` : 'No change'}
-          </motion.div>
-        )}
+    <section className="rounded-xl border border-border/60 bg-card p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="text-[10px] font-black uppercase tracking-wider text-[#EAA93C]">{step}</p><p className="mt-0.5 text-xs font-black text-[#186636]">{title}</p></div>
+        <strong className="shrink-0 rounded-lg bg-[#186636]/10 px-2 py-1 font-mono text-xs text-[#186636]">{result}</strong>
       </div>
-    </div>
+      {detail && <p className="mt-2 text-[11px] font-semibold text-muted-foreground">{detail}</p>}
+      <code className="mt-2 block whitespace-pre-wrap break-words text-xs font-bold leading-5">{symbolic}</code>
+      <code className="mt-1 block whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">Substitute: {substitution}</code>
+      <code className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-muted/30 px-2 py-1.5 text-xs leading-5">Calculate: {calculation}</code>
+    </section>
   );
 }
 
-// Quiz Setup Panel Component
-function QuizSetupPanel({
+function SetupPanel({
   selectedSubject,
-  setSelectedSubject,
-  selectedTopic,
-  setSelectedTopic,
-  setSelectedTopicId,
-  quizMode,
-  setQuizMode,
-  selectedPaperId,
-  setSelectedPaperId,
-  onGenerateQuiz,
-  globalSubjects,
-  isGeneratingQuiz,
+  selectedTopicId,
+  mode,
+  loading,
+  onSubject,
+  onTopic,
+  onMode,
+  onStart,
 }: {
   selectedSubject: string;
-  setSelectedSubject: (s: string) => void;
-  selectedTopic: string;
-  setSelectedTopic: (t: string) => void;
-  setSelectedTopicId: (id: string) => void;
-  quizMode: QuizMode;
-  setQuizMode: (m: QuizMode) => void;
-  selectedPaperId: QuizPaperId;
-  setSelectedPaperId: (id: QuizPaperId) => void;
-  onGenerateQuiz: () => void;
-  globalSubjects: SubjectData[];
-  isGeneratingQuiz: boolean;
+  selectedTopicId: string;
+  mode: QuizSubmissionMode;
+  loading: boolean;
+  onSubject: (subject: string) => void;
+  onTopic: (topicId: string) => void;
+  onMode: (mode: QuizSubmissionMode) => void;
+  onStart: () => void;
 }) {
-  const subjectData = globalSubjects.find((subject) => subject.name === selectedSubject) ?? null;
-  const selectedGlobalTopic = subjectData?.topics.find((topic) => topic.name === selectedTopic);
-  const quizOptionsQuery = useQuery({
-    queryKey: ['quiz-options', subjectData?.id ?? '', selectedGlobalTopic?.id ?? ''],
-    queryFn: () => getQuizOptions(subjectData!.id, selectedGlobalTopic!.id),
-    enabled: Boolean(subjectData && selectedGlobalTopic),
-    staleTime: 5 * 60_000,
+  const [subjects] = useAtom(subjectsAtom);
+  const subject = subjects.find((entry) => entry.name === selectedSubject);
+  const selectedTopic = subject?.topics.find((topic) => topic.id === selectedTopicId);
+  const memoryColor = getKnowledgeScoreColor(selectedTopic?.memoryScore ?? null);
+  const masteryColor = getKnowledgeScoreColor(selectedTopic?.masteryScore ?? null);
+  const { data: options } = useQuery({
+    queryKey: ['quiz-options', subject?.id, selectedTopicId],
+    queryFn: () => getQuizOptions(subject!.id, selectedTopicId),
+    enabled: Boolean(subject?.id && selectedTopicId),
   });
-  const memoryScore = selectedGlobalTopic ? getEffectiveScore(selectedGlobalTopic) : null;
-  const memoryStatus = memoryScore === null
-    ? { label: 'Not Started', color: 'text-slate-500', bgColor: 'bg-slate-100' }
-    : getMemoryStatus(memoryScore);
-  const difficulty = getDifficulty(memoryScore ?? 0);
-  const availablePapers = quizOptionsQuery.data?.modes.pastPaper ?? [];
-  const selectedPaper = availablePapers.find((paper) => paper.id === selectedPaperId) ?? availablePapers[0];
-  const questionCount = quizMode === 'past-paper'
-    ? selectedPaper?.questionCount ?? 0
-    : quizMode === 'concept-check'
-      ? quizOptionsQuery.data?.modes.conceptCheck.questionCount ?? 0
-      : quizOptionsQuery.data?.modes.speedRound.questionCount ?? 0;
-  const modeAvailable = quizMode === 'past-paper'
-    ? Boolean(selectedPaper?.available)
-    : quizMode === 'concept-check'
-      ? Boolean(quizOptionsQuery.data?.modes.conceptCheck.available)
-      : Boolean(quizOptionsQuery.data?.modes.speedRound.available);
-  const modeDetails: Record<QuizMode, { button: string; summary: string }> = {
-    'past-paper': {
-      button: 'Start Full Paper',
-      summary: selectedPaper
-        ? `${selectedPaper.label} · ${questionCount} questions`
-        : 'Choose a practice paper',
-    },
-    'concept-check': {
-      button: 'Generate Concept Quiz',
-      summary: `${questionCount || 5} database concept questions · ${difficulty} difficulty`,
-    },
-    'speed-round': {
-      button: 'Start Speed Round',
-      summary: '5 random MCQs from this topic and closely related topics',
-    },
-  };
-  const modeDetail = modeDetails[quizMode];
+  const available = mode === 'speed-round'
+    ? options?.modes.speedRound.available !== false
+    : options?.modes.conceptCheck.available !== false;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -30 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5 }}
-      className="h-full flex flex-col"
-    >
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-studynow-dark flex items-center gap-2">
-          <span className="w-1.5 h-6 bg-[#186636] rounded-full" />
-          Quiz Setup
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">Configure your personalized quiz</p>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#186636]/10">
+          <Brain className="h-6 w-6 text-[#186636]" />
+        </span>
+        <div>
+          <h2 className="text-xl font-black text-studynow-dark">Smart Quiz</h2>
+          <p className="text-sm text-muted-foreground">Choose one topic and learning mode</p>
+        </div>
       </div>
 
-      {/* Subject Selection */}
-      <div className="space-y-4 flex-1">
-        <div>
-          <label className="text-sm font-semibold text-studynow-dark mb-2 block">Select Subject</label>
-          <Select value={selectedSubject} onValueChange={(val) => { setSelectedSubject(val); setSelectedTopic(''); setSelectedTopicId(''); }}>
-            <SelectTrigger className="w-full h-12 bg-card border-border/50 rounded-xl">
-              <SelectValue placeholder="Choose a subject..." />
-            </SelectTrigger>
+      <div className="mt-7 space-y-5">
+        <label className="block space-y-2">
+          <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Subject</span>
+          <Select value={selectedSubject} onValueChange={onSubject}>
+            <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Select subject" /></SelectTrigger>
             <SelectContent>
-              {globalSubjects.map((subject) => (
-                <SelectItem key={subject.id} value={subject.name}>
-                  <span className="flex items-center gap-2">
-                    <span>{subject.icon}</span>
-                    <span>{subject.name}</span>
-                  </span>
-                </SelectItem>
-              ))}
+              {subjects.map((entry) => <SelectItem key={entry.id} value={entry.name}>{entry.name}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Topic Selection */}
-        <div>
-          <label className="text-sm font-semibold text-studynow-dark mb-2 block">Select Topic</label>
-          <Select value={selectedTopic} onValueChange={(val) => {
-            setSelectedTopic(val);
-            // Find the topic ID from the global state
-            const subject = globalSubjects?.find(s => s.name === selectedSubject);
-            const topic = subject?.topics.find(t => t.name === val);
-            setSelectedTopicId(topic?.id ?? '');
-          }} disabled={!selectedSubject}>
-            <SelectTrigger className="w-full h-12 bg-card border-border/50 rounded-xl">
-              <SelectValue placeholder={selectedSubject ? 'Choose a topic...' : 'Select a subject first'} />
-            </SelectTrigger>
+        </label>
+        <label className="block space-y-2">
+          <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Topic</span>
+          <Select value={selectedTopicId} onValueChange={onTopic} disabled={!subject}>
+            <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Select topic" /></SelectTrigger>
             <SelectContent>
-              {subjectData?.topics.map((topic) => (
-                <SelectItem key={topic.id} value={topic.name}>
-                  {topic.name}
-                </SelectItem>
-              ))}
+              {subject?.topics.map((topic) => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Memory Score Badge */}
-        <AnimatePresence>
-          {selectedTopic && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              <Card className={`border-0 rounded-2xl overflow-hidden ${memoryStatus.bgColor}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Current Memory Score</p>
-                      <p className={`text-2xl font-bold ${memoryStatus.color}`}>
-                        {memoryScore === null ? 'Not Started' : `${memoryScore}%`}
-                      </p>
-                    </div>
-                    <Badge className={`${memoryStatus.bgColor} ${memoryStatus.color} border-0 font-semibold`}>
-                      {memoryStatus.label}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Quiz Mode Toggle */}
-        <div>
-          <label className="text-sm font-semibold text-studynow-dark mb-3 block">Quiz Mode</label>
-          <div className="flex gap-2 p-1 bg-muted/30 rounded-2xl">
-            {[
-              { id: 'past-paper' as QuizMode, label: 'Past Paper', icon: FileText, desc: 'Full paper' },
-              { id: 'concept-check' as QuizMode, label: 'Concept', icon: Brain, desc: 'AI concepts' },
-              { id: 'speed-round' as QuizMode, label: 'Speed', icon: Zap, desc: 'Random 5' },
-            ].map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setQuizMode(mode.id)}
-                className={`flex-1 py-3 px-2 rounded-xl text-center transition-all duration-200 ${
-                  quizMode === mode.id
-                    ? 'bg-[#6486b5] text-white shadow-lg'
-                    : 'bg-transparent text-studynow-dark hover:bg-card'
-                }`}
-              >
-                <mode.icon className={`w-5 h-5 mx-auto mb-1 ${quizMode === mode.id ? 'text-white' : ''}`} />
-                <span className="text-xs font-semibold block">{mode.label}</span>
-                <span className={`mt-0.5 block text-[10px] ${quizMode === mode.id ? 'text-white/80' : 'text-muted-foreground'}`}>{mode.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Past Paper Picker */}
-        <AnimatePresence>
-          {quizMode === 'past-paper' && availablePapers.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              <label className="text-sm font-semibold text-studynow-dark mb-2 block">Choose a Paper</label>
-              <Select value={selectedPaperId} onValueChange={(value) => setSelectedPaperId(value as QuizPaperId)}>
-                <SelectTrigger className="w-full h-12 bg-card border-border/50 rounded-xl">
-                  <SelectValue placeholder="Choose a paper..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePapers.map((paper) => (
-                    <SelectItem key={paper.id} value={paper.id}>
-                      {paper.label} · {paper.questionCount} questions
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Difficulty Auto-label */}
-        <AnimatePresence>
-          {selectedTopic && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="flex items-center gap-2 px-4 py-3 bg-card rounded-xl border border-border/30"
-            >
-              {quizMode === 'past-paper' ? <FileText className="w-4 h-4 text-[#EAA93C]" /> : quizMode === 'speed-round' ? <Zap className="w-4 h-4 text-[#EAA93C]" /> : <Sparkles className="w-4 h-4 text-[#EAA93C]" />}
-              <span className="text-sm font-semibold text-muted-foreground">{modeDetail.summary}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </label>
       </div>
 
-      {/* Generate Quiz Button */}
-      <div className="mt-6 pt-4 border-t border-border/30">
-        <Button
-          onClick={onGenerateQuiz}
-          disabled={!selectedSubject || !selectedTopic || quizOptionsQuery.isPending || quizOptionsQuery.isError || !modeAvailable || isGeneratingQuiz}
-          className="w-full h-14 bg-[#EAA93C] hover:bg-[#d99a2f] text-studynow-dark font-bold text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all gold-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-        >
-          {isGeneratingQuiz ? 'Loading from database…' : modeDetail.button}
-          <ChevronRight className="w-6 h-6 ml-2" />
-        </Button>
-        {quizOptionsQuery.isError && (
-          <p className="mt-3 text-center text-xs font-semibold text-[#D9534F]">
-            Quiz options could not be loaded from the database.
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1">
-          {quizMode === 'past-paper' ? <FileText className="w-3 h-3" /> : quizMode === 'speed-round' ? <Zap className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-          {modeDetail.summary}
-        </p>
+      <div className="mt-7">
+        <p className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">Mode</p>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { id: 'speed-round' as const, icon: Zap, label: 'Speed', detail: '10 MCQs + live model' },
+            { id: 'concept-check' as const, icon: Sparkles, label: 'Concept', detail: 'Practice only' },
+          ]).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onMode(item.id)}
+              className={`rounded-2xl border p-4 text-left transition ${mode === item.id ? 'border-[#186636] bg-[#186636]/8' : 'border-border hover:bg-muted/30'}`}
+            >
+              <item.icon className={`h-5 w-5 ${mode === item.id ? 'text-[#186636]' : 'text-[#EAA93C]'}`} />
+              <p className="mt-3 font-black text-studynow-dark">{item.label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
+            </button>
+          ))}
+        </div>
       </div>
-    </motion.div>
-  );
-}
 
-// MCQ Question Component
-function MCQQuestion({
-  question,
-  selectedAnswer,
-  onSelectAnswer,
-  isAnswered,
-}: {
-  question: Question;
-  selectedAnswer: number | null;
-  onSelectAnswer: (idx: number) => void;
-  isAnswered: boolean;
-}) {
-  return (
-    <div className="space-y-4">
-      {question.options?.map((option, idx) => {
-        const isSelected = selectedAnswer === idx;
-        const isCorrect = idx === question.correctAnswer;
-        
-        let buttonStyle = 'bg-card border-border/50 text-studynow-dark hover:border-[var(--success)] hover:bg-[#186636]/5';
-        
-        if (isAnswered) {
-          if (isCorrect) {
-            buttonStyle = 'bg-[#186636] border-[var(--success)] text-white';
-          } else if (isSelected && !isCorrect) {
-            buttonStyle = 'bg-[#D9534F] border-[#D9534F] text-white';
-          } else {
-            buttonStyle = 'bg-muted/30 border-border/30 text-muted-foreground';
-          }
-        } else if (isSelected) {
-          buttonStyle = 'bg-[#186636]/10 border-[var(--success)] text-[var(--success)]';
-        }
+      {selectedTopic && (
+        <div className="mt-6 rounded-2xl bg-muted/25 p-4 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Current Memory</span><strong style={{ color: memoryColor.fill }}>{selectedTopic.memoryScore === null ? 'Not Started' : `${selectedTopic.memoryScore.toFixed(2)}%`}</strong></div>
+          {selectedTopic.masteryScore !== undefined && selectedTopic.masteryScore !== null && (
+            <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Stored Mastery</span><strong style={{ color: masteryColor.fill }}>{selectedTopic.masteryScore.toFixed(2)}%</strong></div>
+          )}
+        </div>
+      )}
 
-        return (
-          <motion.button
-            key={idx}
-            onClick={() => !isAnswered && onSelectAnswer(idx)}
-            disabled={isAnswered}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-200 flex items-center gap-3 ${buttonStyle}`}
-          >
-            <span className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center font-semibold text-sm flex-shrink-0">
-              {String.fromCharCode(65 + idx)}
-            </span>
-            <span className="font-medium">{option}</span>
-            {isAnswered && isCorrect && <CheckCircle2 className="w-5 h-5 ml-auto text-white" />}
-            {isAnswered && isSelected && !isCorrect && <XCircle className="w-5 h-5 ml-auto text-white" />}
-          </motion.button>
-        );
-      })}
+      <Button
+        onClick={onStart}
+        disabled={!selectedTopicId || !available || loading}
+        className="mt-auto h-12 rounded-xl bg-[#186636] font-black text-white hover:bg-[#186636]/90"
+      >
+        {loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Loading...</> : mode === 'speed-round' ? <>Start 10-question Speed<Zap className="ml-2 h-4 w-4" /></> : <>Start Concept Quiz<ArrowRight className="ml-2 h-4 w-4" /></>}
+      </Button>
     </div>
   );
 }
 
-// Fill in the Blank Question Component
-function FillBlankQuestion({
-  question,
-  answer,
-  onAnswerChange,
-  isAnswered,
+function KnowledgePanel({
+  session,
+  selectedTraceIndex,
+  onSelectTrace,
+  onAbandon,
+  abandoning,
 }: {
-  question: Question;
-  answer: string;
-  onAnswerChange: (val: string) => void;
-  isAnswered: boolean;
+  session: SpeedSessionResponse;
+  selectedTraceIndex: number;
+  onSelectTrace: (index: number) => void;
+  onAbandon?: () => void;
+  abandoning?: boolean;
 }) {
-  const parts = question.text.split('_____');
-  const isCorrect = answer.toLowerCase().trim() === String(question.correctAnswer).toLowerCase();
+  const answer = selectedTraceIndex >= 0
+    ? session.answers.find((entry) => entry.questionIndex === selectedTraceIndex)
+    : undefined;
+  const parameters = session.model.parameters;
+  const projection = answer?.model.projection ?? session.model.currentProjection;
+  const priorSourceLabel = answer?.model.priorSource === 'initial_model'
+    ? 'P(L0) fixed at 0.35'
+    : answer?.model.priorSource === 'stored_mastery'
+      ? 'Stored topic Mastery from the previous session'
+      : 'P(Lt-1) from the previous question';
+  const startingCorrect = session.model.startingBranches.correct;
+  const startingWrong = session.model.startingBranches.wrong;
+  const masteryColor = getKnowledgeScoreColor(session.model.currentMastery * 100);
+  const predictedColor = getKnowledgeScoreColor(session.model.predictedCorrectness === null ? null : session.model.predictedCorrectness * 100);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      <div className="text-lg leading-relaxed">
-        {parts[0]}
-        <span className="inline-flex items-center mx-2">
-          <Input
-            value={answer}
-            onChange={(e) => !isAnswered && onAnswerChange(e.target.value)}
-            disabled={isAnswered}
-            placeholder="..."
-            className={`w-40 h-10 text-center font-semibold border-b-2 border-t-0 border-x-0 rounded-none bg-transparent focus:ring-0 ${
-              isAnswered
-                ? isCorrect
-                  ? 'border-[var(--success)] text-[var(--success)]'
-                  : 'border-[#D9534F] text-[#D9534F]'
-                : 'border-[#EAA93C] focus:border-[var(--success)]'
-            }`}
-          />
-        </span>
-        {parts[1]}
-      </div>
-      {isAnswered && !isCorrect && (
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-[var(--success)] font-medium"
-        >
-          Correct answer: <span className="font-bold">{question.correctAnswer}</span>
-        </motion.p>
-      )}
-    </motion.div>
-  );
-}
-
-// Structured Question Component
-function StructuredQuestion({
-  question,
-  answer,
-  onAnswerChange,
-  isAnswered,
-}: {
-  question: Question;
-  answer: string;
-  onAnswerChange: (val: string) => void;
-  isAnswered: boolean;
-}) {
-  const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4"
-    >
-      <Textarea
-        value={answer}
-        onChange={(e) => !isAnswered && onAnswerChange(e.target.value)}
-        disabled={isAnswered}
-        placeholder="Type your answer here..."
-        className="min-h-[120px] bg-card border-border/50 rounded-xl resize-none focus:border-[var(--success)]"
-      />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{wordCount} words</span>
-        {question.wordLimit && (
-          <span className={wordCount > question.wordLimit ? 'text-[#D9534F]' : ''}>
-            Target: ~{question.wordLimit} words
-          </span>
+    <div className="flex h-full flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Badge className="border-0 bg-[#186636]/10 text-[#186636]">Backend source of truth</Badge>
+          <h2 className="mt-3 text-xl font-black text-studynow-dark">Knowledge Model</h2>
+          <p className="mt-1 text-xs text-muted-foreground">BKT v1 · every value returned by the server</p>
+        </div>
+        {onAbandon && (
+          <Button variant="ghost" size="icon" onClick={onAbandon} disabled={abandoning} title="Abandon this session">
+            {abandoning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-muted-foreground" />}
+          </Button>
         )}
       </div>
-    </motion.div>
-  );
-}
 
-// Diagram Question Component
-function DiagramQuestion({
-  question,
-  answer,
-  onAnswerChange,
-  isAnswered,
-}: {
-  question: Question;
-  answer: string;
-  onAnswerChange: (val: string) => void;
-  isAnswered: boolean;
-}) {
-  const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4"
-    >
-      {/* Diagram Image */}
-      <div className="relative rounded-xl overflow-hidden bg-card border border-border/30">
-        <img
-          src={question.diagramUrl}
-          alt="Question diagram"
-          className="w-full h-48 object-cover"
-        />
-        <div className="absolute top-3 right-3">
-          <Badge className="bg-[#186636] text-white border-0">
-            <span className="mr-1">X</span> ← Identify this
-          </Badge>
+      <div className="mt-4 rounded-2xl border border-[#EAA93C]/30 bg-[#EAA93C]/8 p-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#9a650d]">Given / fixed values from your model</p>
+        <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
+          {[
+            ['P(L0)', parameters.initialMastery],
+            ['P(T)', parameters.transition],
+            ['P(S)', parameters.slip],
+            ['P(G)', parameters.guess],
+            ['S0', parameters.initialStabilityDays],
+            ['k', parameters.stabilityGrowth],
+            ['R target', parameters.retentionTarget],
+            ['threshold', parameters.successThreshold],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg bg-card/80 px-1 py-1.5">
+              <p className="text-[9px] font-bold text-muted-foreground">{label}</p>
+              <p className="font-mono text-[11px] font-black">{Number(value).toFixed(2)}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Answer Input */}
-      <Textarea
-        value={answer}
-        onChange={(e) => !isAnswered && onAnswerChange(e.target.value)}
-        disabled={isAnswered}
-        placeholder="Identify structure X and explain its function..."
-        className="min-h-[100px] bg-card border-border/50 rounded-xl resize-none focus:border-[var(--success)]"
-      />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{wordCount} words</span>
-        {question.wordLimit && (
-          <span className={wordCount > question.wordLimit ? 'text-[#D9534F]' : ''}>
-            Target: ~{question.wordLimit} words
-          </span>
-        )}
+      <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl p-3" style={{ backgroundColor: masteryColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Mastery</p><p className="mt-1 text-lg font-black" style={{ color: masteryColor.fill }}>{percent(session.model.currentMastery)}</p></div>
+        <div className="rounded-xl p-3" style={{ backgroundColor: predictedColor.background }}><p className="text-[10px] font-bold uppercase text-muted-foreground">Predicted</p><p className="mt-1 text-lg font-black" style={{ color: predictedColor.fill }}>{session.model.predictedCorrectness === null ? '—' : percent(session.model.predictedCorrectness)}</p></div>
+        <div className="rounded-xl bg-muted/30 p-3"><p className="text-[10px] font-bold uppercase text-muted-foreground">Raw</p><p className="mt-1 text-lg font-black">{session.session.correct}/{session.session.answered}</p></div>
       </div>
-    </motion.div>
-  );
-}
 
-// Answer Feedback Component
-function AnswerFeedback({ question, isCorrect }: { question: Question; isCorrect: boolean }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`p-5 rounded-2xl ${isCorrect ? 'bg-[#186636]/10' : 'bg-[#D9534F]/10'}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCorrect ? 'bg-[#186636]' : 'bg-[#D9534F]'}`}>
-          {isCorrect ? (
-            <CheckCircle2 className="w-6 h-6 text-white" />
-          ) : (
-            <XCircle className="w-6 h-6 text-white" />
-          )}
+      <div className="mt-5">
+        <p className="mb-2 text-xs font-black uppercase tracking-wider text-muted-foreground">Mastery timeline</p>
+        <div className="flex flex-wrap gap-1.5">
+          {session.session.timeline.map((point) => {
+            const pointColor = getKnowledgeScoreColor(point.mastery * 100);
+            const selected = selectedTraceIndex === point.questionIndex;
+            return (
+              <button
+                type="button"
+                key={point.label}
+                onClick={() => onSelectTrace(point.questionIndex)}
+                className="min-w-12 rounded-lg border px-2 py-2 text-center text-xs transition"
+                style={{ borderColor: selected ? pointColor.fill : undefined, backgroundColor: selected ? pointColor.background : undefined }}
+              >
+                <span className={point.isCorrect === true ? 'text-[#186636]' : point.isCorrect === false ? 'text-[#D9534F]' : 'text-muted-foreground'}>{point.label}</span>
+                <strong className="mt-0.5 block" style={{ color: pointColor.fill }}>{(point.mastery * 100).toFixed(1)}</strong>
+              </button>
+            );
+          })}
         </div>
-        <div className="flex-1">
-          <p className={`font-bold text-lg mb-2 ${isCorrect ? 'text-[var(--success)]' : 'text-[#D9534F]'}`}>
-            {isCorrect ? 'Correct!' : 'Not quite right'}
-          </p>
-          <p className="text-sm text-studynow-dark/80 leading-relaxed mb-3">
-            {question.explanation}
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">This concept connects to →</span>
-            <Badge className="bg-[#EAA93C] text-studynow-dark border-0 font-semibold cursor-pointer hover:bg-[#d99a2f] transition-colors">
-              {question.linkedConcept}
-            </Badge>
+      </div>
+
+      <div className="mt-5 flex-1 overflow-auto rounded-2xl border border-border bg-muted/15 p-4">
+        {!answer ? (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-black text-studynow-dark">Complete formula reference</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Both Bayesian branches are calculated by the backend from your fixed P(L0)=0.35 before Q1.</p>
+            </div>
+            <FormulaCard
+              step="Step 1A · if correct"
+              title="Bayesian evidence update"
+              symbolic={startingCorrect.trace[1]!.symbolic}
+              substitution={startingCorrect.trace[1]!.substitution}
+              calculation={startingCorrect.trace[1]!.calculation}
+              result={`${precise(startingCorrect.posteriorMastery)} (${startingCorrect.trace[1]!.percentageValue.toFixed(10)}%)`}
+            />
+            <FormulaCard
+              step="Step 1B · if wrong"
+              title="Bayesian evidence update"
+              symbolic={startingWrong.trace[1]!.symbolic}
+              substitution={startingWrong.trace[1]!.substitution}
+              calculation={startingWrong.trace[1]!.calculation}
+              result={`${precise(startingWrong.posteriorMastery)} (${startingWrong.trace[1]!.percentageValue.toFixed(10)}%)`}
+            />
+            <FormulaCard
+              step="Step 2"
+              title="Learning transition"
+              symbolic="P(Lt) = posterior + (1-posterior) × P(T)"
+              substitution={`posterior + (1-posterior) × ${parameters.transition}`}
+              calculation="The exact branch result is shown after each answer"
+              result="P(Lt)"
+            />
+            <FormulaCard
+              step="Step 3"
+              title="Mastery score"
+              symbolic="Mastery Score = 100 × P(Lt)"
+              substitution={`100 × ${precise(session.model.initialMastery)}`}
+              calculation={`${(session.model.initialMastery * 100).toFixed(10)}% at session start`}
+              result={`${(session.model.initialMastery * 100).toFixed(2)}%`}
+            />
+            <FormulaCard
+              step="Step 4 · live preview"
+              title="Stability"
+              symbolic={projection.trace.stability.symbolic}
+              substitution={projection.trace.stability.substitution}
+              calculation={projection.trace.stability.calculation}
+              result={`${precise(projection.stabilityDays)} days`}
+              detail={`n: ${projection.successfulReviewsBefore} → ${projection.successfulReviewsAfter} if the quiz ended at this state`}
+            />
+            <FormulaCard
+              step="Step 5 · live preview"
+              title="Memory and review trigger"
+              symbolic={projection.trace.memory.symbolic}
+              substitution={projection.trace.memory.substitution}
+              calculation={projection.trace.memory.calculation}
+              result={percent(projection.memoryNow)}
+              detail={projection.reviewNow ? 'Mastery is below 80% → Review Now' : `Next review in ${projection.nextReviewInDays?.toFixed(10)} days`}
+            />
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="mb-4 flex items-center gap-2">
+              {answer.isCorrect ? <CheckCircle2 className="h-5 w-5 text-[#186636]" /> : <XCircle className="h-5 w-5 text-[#D9534F]" />}
+              <div><p className="font-black">Q{answer.questionIndex + 1}: {answer.isCorrect ? 'Correct' : 'Wrong'}</p><p className="text-[11px] text-muted-foreground">Prior source: {priorSourceLabel}</p></div>
+            </div>
+            <FormulaCard
+              step={`Step 1 · ${answer.isCorrect ? 'correct branch' : 'wrong branch'}`}
+              title="Bayesian evidence update"
+              symbolic={answer.model.trace[1]!.symbolic}
+              substitution={answer.model.trace[1]!.substitution}
+              calculation={answer.model.trace[1]!.calculation}
+              result={`${precise(answer.model.posteriorMastery)} (${answer.model.trace[1]!.percentageValue.toFixed(10)}%)`}
+              detail={`Prior p=${precise(answer.model.priorMastery)} · numerator=${precise(answer.model.trace[1]!.numerator!)} · denominator=${precise(answer.model.trace[1]!.denominator!)}`}
+            />
+            <FormulaCard
+              step="Step 2"
+              title="Learning transition"
+              symbolic={answer.model.trace[2]!.symbolic}
+              substitution={answer.model.trace[2]!.substitution}
+              calculation={answer.model.trace[2]!.calculation}
+              result={`${precise(answer.model.currentMastery)} (${answer.model.trace[2]!.percentageValue.toFixed(10)}%)`}
+              detail={`Learning gain = (1-posterior) × P(T) = ${precise(answer.model.learningGain)}`}
+            />
+            <FormulaCard
+              step="Step 3A"
+              title="Mastery score"
+              symbolic={projection.trace.mastery.symbolic}
+              substitution={projection.trace.mastery.substitution}
+              calculation={projection.trace.mastery.calculation}
+              result={`${answer.model.masteryScore.toFixed(10)}%`}
+            />
+            <FormulaCard
+              step="Step 3B"
+              title="Predicted next correctness"
+              symbolic={answer.model.trace[3]!.symbolic}
+              substitution={answer.model.trace[3]!.substitution}
+              calculation={answer.model.trace[3]!.calculation}
+              result={`${precise(answer.model.predictedCorrectness)} (${answer.model.trace[3]!.percentageValue.toFixed(10)}%)`}
+            />
+            <FormulaCard
+              step="Step 4 · provisional until Q10"
+              title="Stability"
+              symbolic={projection.trace.stability.symbolic}
+              substitution={projection.trace.stability.substitution}
+              calculation={projection.trace.stability.calculation}
+              result={`${precise(projection.stabilityDays)} days`}
+              detail={`Success threshold: ${parameters.successThreshold.toFixed(2)} · n: ${projection.successfulReviewsBefore} → ${projection.successfulReviewsAfter}`}
+            />
+            {[projection.trace.memory, projection.trace.memoryIn6Hours, projection.trace.memoryIn1Day].map((trace) => (
+              <FormulaCard
+                key={trace.label}
+                step="Step 5 · provisional memory"
+                title={trace.label}
+                symbolic={trace.symbolic}
+                substitution={trace.substitution}
+                calculation={trace.calculation}
+                result={trace.value === null ? '—' : `${precise(trace.value)} (${percent(trace.value)})`}
+                detail={`Δt = ${trace.deltaDays} day${trace.deltaDays === 1 ? '' : 's'}`}
+              />
+            ))}
+            <FormulaCard
+              step="Step 5 · review trigger"
+              title={projection.trace.nextReview.label}
+              symbolic={projection.trace.nextReview.symbolic}
+              substitution={projection.trace.nextReview.substitution}
+              calculation={projection.trace.nextReview.calculation}
+              result={projection.reviewNow ? 'Review Now' : `${projection.nextReviewInDays?.toFixed(10)} days`}
+              detail={`Retention target R=${parameters.retentionTarget.toFixed(2)} · final decision is committed after Q10`}
+            />
+          </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-// Active Quiz Panel Component
-function ActiveQuizPanel({
-  questions,
-  currentIndex,
-  onAnswer,
-  onSubmitAnswer,
+function QuestionCard({
+  question,
+  index,
+  total,
+  value,
+  resolved,
+  serverAnswer,
+  busy,
+  onChange,
+  onSubmit,
   onNext,
   onFinish,
-  answers,
-  submittedAnswers,
-  isFinishing,
-  topic,
 }: {
-  questions: Question[];
-  currentIndex: number;
-  onAnswer: (answer: string | number) => void;
-  onSubmitAnswer: () => void;
+  question: QuizQuestion;
+  index: number;
+  total: number;
+  value: string | number | null;
+  resolved: boolean;
+  serverAnswer?: SpeedSessionResponse['answers'][number];
+  busy: boolean;
+  onChange: (value: string | number) => void;
+  onSubmit: () => void;
   onNext: () => void;
   onFinish: () => void;
-  answers: (string | number | null)[];
-  submittedAnswers: boolean[];
-  isFinishing: boolean;
-  topic: string;
 }) {
-  const [timeLeft, setTimeLeft] = useState(60);
-  const question = questions[currentIndex];
-  const currentAnswer = answers[currentIndex];
-  const isAnswered = question.type === 'mcq'
-    ? currentAnswer !== null
-    : Boolean(submittedAnswers[currentIndex]);
-  const shouldReduceMotion = useReducedMotion();
-  
-  // Timer effect
-  useEffect(() => {
-    if (isAnswered) return;
-    const timer = setInterval(() => {
-      setTimeLeft((t) => Math.max(0, t - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isAnswered, currentIndex]);
-
-  // Reset timer on question change
-  useEffect(() => {
-    setTimeLeft(60);
-  }, [currentIndex]);
-
-  // Check if answer is correct
-  const getIsCorrect = (): boolean => isQuizAnswerCorrect(question, currentAnswer);
+  const options = question.options ?? [];
+  const hasValue = value !== null && (typeof value !== 'string' || value.trim().length > 0);
+  const isCorrect = serverAnswer?.isCorrect ?? (resolved && question.correctAnswer !== undefined
+    ? (question.type === 'mcq' ? value === question.correctAnswer : String(value).toLowerCase().includes(String(question.correctAnswer).toLowerCase()))
+    : undefined);
+  const explanation = serverAnswer?.explanation ?? question.explanation;
 
   return (
-    <motion.div
-      key={currentIndex}
-      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: 140, y: 18, rotate: 7, scale: 0.92 }}
-      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -120, y: 12, rotate: -6, scale: 0.94 }}
-      transition={shouldReduceMotion ? { duration: 0.18 } : { type: 'spring', stiffness: 210, damping: 24, mass: 0.9 }}
-      className="h-full flex flex-col origin-center will-change-transform"
-    >
-      {/* Question Card */}
-      <Card className="flex-1 border-0 rounded-3xl overflow-hidden card-shadow">
-        <CardContent className="p-6 lg:p-8 h-full flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Badge className="bg-[#186636]/10 text-[#186636] border-0 font-semibold">
-                {question.topic || topic}
-              </Badge>
-              <span className="text-sm text-muted-foreground font-medium">
-                Question {currentIndex + 1} of {questions.length}
-              </span>
-            </div>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${timeLeft <= 10 ? 'bg-[#D9534F]/10 text-[#D9534F]' : 'bg-muted/30 text-muted-foreground'}`}>
-              <Clock className="w-4 h-4" />
-              <span className="font-mono font-semibold text-sm">{timeLeft}s</span>
-            </div>
-          </div>
+    <Card className="h-full rounded-3xl border-0 card-shadow">
+      <CardContent className="flex h-full flex-col p-6 lg:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <Badge className="border-0 bg-[#186636]/10 text-[#186636]">{question.topic}</Badge>
+          <span className="text-sm font-bold text-muted-foreground">Question {index + 1} of {total}</span>
+        </div>
+        <Progress value={((index + 1) / total) * 100} className="mt-5 h-2" />
+        <h3 className="mt-7 text-xl font-black leading-relaxed text-studynow-dark lg:text-2xl">{question.text}</h3>
 
-          {/* Source tag for past paper questions */}
-          {(question.source || question.resourceNumber) && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-wrap items-center gap-2 mb-4"
-            >
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAA93C]/10">
-                <FileText className="w-4 h-4 text-[#EAA93C]" />
-                <span className="text-sm text-[#EAA93C] font-medium">{question.source}</span>
-              </div>
-              {question.resourceNumber && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#186636]/10">
-                  <span className="text-xs font-bold text-[var(--success)] tracking-wide">📋</span>
-                  <span className="text-xs font-mono text-[var(--success)] font-semibold">{question.resourceNumber}</span>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* Progress Bar */}
-          <div className="mb-6">
-            <Progress value={((currentIndex + 1) / questions.length) * 100} className="h-2" />
-          </div>
-
-          {/* Question Text */}
-          <h3 className="text-xl lg:text-2xl font-bold text-studynow-dark leading-relaxed mb-8">
-            {question.type === 'fill-blank' ? '' : question.text}
-          </h3>
-
-          {/* Question Type Specific Content */}
-          <div className="flex-1">
-            {question.type === 'mcq' && (
-              <MCQQuestion
-                question={question}
-                selectedAnswer={typeof currentAnswer === 'number' ? currentAnswer : null}
-                onSelectAnswer={(idx) => onAnswer(idx)}
-                isAnswered={isAnswered}
-              />
-            )}
-            {question.type === 'fill-blank' && (
-              <FillBlankQuestion
-                question={question}
-                answer={typeof currentAnswer === 'string' ? currentAnswer : ''}
-                onAnswerChange={(val) => onAnswer(val)}
-                isAnswered={isAnswered}
-              />
-            )}
-            {question.type === 'structured' && (
-              <StructuredQuestion
-                question={question}
-                answer={typeof currentAnswer === 'string' ? currentAnswer : ''}
-                onAnswerChange={(val) => onAnswer(val)}
-                isAnswered={isAnswered}
-              />
-            )}
-            {question.type === 'diagram' && (
-              <DiagramQuestion
-                question={question}
-                answer={typeof currentAnswer === 'string' ? currentAnswer : ''}
-                onAnswerChange={(val) => onAnswer(val)}
-                isAnswered={isAnswered}
-              />
-            )}
-          </div>
-
-          {/* Answer Feedback */}
-          <AnimatePresence>
-            {isAnswered && (
-              <div className="mt-6">
-                <AnswerFeedback question={question} isCorrect={getIsCorrect()} />
-              </div>
-            )}
-          </AnimatePresence>
-
-          {/* Navigation */}
-          <div className="mt-6 pt-4 border-t border-border/30 flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              {question.type === 'mcq' ? 'Select an option' : question.type === 'fill-blank' ? 'Fill in the blank' : 'Write your answer'}
-            </span>
-            {isAnswered ? (
-              <Button
-                onClick={currentIndex < questions.length - 1 ? onNext : onFinish}
-                disabled={isFinishing}
-                className="bg-[#186636] hover:bg-[#186636]/90 text-white font-semibold rounded-xl px-6"
-              >
-                {currentIndex < questions.length - 1 ? (
-                  <>
-                    Next Question
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </>
-                ) : (
-                  <>
-                    {isFinishing ? 'Saving Results...' : 'View Results'}
-                    <ChevronRight className="w-4 h-4 ml-2" />
-                  </>
-                )}
-              </Button>
-            ) : (
-              question.type !== 'mcq' && (
-                <Button
-                  onClick={onSubmitAnswer}
-                  className="bg-[#EAA93C] hover:bg-[#d99a2f] text-studynow-dark font-semibold rounded-xl px-6"
-                >
-                  Submit Answer
-                </Button>
-              )
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-// Auto-starting Quiz State
-function AutoStartingState({ topic, isRescue, mode, paperLabel }: { topic: string; isRescue: boolean; mode: QuizMode; paperLabel?: string }) {
-  const heading = isRescue || mode === 'speed-round'
-    ? 'Building Your Speed Round...'
-    : mode === 'past-paper'
-      ? `Loading ${paperLabel ?? 'the Practice Paper'}...`
-      : 'Generating Concept Questions...';
-  const description = isRescue || mode === 'speed-round'
-    ? <>Randomly selecting five MCQs from <span className="font-semibold text-[#186636]">{topic}</span> and related topics.</>
-    : mode === 'past-paper'
-      ? <>Loading every question in <span className="font-semibold text-[#186636]">{paperLabel ?? 'this paper'}</span> for the selected subject.</>
-      : <>Loading database concept questions for <span className="font-semibold text-[#186636]">{topic}</span>.</>;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="h-full flex flex-col items-center justify-center text-center p-8"
-    >
-      <motion.div 
-        className="w-24 h-24 rounded-full bg-[#186636]/10 flex items-center justify-center mb-6"
-        animate={{ scale: [1, 1.1, 1] }}
-        transition={{ duration: 1, repeat: Infinity }}
-      >
-        <Sparkles className="w-12 h-12 text-[#EAA93C]" />
-      </motion.div>
-      <h3 className="text-2xl font-bold text-studynow-dark mb-3">{heading}</h3>
-      <p className="text-muted-foreground max-w-md leading-relaxed">
-        {description}
-      </p>
-      <motion.div
-        className="mt-6 flex items-center gap-2 px-4 py-2 rounded-full bg-[#EAA93C]/10"
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 1.5, repeat: Infinity }}
-      >
-        <div className="w-2 h-2 rounded-full bg-[#EAA93C]" />
-        <span className="text-sm font-medium text-[#EAA93C]">Loading questions...</span>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// Quiz Setup Empty State
-function QuizEmptyState() {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="h-full flex flex-col items-center justify-center text-center p-8"
-    >
-      <div className="w-24 h-24 rounded-full bg-[#186636]/10 flex items-center justify-center mb-6">
-        <Brain className="w-12 h-12 text-[var(--success)]" />
-      </div>
-      <h3 className="text-2xl font-bold text-studynow-dark mb-3">Ready to Test Your Knowledge?</h3>
-      <p className="text-muted-foreground max-w-md leading-relaxed">
-        Select a subject and topic, then choose a full paper, an AI concept check, or a five-question speed round.
-      </p>
-      <div className="flex gap-6 mt-8">
-        {[
-          { icon: FileText, label: 'Past Paper', desc: 'Complete stored paper' },
-          { icon: Brain, label: 'Concept Checks', desc: 'Database concept questions' },
-          { icon: Zap, label: 'Speed Rounds', desc: 'Random 5-topic mix' },
-        ].map((item, idx) => (
-          <motion.div
-            key={item.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 + idx * 0.1 }}
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-card/50"
-          >
-            <item.icon className="w-6 h-6 text-[#EAA93C]" />
-            <span className="text-sm font-semibold text-studynow-dark">{item.label}</span>
-            <span className="text-xs text-muted-foreground">{item.desc}</span>
-          </motion.div>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-// Results Panel Component
-function ResultsPanel({
-  questions,
-  topic,
-  previousScore,
-  attemptResult,
-  onRetake,
-  onViewConceptWeb,
-}: {
-  questions: Question[];
-  topic: string;
-  previousScore: number;
-  attemptResult: QuizAttemptResult;
-  onRetake: () => void;
-  onViewConceptWeb: () => void;
-}) {
-  const newScore = attemptResult.percentCorrect;
-  
-  // Question type breakdown
-  const breakdown = {
-    mcq: { total: 0, correct: 0 },
-    'fill-blank': { total: 0, correct: 0 },
-    structured: { total: 0, correct: 0 },
-    diagram: { total: 0, correct: 0 },
-  };
-
-  questions.forEach((q, idx) => {
-    breakdown[q.type].total++;
-    const serverAnswer = attemptResult.answers.find((result) => result.questionIndex === idx);
-    if (serverAnswer?.isCorrect === true) {
-      breakdown[q.type].correct++;
-    }
-  });
-
-  const nextReviewDate = new Date(attemptResult.nextReviewAt);
-  const nextReviewDays = Math.max(
-    0,
-    Math.ceil((nextReviewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-  );
-  const nextReviewLabel = nextReviewDays === 0
-    ? 'Today'
-    : nextReviewDays === 1
-      ? 'Tomorrow'
-      : `In ${nextReviewDays} days`;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="h-full flex flex-col"
-    >
-      <Card className="flex-1 border-0 rounded-3xl overflow-hidden card-shadow">
-        <CardContent className="p-8 h-full flex flex-col">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#186636]/10 mb-4"
-            >
-              <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />
-              <span className="font-semibold text-[var(--success)]">Quiz Completed!</span>
-            </motion.div>
-            <h2 className="text-2xl font-bold text-studynow-dark">{topic}</h2>
-            <p className="text-muted-foreground mt-1">Here's how you performed</p>
-          </div>
-
-          {/* Main Score Gauge */}
-          <div className="flex justify-center mb-8">
-            <AnimatedGauge score={newScore} previousScore={previousScore} size={180} />
-          </div>
-
-          {/* Comparison Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mb-8"
-          >
-            <p className="text-sm font-semibold text-studynow-dark mb-3">This attempt vs last attempt</p>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">Previous</span>
-                  <span className="text-sm font-semibold text-muted-foreground">{previousScore}%</span>
-                </div>
-                <div className="h-3 bg-muted/30 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${previousScore}%` }}
-                    transition={{ delay: 0.7, duration: 0.8 }}
-                    className="h-full bg-muted-foreground/40 rounded-full"
-                  />
-                </div>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-studynow-dark font-medium">Current</span>
-                  <span className="text-sm font-bold text-[var(--success)]">{newScore}%</span>
-                </div>
-                <div className="h-3 bg-[#186636]/10 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${newScore}%` }}
-                    transition={{ delay: 0.9, duration: 0.8 }}
-                    className="h-full bg-[#186636] rounded-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Breakdown by Question Type */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="mb-8"
-          >
-            <p className="text-sm font-semibold text-studynow-dark mb-3">Breakdown by Question Type</p>
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(breakdown)
-                .filter(([, data]) => data.total > 0)
-                .map(([type, data], idx) => (
-                  <motion.div
-                    key={type}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 1 + idx * 0.1 }}
-                    className="p-4 rounded-xl bg-muted/20"
+        <div className="mt-7 flex-1">
+          {question.type === 'mcq' ? (
+            <div className="grid gap-3">
+              {options.map((option, optionIndex) => {
+                const selected = value === optionIndex;
+                const correct = resolved && Number(serverAnswer?.correctAnswer ?? question.correctAnswer) === optionIndex;
+                const wrong = resolved && selected && !correct;
+                return (
+                  <button
+                    type="button"
+                    key={`${optionIndex}-${option}`}
+                    disabled={resolved || busy}
+                    onClick={() => onChange(optionIndex)}
+                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${correct ? 'border-[#186636] bg-[#186636]/8' : wrong ? 'border-[#D9534F] bg-[#D9534F]/8' : selected ? 'border-[#EAA93C] bg-[#EAA93C]/10' : 'border-border hover:bg-muted/25'}`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-studynow-dark capitalize">
-                        {type.replace('-', ' ')}
-                      </span>
-                      <span className="text-sm font-bold text-[var(--success)]">
-                        {data.correct}/{data.total}
-                      </span>
-                    </div>
-                    <Progress value={(data.correct / data.total) * 100} className="h-2" />
-                  </motion.div>
-                ))}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/40 text-sm font-black">{String.fromCharCode(65 + optionIndex)}</span>
+                    <span className="font-semibold">{option}</span>
+                  </button>
+                );
+              })}
             </div>
-          </motion.div>
+          ) : question.type === 'fill-blank' ? (
+            <Input value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} disabled={resolved || busy} className="h-12 rounded-xl" />
+          ) : (
+            <Textarea value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} disabled={resolved || busy} className="min-h-40 rounded-xl" />
+          )}
+        </div>
 
-          {/* Next Review Date */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2 }}
-            className="flex items-center gap-3 p-4 rounded-xl bg-[#EAA93C]/10 mb-8"
-          >
-            <Calendar className="w-5 h-5 text-[#EAA93C]" />
-            <div>
-              <p className="text-sm font-semibold text-studynow-dark">
-                Next review: {nextReviewLabel}
-              </p>
-              <p className="text-xs text-muted-foreground">Based on your score, spaced repetition optimized</p>
-            </div>
-          </motion.div>
-
-          {/* Action Buttons */}
-          <div className="mt-auto flex gap-3">
-            <Button
-              onClick={onRetake}
-              variant="outline"
-              className="flex-1 h-12 rounded-xl border-[var(--success)] text-[var(--success)] hover:bg-[#186636]/10 font-semibold"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Retake Quiz
-            </Button>
-            <Button
-              onClick={onViewConceptWeb}
-              data-concept-web-button
-              className="flex-1 h-12 rounded-xl bg-[#186636] hover:bg-[#186636]/90 text-white font-semibold"
-            >
-              View in Concept Web
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+        {resolved && isCorrect !== undefined && (
+          <div className={`mt-6 rounded-2xl p-4 ${isCorrect ? 'bg-[#186636]/10' : 'bg-[#D9534F]/10'}`}>
+            <div className="flex items-center gap-2 font-black">{isCorrect ? <CheckCircle2 className="h-5 w-5 text-[#186636]" /> : <XCircle className="h-5 w-5 text-[#D9534F]" />}{isCorrect ? 'Correct' : 'Not quite right'}</div>
+            {explanation && <p className="mt-2 text-sm leading-6 text-muted-foreground">{explanation}</p>}
           </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+        )}
+
+        <div className="mt-6 flex justify-end border-t border-border/40 pt-5">
+          {!resolved ? (
+            <Button onClick={onSubmit} disabled={!hasValue || busy} className="rounded-xl bg-[#EAA93C] font-black text-studynow-dark hover:bg-[#d99a2f]">
+              {busy ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Calculating...</> : <>Submit Answer<FlaskConical className="ml-2 h-4 w-4" /></>}
+            </Button>
+          ) : index < total - 1 ? (
+            <Button onClick={onNext} className="rounded-xl bg-[#186636] font-black text-white">Next Question<ArrowRight className="ml-2 h-4 w-4" /></Button>
+          ) : (
+            <Button onClick={onFinish} disabled={busy} className="rounded-xl bg-[#186636] font-black text-white">{busy ? 'Finalizing...' : 'View Results'}<ChevronRight className="ml-2 h-4 w-4" /></Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-// Main Quiz Page Component
+function SpeedResults({ result, topic, onRetake, onConceptWeb }: {
+  result: SpeedFinishResponse;
+  topic: string;
+  onRetake: () => void;
+  onConceptWeb: () => void;
+}) {
+  const summary = result.result;
+  const rawColor = getKnowledgeScoreColor((summary.correctAnswers / summary.totalQuestions) * 100);
+  const masteryColor = getKnowledgeScoreColor(summary.masteryScore);
+  const memoryNowColor = getKnowledgeScoreColor(summary.memoryNow * 100);
+  const memory6HoursColor = getKnowledgeScoreColor(summary.memoryIn6Hours * 100);
+  const memory1DayColor = getKnowledgeScoreColor(summary.memoryIn1Day * 100);
+  return (
+    <Card className="h-full rounded-3xl border-0 card-shadow">
+      <CardContent className="p-6 lg:p-8">
+        <div className="text-center">
+          <Badge className="border-0 bg-[#186636]/10 text-[#186636]">Speed complete</Badge>
+          <h2 className="mt-3 text-3xl font-black text-studynow-dark">{topic}</h2>
+          <p className="mt-2 text-muted-foreground">Raw performance and backend Knowledge Model result</p>
+        </div>
+        <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Raw score', value: `${summary.correctAnswers}/${summary.totalQuestions}`, color: rawColor },
+            { label: 'Estimated Mastery', value: `${summary.masteryScore.toFixed(2)}%`, color: masteryColor },
+            { label: 'Stability', value: `${summary.stabilityDays.toFixed(4)} days` },
+            { label: 'Memory now', value: percent(summary.memoryNow), color: memoryNowColor },
+          ].map(({ label, value, color }) => <div key={label} className="rounded-2xl p-4" style={{ backgroundColor: color?.background ?? undefined }}><p className="text-xs font-black uppercase text-muted-foreground">{label}</p><p className="mt-2 text-xl font-black" style={{ color: color?.fill }}>{value}</p></div>)}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Now', value: summary.memoryNow, color: memoryNowColor },
+            { label: 'In 6 hours', value: summary.memoryIn6Hours, color: memory6HoursColor },
+            { label: 'In 1 day', value: summary.memoryIn1Day, color: memory1DayColor },
+          ].map((item) => <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: item.color.fill, backgroundColor: item.color.background }}><span className="text-sm text-muted-foreground">{item.label}</span><strong className="float-right" style={{ color: item.color.fill }}>{percent(item.value)}</strong></div>)}
+        </div>
+        <div className="mt-5 rounded-2xl p-5" style={{ backgroundColor: masteryColor.background }}>
+          <div className="flex items-start gap-3"><CalendarClock className="mt-0.5 h-5 w-5" /><div><p className="font-black">{summary.reviewNow ? 'Review Now' : `Next review ${new Date(summary.nextReviewAt!).toLocaleString()}`}</p><p className="mt-1 text-sm text-muted-foreground">Successful reviews: {summary.successfulReviewsBefore} → {summary.successfulReviewsAfter}</p></div></div>
+        </div>
+        <div className="mt-5 space-y-3 rounded-2xl border bg-muted/15 p-5">
+          <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Final committed formulas</p>
+          {[
+            summary.trace.mastery,
+            summary.trace.stability,
+            summary.trace.memory,
+            summary.trace.memoryIn6Hours,
+            summary.trace.memoryIn1Day,
+            summary.trace.nextReview,
+          ].map((trace) => (
+            <FormulaCard
+              key={trace.label}
+              step="Final"
+              title={trace.label}
+              symbolic={trace.symbolic}
+              substitution={trace.substitution}
+              calculation={trace.calculation}
+              result={trace.value === null
+                ? 'Review Now'
+                : trace.unit === 'probability'
+                  ? `${precise(trace.value)} (${percent(trace.value)})`
+                  : trace.unit === 'percent'
+                    ? `${trace.value.toFixed(10)}%`
+                    : `${precise(trace.value)} days`}
+            />
+          ))}
+        </div>
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <Button variant="outline" onClick={onRetake} className="h-12 flex-1 rounded-xl"><RotateCcw className="mr-2 h-4 w-4" />Retake Speed</Button>
+          <Button onClick={onConceptWeb} className="h-12 flex-1 rounded-xl bg-[#186636] text-white">View Concept Web<ArrowRight className="ml-2 h-4 w-4" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConceptResults({ result, topic, onRetake, onConceptWeb }: {
+  result: QuizAttemptResult;
+  topic: string;
+  onRetake: () => void;
+  onConceptWeb: () => void;
+}) {
+  const resultColor = getKnowledgeScoreColor(result.percentCorrect);
+  return (
+    <Card className="h-full rounded-3xl border-0 card-shadow">
+      <CardContent className="flex h-full flex-col items-center justify-center p-8 text-center">
+        <CheckCircle2 className="h-16 w-16 text-[#186636]" />
+        <Badge className="mt-5 border-0 bg-muted text-muted-foreground">Practice only · learning progress unchanged</Badge>
+        <h2 className="mt-4 text-3xl font-black">{topic}</h2>
+        <p className="mt-5 text-6xl font-black" style={{ color: resultColor.fill }}>{result.percentCorrect}%</p>
+        <p className="mt-2 text-muted-foreground">{result.correctAnswers} of {result.totalQuestions} correct</p>
+        <div className="mt-8 flex w-full max-w-lg gap-3">
+          <Button variant="outline" onClick={onRetake} className="h-12 flex-1 rounded-xl">Retake</Button>
+          <Button onClick={onConceptWeb} className="h-12 flex-1 rounded-xl bg-[#186636] text-white">Concept Web</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function QuizPage() {
   const { data: account } = useCurrentAccount();
-
-  return isTeachingRole(account?.profile?.role)
-    ? <TeacherQuizReview />
-    : <StudentQuizPage />;
+  return isTeachingRole(account?.profile?.role) ? <TeacherQuizReview /> : <StudentQuizPage />;
 }
 
 function StudentQuizPage() {
   const { notify } = useMascotFeedback();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  // URL params for auto-selection from concept web
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlMode = searchParams.get('mode');
-  const urlRescueId = searchParams.get('rescueId');
-  const urlSubject = searchParams.get('subject');
-  const urlTopic = searchParams.get('topic');
-  const urlScore = searchParams.get('score');
+  const [subjects] = useAtom(subjectsAtom);
   const [rescueLogs, setRescueLogs] = useAtom(rescueNudgeLogsAtom);
-  const hasAutoStarted = useRef(false);
-  const quizFinishNotifiedRef = useRef(false);
-  
-  // Global state
-  const [subjects, setSubjects] = useAtom(subjectsAtom);
-  
-  // Local state
-  const [selectedMemoryScore, setSelectedMemoryScore] = useState<number | null>(null);
+  const autoStarted = useRef(false);
+
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
-  const [quizMode, setQuizMode] = useState<QuizMode>('past-paper');
-  const [selectedPaperId, setSelectedPaperId] = useState<QuizPaperId>('paper-1');
-  const [activeRescueId, setActiveRescueId] = useState<string | null>(null);
-  const [quizState, setQuizState] = useState<QuizState>('setup');
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<(string | number | null)[]>([]);
-  const [submittedAnswers, setSubmittedAnswers] = useState<boolean[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [autoStarting, setAutoStarting] = useState(false);
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [mode, setMode] = useState<QuizSubmissionMode>('speed-round');
+  const [state, setState] = useState<QuizState>('setup');
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [submissionId, setSubmissionId] = useState('');
-  const [attemptStartedAt, setAttemptStartedAt] = useState('');
-  const [attemptResult, setAttemptResult] = useState<QuizAttemptResult | null>(null);
-  const [isSubmittingAttempt, setIsSubmittingAttempt] = useState(false);
+  const [startedAt, setStartedAt] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<Array<string | number | null>>([]);
+  const [resolved, setResolved] = useState<boolean[]>([]);
+  const [speedSession, setSpeedSession] = useState<SpeedSessionResponse | null>(null);
+  const [selectedTraceIndex, setSelectedTraceIndex] = useState(-1);
+  const [conceptResult, setConceptResult] = useState<QuizAttemptResult | null>(null);
+  const [speedResult, setSpeedResult] = useState<SpeedFinishResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [abandoning, setAbandoning] = useState(false);
+  const [activeRescueId, setActiveRescueId] = useState<string | null>(null);
 
-  // Get current topic data from global state
-  const currentTopic = useMemo(() => {
-    if (!selectedSubject || !selectedTopicId) return null;
-    const subject = subjects.find(s => s.name === selectedSubject);
-    return subject?.topics.find(t => t.id === selectedTopicId) ?? null;
-  }, [subjects, selectedSubject, selectedTopicId]);
+  const subject = subjects.find((entry) => entry.name === selectedSubject);
+  const topic = subject?.topics.find((entry) => entry.id === selectedTopicId);
 
-  // Get previous memory score for comparison (effective score with decay)
-  const previousScore = selectedMemoryScore ?? (currentTopic
-    ? (getEffectiveScore(currentTopic) ?? 50)
-    : 50);
-
-  const activateQuiz = useCallback(async (topicId: string, mode: QuizMode, paperId: QuizPaperId) => {
-    const nextSubmissionId = crypto.randomUUID();
-    const startedAt = new Date().toISOString();
-    setIsGeneratingQuiz(true);
+  const activate = useCallback(async (topicId: string, nextMode: QuizSubmissionMode) => {
+    setLoading(true);
+    const requestedSubmissionId = crypto.randomUUID();
+    const attemptStartedAt = new Date().toISOString();
     try {
-      const questionSet = await generateQuizSet({
-        submissionId: nextSubmissionId,
-        topicId,
-        mode,
-        ...(mode === 'past-paper' ? { paperId } : {}),
-      });
-      const selectedQuestions = questionSet.questions;
-      if (selectedQuestions.length === 0) throw new Error('No database questions are available for this quiz mode.');
-
-      setQuestions(selectedQuestions);
-      setAnswers(new Array(selectedQuestions.length).fill(null));
-      setSubmittedAnswers(new Array(selectedQuestions.length).fill(false));
-      setCurrentQuestionIndex(0);
-      setSubmissionId(nextSubmissionId);
-      setAttemptStartedAt(startedAt);
-      setAttemptResult(null);
-      quizFinishNotifiedRef.current = false;
-      setQuizState('active');
-      return true;
+      const response = await generateQuizSet({ submissionId: requestedSubmissionId, topicId, mode: nextMode });
+      setMode(nextMode);
+      setQuestions(response.questions);
+      setSubmissionId(response.submissionId);
+      setStartedAt(attemptStartedAt);
+      setConceptResult(null);
+      setSpeedResult(null);
+      if (response.mode === 'speed-round') {
+        const restoredAnswers = new Array<string | number | null>(response.questions.length).fill(null);
+        const restoredResolved = new Array<boolean>(response.questions.length).fill(false);
+        for (const answer of response.answers) {
+          restoredAnswers[answer.questionIndex] = answer.submittedAnswer;
+          restoredResolved[answer.questionIndex] = true;
+        }
+        setAnswers(restoredAnswers);
+        setResolved(restoredResolved);
+        setSpeedSession(response);
+        setCurrentIndex(Math.min(response.session.answered, response.questions.length - 1));
+        setSelectedTraceIndex(response.answers.at(-1)?.questionIndex ?? -1);
+        if (response.resumed && response.session.answered > 0) toast.info(`Resumed at question ${response.session.answered + 1}.`);
+      } else {
+        setAnswers(new Array(response.questions.length).fill(null));
+        setResolved(new Array(response.questions.length).fill(false));
+        setSpeedSession(null);
+        setCurrentIndex(0);
+        setSelectedTraceIndex(-1);
+      }
+      setState('active');
     } catch (error) {
-      setQuestions([]);
-      setAnswers([]);
-      setSubmittedAnswers([]);
-      setQuizState('setup');
-      toast.error(error instanceof Error ? error.message : 'The database question set could not be loaded.');
-      return false;
+      toast.error(error instanceof Error ? error.message : 'The quiz could not be loaded.');
+      setState('setup');
     } finally {
-      setIsGeneratingQuiz(false);
+      setLoading(false);
     }
   }, []);
 
-  // Auto-select subject and topic from URL params (from concept web navigation)
   useEffect(() => {
-    if (urlSubject && urlTopic && !hasAutoStarted.current) {
-      const subjectData = subjects.find((subject) => subject.name === urlSubject);
-      if (subjectData) {
-        // Find a matching topic (case-insensitive, partial match)
-        const matchingTopic = subjectData.topics.find((topic) =>
-          topic.name.toLowerCase() === urlTopic.toLowerCase() ||
-          topic.name.toLowerCase().includes(urlTopic.toLowerCase()) ||
-          urlTopic.toLowerCase().includes(topic.name.toLowerCase())
-        );
-        
-        if (matchingTopic) {
-          const resolvedMode: QuizMode = urlMode === 'past-paper' || urlMode === 'concept-check' || urlMode === 'speed-round'
-            ? urlMode
-            : quizMode;
-          const parsedScore = urlScore !== null ? Number(urlScore) : null;
-          // Set the subject, topic, and exact dashboard memory score
-          setSelectedSubject(urlSubject);
-          setSelectedTopic(matchingTopic.name);
-          setSelectedTopicId(matchingTopic.id);
-          setSelectedMemoryScore(Number.isFinite(parsedScore) ? parsedScore : null);
+    const urlSubject = searchParams.get('subject');
+    const urlTopic = searchParams.get('topic');
+    if (!urlSubject || !urlTopic || autoStarted.current) return;
+    const matchedSubject = subjects.find((entry) => entry.name === urlSubject || entry.id === urlSubject);
+    const matchedTopic = matchedSubject?.topics.find((entry) => entry.name.toLowerCase() === urlTopic.toLowerCase() || entry.id === urlTopic);
+    if (!matchedSubject || !matchedTopic) return;
+    const urlMode = searchParams.get('mode');
+    const resolvedMode: QuizSubmissionMode = urlMode === 'concept-check' ? 'concept-check' : 'speed-round';
+    autoStarted.current = true;
+    setSelectedSubject(matchedSubject.name);
+    setSelectedTopicId(matchedTopic.id);
+    setActiveRescueId(searchParams.get('rescueId'));
+    setMode(resolvedMode);
+    setSearchParams(new URLSearchParams(), { replace: true });
+    void activate(matchedTopic.id, resolvedMode);
+  }, [activate, searchParams, setSearchParams, subjects]);
 
-          setQuizMode(resolvedMode);
-          if (urlRescueId) setActiveRescueId(urlRescueId);
+  const currentServerAnswer = speedSession?.answers.find((entry) => entry.questionIndex === currentIndex);
+  const currentQuestion = questions[currentIndex];
 
-          // Mark as auto-starting and trigger quiz generation
-          hasAutoStarted.current = true;
-          setAutoStarting(true);
-
-          // Clear URL params
-          const newParams = new URLSearchParams(searchParams);
-          newParams.delete('subject');
-          newParams.delete('topic');
-          newParams.delete('mode');
-          newParams.delete('rescueId');
-          newParams.delete('score');
-          setSearchParams(newParams, { replace: true });
-          
-          // Auto-generate quiz after a brief delay for UI to update
-          setTimeout(() => {
-            void activateQuiz(matchingTopic.id, resolvedMode, selectedPaperId)
-              .finally(() => setAutoStarting(false));
-          }, 500);
-        }
-      }
-    }
-  }, [urlSubject, urlTopic, urlScore, urlMode, urlRescueId, subjects, searchParams, setSearchParams, quizMode, selectedPaperId, activateQuiz]);
-
-  // Handle quiz generation
-  const handleGenerateQuiz = () => {
-    if (!selectedTopicId) return;
-    void activateQuiz(selectedTopicId, quizMode, selectedPaperId);
-  };
-
-  // Handle answer submission
-  const handleAnswer = (answer: string | number) => {
-    const newAnswers = [...answers];
-    newAnswers[currentQuestionIndex] = answer;
-    setAnswers(newAnswers);
-  };
-
-  const handleSubmitCurrentAnswer = () => {
-    const answer = answers[currentQuestionIndex];
-    if (answer === null || (typeof answer === 'string' && answer.trim() === '')) {
-      toast.error('Enter an answer before continuing.');
+  const submitCurrent = async () => {
+    const value = answers[currentIndex];
+    if (value === null || (typeof value === 'string' && !value.trim())) return;
+    if (mode === 'concept-check') {
+      setResolved((current) => current.map((entry, index) => index === currentIndex ? true : entry));
       return;
     }
-    setSubmittedAnswers((current) => current.map((submitted, index) => (
-      index === currentQuestionIndex ? true : submitted
-    )));
-  };
-
-  // Handle next question
-  const handleNextQuestion = () => {
-    setCurrentQuestionIndex((prev) => prev + 1);
-  };
-
-  // Persist the attempt first. The API grades against the shared static bank;
-  // client-calculated scores are never accepted as the source of truth.
-  const handleFinishQuiz = async () => {
-    if (isSubmittingAttempt) return;
-    if (!selectedTopicId || !submissionId || !attemptStartedAt) {
-      toast.error('This quiz could not be identified. Please generate it again.');
-      return;
-    }
-    if (answers.some((answer) => answer === null)) {
-      toast.error('Answer every question before viewing results.');
-      return;
-    }
-
-    setIsSubmittingAttempt(true);
+    if (typeof value !== 'number') return;
+    setLoading(true);
     try {
-      const result = await submitQuizAttempt({
-        submissionId,
-        topicId: selectedTopicId,
-        mode: quizMode,
-        paperId: quizMode === 'past-paper' ? selectedPaperId : undefined,
-        startedAt: attemptStartedAt,
-        answers: questions.map((question, index) => ({
-          questionKey: question.questionKey,
-          answer: answers[index] as string | number,
-        })),
+      const response = await submitSpeedAnswer(submissionId, {
+        questionKey: currentQuestion.questionKey,
+        questionIndex: currentIndex,
+        answer: value,
       });
-
-      if (result.answers.length !== result.totalQuestions) {
-        throw new Error('EduNets could not load the server-graded answer breakdown. Please try again.');
-      }
-
-      setAttemptResult(result);
-      setSubjects((currentSubjects) => currentSubjects.map((subject) => ({
-        ...subject,
-        topics: subject.topics.map((topic) => topic.id === selectedTopicId
-          ? {
-              ...topic,
-              memoryScore: result.resultingMemoryScore,
-              lastReviewedAt: result.submittedAt,
-              nextReviewAt: result.nextReviewAt,
-              quizAttempts: topic.quizAttempts + (result.idempotentReplay ? 0 : 1),
-            }
-          : topic),
-      })));
+      setSpeedSession(response);
+      setResolved((current) => current.map((entry, index) => index === currentIndex ? true : entry));
+      setSelectedTraceIndex(currentIndex);
       await queryClient.invalidateQueries({ queryKey: ['study-state'] });
-
-      if (activeRescueId) {
-        const resolvedAt = Date.now();
-        const completedLog = rescueLogs.find((log: RescueNudgeLog) => (
-          log.id === activeRescueId && log.rescueStatus !== 'completed'
-        ));
-        setRescueLogs((currentLogs: RescueNudgeLog[]) => currentLogs.map((log: RescueNudgeLog) => {
-          if (log.id !== activeRescueId || log.rescueStatus === 'completed') return log;
-          return { ...log, pendingRescue: false, rescueStatus: 'completed', resolvedAt };
-        }));
-        if (completedLog) {
-          toast.success(`${completedLog.memberName}'s rescue kept the streak alive — Day 19!`);
-        }
-        setActiveRescueId(null);
-      }
-
-      if (!quizFinishNotifiedRef.current) {
-        quizFinishNotifiedRef.current = true;
-        notify({
-          type: 'quizFinished',
-          score: result.correctAnswers,
-          total: result.totalQuestions,
-        });
-      }
-      setQuizState('results');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'EduNets could not save this quiz.');
+      toast.error(error instanceof Error ? error.message : 'The answer could not be calculated.');
     } finally {
-      setIsSubmittingAttempt(false);
+      setLoading(false);
     }
   };
 
-  // Handle retake
-  const handleRetake = () => {
-    if (!selectedTopicId) return;
-    void activateQuiz(selectedTopicId, quizMode, selectedPaperId);
+  const completeRescue = () => {
+    if (!activeRescueId) return;
+    const resolvedAt = Date.now();
+    setRescueLogs((logs: RescueNudgeLog[]) => logs.map((log) => log.id === activeRescueId
+      ? { ...log, pendingRescue: false, rescueStatus: 'completed', resolvedAt }
+      : log));
+    const log = rescueLogs.find((entry) => entry.id === activeRescueId);
+    if (log) toast.success(`${log.memberName}'s rescue is complete.`);
+    setActiveRescueId(null);
   };
 
-  // Handle view concept web - deep-links into the concept web with this
-  // quiz's subject/topic pre-selected and highlighted (concept-web/
-  // student-view.tsx reads these same ?subject=&topic= params).
-  const handleViewConceptWeb = () => {
-    if (!selectedSubject) {
-      toast.error('Select a subject before viewing the concept web.');
-      return;
+  const finish = async () => {
+    setLoading(true);
+    try {
+      if (mode === 'speed-round') {
+        const result = await finishSpeedQuiz(submissionId);
+        setSpeedResult(result);
+        setSpeedSession(result);
+        setSelectedTraceIndex(result.answers.at(-1)?.questionIndex ?? -1);
+        await queryClient.invalidateQueries({ queryKey: ['study-state'] });
+        notify({ type: 'quizFinished', score: result.result.correctAnswers, total: result.result.totalQuestions });
+      } else {
+        const result = await submitQuizAttempt({
+          submissionId,
+          topicId: selectedTopicId,
+          mode: 'concept-check',
+          startedAt,
+          answers: questions.map((question, index) => ({ questionKey: question.questionKey, answer: answers[index]! })),
+        });
+        setConceptResult(result);
+        notify({ type: 'quizFinished', score: result.correctAnswers, total: result.totalQuestions });
+      }
+      completeRescue();
+      setState('results');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The quiz could not be finalized.');
+    } finally {
+      setLoading(false);
     }
-    const subject = subjects.find((entry) => entry.name === selectedSubject);
-    const params = new URLSearchParams();
-    params.set('subject', subject?.id ?? selectedSubject);
-    if (selectedTopicId || selectedTopic) params.set('topic', selectedTopicId || selectedTopic);
+  };
+
+  const abandon = async () => {
+    if (!speedSession) return;
+    setAbandoning(true);
+    try {
+      await abandonSpeedQuiz(speedSession.submissionId);
+      setSpeedSession(null);
+      setState('setup');
+      toast.info('Session abandoned. Published Mastery was kept.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The session could not be abandoned.');
+    } finally {
+      setAbandoning(false);
+    }
+  };
+
+  const onConceptWeb = () => {
+    if (!subject) return;
+    const params = new URLSearchParams({ subject: subject.id, topic: selectedTopicId });
     navigate(`/concept-web?${params.toString()}`);
   };
 
+  const leftShowsModel = speedSession && (state === 'active' || state === 'results');
+  const retake = () => void activate(selectedTopicId, mode);
+
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-6 p-6 lg:p-8 pattern-overlay">
-      {/* Left Panel - Quiz Setup */}
-      <div className="w-full lg:w-[35%] flex-shrink-0">
-        <Card className="h-full border-0 rounded-3xl overflow-hidden card-shadow bg-card">
-          <CardContent className="p-6 h-full">
-            <QuizSetupPanel
-              selectedSubject={selectedSubject}
-              setSelectedSubject={setSelectedSubject}
-              selectedTopic={selectedTopic}
-              setSelectedTopic={(topic: string) => {
-                setSelectedTopic(topic);
-                setSelectedMemoryScore(null);
-              }}
-              setSelectedTopicId={setSelectedTopicId}
-              quizMode={quizMode}
-              setQuizMode={setQuizMode}
-              selectedPaperId={selectedPaperId}
-              setSelectedPaperId={setSelectedPaperId}
-              onGenerateQuiz={handleGenerateQuiz}
-              globalSubjects={subjects}
-              isGeneratingQuiz={isGeneratingQuiz}
-            />
+    <div className="flex h-full flex-col gap-6 p-5 pattern-overlay lg:flex-row lg:p-8">
+      <div className="w-full shrink-0 lg:w-[38%] xl:w-[35%]">
+        <Card className="h-full min-h-[560px] rounded-3xl border-0 card-shadow">
+          <CardContent className="h-full p-6">
+            {leftShowsModel ? (
+              <KnowledgePanel
+                session={speedSession}
+                selectedTraceIndex={selectedTraceIndex}
+                onSelectTrace={setSelectedTraceIndex}
+                onAbandon={state === 'active' ? () => void abandon() : undefined}
+                abandoning={abandoning}
+              />
+            ) : (
+              <SetupPanel
+                selectedSubject={selectedSubject}
+                selectedTopicId={selectedTopicId}
+                mode={mode}
+                loading={loading}
+                onSubject={(value) => { setSelectedSubject(value); setSelectedTopicId(''); }}
+                onTopic={setSelectedTopicId}
+                onMode={setMode}
+                onStart={() => void activate(selectedTopicId, mode)}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Right Panel - Active Quiz / Results */}
-      <div className="flex-1 min-h-[600px]">
-        <AnimatePresence mode="wait">
-          {quizState === 'setup' && !autoStarting && !isGeneratingQuiz && <QuizEmptyState key="empty" />}
-          {quizState === 'setup' && (autoStarting || isGeneratingQuiz) && (
-            <AutoStartingState
-              key="auto-starting"
-              topic={selectedTopic}
-              isRescue={activeRescueId !== null}
-              mode={quizMode}
-              paperLabel={selectedPaperId === 'paper-2' ? 'Practice Paper 2 (Structured)' : 'Practice Paper 1 (MCQ)'}
-            />
-          )}
-          {quizState === 'active' && (
-            <ActiveQuizPanel
-              key="active"
-              questions={questions}
-              currentIndex={currentQuestionIndex}
-              onAnswer={handleAnswer}
-              onSubmitAnswer={handleSubmitCurrentAnswer}
-              onNext={handleNextQuestion}
-              onFinish={() => void handleFinishQuiz()}
-              answers={answers}
-              submittedAnswers={submittedAnswers}
-              isFinishing={isSubmittingAttempt}
-              topic={selectedTopic}
-            />
-          )}
-          {quizState === 'results' && attemptResult && (
-            <ResultsPanel
-              key="results"
-              questions={questions}
-              topic={selectedTopic}
-              previousScore={previousScore}
-              attemptResult={attemptResult}
-              onRetake={handleRetake}
-              onViewConceptWeb={handleViewConceptWeb}
-            />
-          )}
-        </AnimatePresence>
+      <div className="min-h-[600px] flex-1">
+        {state === 'setup' && (
+          <Card className="flex h-full items-center justify-center rounded-3xl border-0 card-shadow">
+            <CardContent className="max-w-lg p-8 text-center">
+              {loading ? <LoaderCircle className="mx-auto h-14 w-14 animate-spin text-[#186636]" /> : <Zap className="mx-auto h-16 w-16 text-[#EAA93C]" />}
+              <h2 className="mt-5 text-2xl font-black">{loading ? 'Loading your saved question set...' : 'Ready for a smarter Speed round?'}</h2>
+              <p className="mt-3 leading-7 text-muted-foreground">Speed uses 10 MCQs from one topic. After every answer, the backend returns and stores the complete BKT calculation.</p>
+            </CardContent>
+          </Card>
+        )}
+        {state === 'active' && currentQuestion && (
+          <QuestionCard
+            question={currentQuestion}
+            index={currentIndex}
+            total={questions.length}
+            value={answers[currentIndex]}
+            resolved={resolved[currentIndex]}
+            serverAnswer={currentServerAnswer}
+            busy={loading}
+            onChange={(value) => setAnswers((current) => current.map((entry, index) => index === currentIndex ? value : entry))}
+            onSubmit={() => void submitCurrent()}
+            onNext={() => setCurrentIndex((index) => index + 1)}
+            onFinish={() => void finish()}
+          />
+        )}
+        {state === 'results' && speedResult && <SpeedResults result={speedResult} topic={topic?.name ?? ''} onRetake={retake} onConceptWeb={onConceptWeb} />}
+        {state === 'results' && conceptResult && <ConceptResults result={conceptResult} topic={topic?.name ?? ''} onRetake={retake} onConceptWeb={onConceptWeb} />}
       </div>
     </div>
   );

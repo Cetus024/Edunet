@@ -7,6 +7,7 @@ import {
   quizOptionsQuerySchema,
   quizSetRequestSchema,
   quizSubmissionSchema,
+  speedAnswerSchema,
   sendEnquiryMessageSchema,
   signupReferralCodeSchema,
   updateTeachingScopesSchema,
@@ -87,8 +88,12 @@ describe('quiz submission validation', () => {
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
       topicId: 'biology-ecology',
       mode: 'past-paper',
-      paperId: 'invented-paper',
     }).success).toBe(false);
+    expect(speedAnswerSchema.safeParse({
+      questionKey: 'biology-ecology:v1:q01',
+      questionIndex: 0,
+      answer: 2,
+    }).success).toBe(true);
   });
 
   it('rejects client-invented key formats', () => {

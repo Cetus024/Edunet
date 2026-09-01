@@ -6,6 +6,7 @@ import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { classroomEnrollments, onboardingProfiles, profiles, teachingScopes, userTopicProgress } from '../../../../database/schema/learning.js';
 import { ApiError } from '../errors.js';
 import { summarizeClassTopic } from '../lib/class-concept-web.js';
+import { calculateDynamicProgress } from '../lib/knowledge-model.js';
 import { isRecipientRole, type EnquiryActor } from '../lib/enquiries.js';
 import { loadEnquiryActor } from './enquiries.js';
 
@@ -35,6 +36,10 @@ export type StudentConceptWebResponse = {
     id: string;
     name: string;
     memoryScore: number | null;
+    masteryScore: number | null;
+    stabilityDays: number | null;
+    successfulReviews: number;
+    reviewNow: boolean;
     lastReviewedAt: Date | null;
     nextReviewAt: Date | null;
     quizAttempts: number;
@@ -244,9 +249,9 @@ export async function getClassConceptWebForTeacher(
     ? []
     : await db.select({
       topicId: userTopicProgress.topicId,
-      memoryScore: userTopicProgress.memoryScore,
+      mastery: userTopicProgress.mastery,
+      stabilityDays: userTopicProgress.stabilityDays,
       lastReviewedAt: userTopicProgress.lastReviewedAt,
-      nextReviewAt: userTopicProgress.nextReviewAt,
       quizAttempts: userTopicProgress.quizAttempts,
     })
       .from(userTopicProgress)
@@ -309,9 +314,10 @@ export async function getStudentConceptWebForTeacher(
 
   const progressRows = await db.select({
     topicId: userTopicProgress.topicId,
-    memoryScore: userTopicProgress.memoryScore,
+    mastery: userTopicProgress.mastery,
+    stabilityDays: userTopicProgress.stabilityDays,
+    successfulReviews: userTopicProgress.successfulReviews,
     lastReviewedAt: userTopicProgress.lastReviewedAt,
-    nextReviewAt: userTopicProgress.nextReviewAt,
     quizAttempts: userTopicProgress.quizAttempts,
   })
     .from(userTopicProgress)
@@ -324,12 +330,19 @@ export async function getStudentConceptWebForTeacher(
     subject: subjectRow,
     topics: topicRows.map((topic) => {
       const progress = progressByTopic.get(topic.id);
+      const dynamic = progress
+        ? calculateDynamicProgress(progress.mastery, progress.stabilityDays, progress.lastReviewedAt)
+        : null;
       return {
         id: topic.id,
         name: topic.name,
-        memoryScore: progress?.memoryScore ?? null,
+        memoryScore: dynamic?.memoryScore ?? null,
+        masteryScore: dynamic?.masteryScore ?? null,
+        stabilityDays: progress?.stabilityDays ?? null,
+        successfulReviews: progress?.successfulReviews ?? 0,
+        reviewNow: dynamic?.reviewNow ?? false,
         lastReviewedAt: progress?.lastReviewedAt ?? null,
-        nextReviewAt: progress?.nextReviewAt ?? null,
+        nextReviewAt: dynamic?.nextReviewAt ?? null,
         quizAttempts: progress?.quizAttempts ?? 0,
       };
     }),

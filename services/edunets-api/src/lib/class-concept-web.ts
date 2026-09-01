@@ -1,13 +1,16 @@
+import { calculateDynamicProgress } from './knowledge-model.js';
+
 export type ClassTopicProgress = {
-  memoryScore: number;
+  mastery: number;
+  stabilityDays: number;
   lastReviewedAt: Date;
-  nextReviewAt: Date;
   quizAttempts: number;
 };
 
 export function summarizeClassTopic(
   classSize: number,
   progressRows: readonly ClassTopicProgress[],
+  calculatedAt = new Date(),
 ) {
   if (classSize <= 0 || progressRows.length === 0) {
     return {
@@ -19,13 +22,19 @@ export function summarizeClassTopic(
     };
   }
 
-  const scoreTotal = progressRows.reduce((sum, progress) => sum + progress.memoryScore, 0);
+  const dynamicRows = progressRows.map((progress) => ({
+    ...progress,
+    dynamic: calculateDynamicProgress(progress.mastery, progress.stabilityDays, progress.lastReviewedAt, calculatedAt),
+  }));
+  const scoreTotal = dynamicRows.reduce((sum, progress) => sum + progress.dynamic.memoryScore, 0);
   const lastReviewedAt = progressRows.reduce<Date | null>((latest, progress) => (
     !latest || progress.lastReviewedAt > latest ? progress.lastReviewedAt : latest
   ), null);
-  const nextReviewAt = progressRows.reduce<Date | null>((earliest, progress) => (
-    !earliest || progress.nextReviewAt < earliest ? progress.nextReviewAt : earliest
-  ), null);
+  const nextReviewAt = dynamicRows.reduce<Date | null>((earliest, progress) => {
+    const next = progress.dynamic.nextReviewAt;
+    if (!next) return earliest;
+    return !earliest || next < earliest ? next : earliest;
+  }, null);
 
   return {
     memoryScore: Math.round(scoreTotal / classSize),

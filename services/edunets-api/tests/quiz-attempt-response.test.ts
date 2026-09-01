@@ -11,7 +11,6 @@ describe('quiz attempt response', () => {
       correctAnswers: 1,
       totalQuestions: 2,
       percentCorrect: 50,
-      resultingMemoryScore: 45,
       submittedAt: new Date('2026-07-31T06:30:00.000Z'),
       idempotentReplay: true,
       answers: [
@@ -27,21 +26,13 @@ describe('quiz attempt response', () => {
     ]);
   });
 
-  it('derives nextReviewAt from the attempt timestamp and resulting score', () => {
+  it('does not invent learning progress for concept-only practice', () => {
     const response = buildQuizAttemptResponse({
-      id: 'attempt-2',
-      submissionId: 'submission-2',
-      topicId: 'amath-trig',
-      mode: 'past-paper',
-      correctAnswers: 5,
-      totalQuestions: 5,
-      percentCorrect: 100,
-      resultingMemoryScore: 95,
-      submittedAt: new Date('2026-07-31T18:00:00.000Z'),
-      idempotentReplay: false,
-      answers: [],
+      id: 'attempt-2', submissionId: 'submission-2', topicId: 'amath-trig', mode: 'concept-check',
+      correctAnswers: 5, totalQuestions: 5, percentCorrect: 100,
+      submittedAt: new Date('2026-07-31T18:00:00.000Z'), idempotentReplay: false, answers: [],
     });
-
-    expect(response.nextReviewAt.toISOString()).toBe('2026-08-08T01:00:00.000Z');
+    expect(response).not.toHaveProperty('nextReviewAt');
+    expect(response).not.toHaveProperty('resultingMemoryScore');
   });
 });

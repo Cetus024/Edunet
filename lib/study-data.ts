@@ -7,6 +7,11 @@ export interface TopicData {
   subjectId: string;
   name: string;
   memoryScore: number | null; // null = not started (grey "Not Started")
+  masteryScore?: number | null;
+  stabilityDays?: number | null;
+  successfulReviews?: number;
+  reviewNow?: boolean;
+  calculatedAt?: string;
   lastReviewedAt: string | null; // ISO date string
   nextReviewAt: string | null; // ISO date string
   quizAttempts: number;
@@ -71,73 +76,15 @@ export interface QuizRoomParticipantDraft {
   joinedAt: number;
 }
 
-// Score tiers from quiz results
-export function calculateScoreFromQuizResult(percentCorrect: number): number {
-  if (percentCorrect >= 90) return 95;
-  if (percentCorrect >= 75) return 80;
-  if (percentCorrect >= 55) return 62;
-  if (percentCorrect >= 40) return 45;
-  return 28;
-}
-
-// Ebbinghaus forgetting curve decay calculation
-export function calculateDecay(lastReviewedAt: string | null): number {
-  if (!lastReviewedAt) return 0;
-  
-  const lastReview = new Date(lastReviewedAt);
-  const now = new Date();
-  const daysSinceReview = Math.floor(
-    (now.getTime() - lastReview.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  
-  // daysSinceReview can come out slightly negative for a review that just
-  // happened seconds ago, if the client clock lags the server timestamp
-  // stored in lastReviewedAt - treat that (and day 0) as "no decay yet"
-  // rather than falling through to the day-4+ branch, which would produce
-  // a negative decay and inflate the effective score above 100%.
-  if (daysSinceReview <= 0) return 0;
-  if (daysSinceReview === 1) return 4;   // Day 1: -4 points
-  if (daysSinceReview === 2) return 11;  // Day 2: -4 + -7 = -11 cumulative
-  if (daysSinceReview === 3) return 22;  // Day 3: -11 + -11 = -22 cumulative
-
-  // Day 4+: accelerating at -15 per day
-  const extraDays = daysSinceReview - 3;
-  return 22 + (extraDays * 15);
-}
-
-// Calculate effective memory score (base score minus decay)
+// Memory Score is already calculated by the backend at read time.
 export function getEffectiveScore(topic: TopicData): number | null {
-  if (topic.memoryScore === null) return null;
-
-  const decay = calculateDecay(topic.lastReviewedAt);
-  return Math.min(100, Math.max(0, topic.memoryScore - decay));
+  return topic.memoryScore;
 }
 
 // Check if topic is "at risk" (below 42%)
 export function isAtRisk(topic: TopicData): boolean {
   const score = getEffectiveScore(topic);
   return score !== null && score < 42;
-}
-
-// Calculate next review date based on score
-export function calculateNextReviewDate(score: number): Date {
-  const now = new Date();
-  let daysUntilReview: number;
-  
-  if (score >= 85) {
-    daysUntilReview = 7; // Score 85-100%: Review in 7 days
-  } else if (score >= 65) {
-    daysUntilReview = 4; // Score 65-84%: Review in 4 days
-  } else if (score >= 45) {
-    daysUntilReview = 2; // Score 45-64%: Review in 2 days
-  } else {
-    daysUntilReview = 1; // Below 45%: Review tomorrow (urgent)
-  }
-  
-  const nextReview = new Date(now);
-  nextReview.setDate(nextReview.getDate() + daysUntilReview);
-  nextReview.setHours(9, 0, 0, 0); // Set to 9 AM
-  return nextReview;
 }
 
 // Get days until next review
@@ -422,31 +369,6 @@ export const subjectSummariesAtom = atom((get) => {
     };
   });
 });
-
-// Actions
-export function updateTopicAfterQuiz(
-  subjects: SubjectData[],
-  topicId: string,
-  percentCorrect: number
-): SubjectData[] {
-  const newScore = calculateScoreFromQuizResult(percentCorrect);
-  const now = new Date().toISOString();
-  const nextReview = calculateNextReviewDate(newScore).toISOString();
-  
-  return subjects.map(subject => ({
-    ...subject,
-    topics: subject.topics.map(topic => {
-      if (topic.id !== topicId) return topic;
-      return {
-        ...topic,
-        memoryScore: newScore,
-        lastReviewedAt: now,
-        nextReviewAt: nextReview,
-        quizAttempts: topic.quizAttempts + 1,
-      };
-    }),
-  }));
-}
 
 // Estimate time to complete review (in minutes)
 export function estimateReviewTime(effectiveScore: number): number {

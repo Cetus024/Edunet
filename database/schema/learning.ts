@@ -1,5 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, check, integer, pgTable, primaryKey, real, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  check,
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { users } from './auth.js';
 import { schools, subjects, topics } from './catalog.js';
 
@@ -25,7 +38,7 @@ export const onboardingProfiles = pgTable('onboarding_profile', {
   recordingMimeType: text('recording_mime_type'),
   subjectId: text('subject_id').notNull().references(() => subjects.id),
   topicId: text('topic_id').references(() => topics.id),
-  initialMemoryScore: real('initial_memory_score'),
+  initialMastery: doublePrecision('initial_memory_score'),
   placementAttemptId: text('placement_attempt_id').unique().references(() => quizAttempts.id, { onDelete: 'set null' }),
   completedAt: timestamp('completed_at').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -73,10 +86,43 @@ export const quizAttempts = pgTable('quiz_attempt', {
   correctAnswers: integer('correct_answers').notNull(),
   totalQuestions: integer('total_questions').notNull(),
   percentCorrect: real('percent_correct').notNull(),
-  resultingMemoryScore: real('resulting_memory_score').notNull(),
+  resultingMemoryScore: real('resulting_memory_score'),
+  status: text('status', { enum: ['in_progress', 'completed', 'abandoned'] as const }).notNull().default('completed'),
+  modelVersion: text('model_version').notNull().default('legacy-tier-v0'),
+  initialMastery: doublePrecision('initial_mastery'),
+  currentMastery: doublePrecision('current_mastery'),
+  stabilityBefore: doublePrecision('stability_before'),
+  stabilityAfter: doublePrecision('stability_after'),
+  successfulReviewsBefore: integer('successful_reviews_before'),
+  successfulReviewsAfter: integer('successful_reviews_after'),
   startedAt: timestamp('started_at'),
   submittedAt: timestamp('submitted_at').notNull(),
-});
+  completedAt: timestamp('completed_at'),
+  abandonedAt: timestamp('abandoned_at'),
+}, (table) => [
+  check('quiz_attempt_status_check', sql`${table.status} in ('in_progress', 'completed', 'abandoned')`),
+  uniqueIndex('quiz_attempt_one_active_speed_topic_idx')
+    .on(table.userId, table.topicId)
+    .where(sql`${table.quizMode} = 'speed-round' and ${table.status} = 'in_progress'`),
+]);
+
+export const quizAttemptQuestions = pgTable('quiz_attempt_question', {
+  attemptId: text('attempt_id').notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  questionIndex: integer('question_index').notNull(),
+  questionKey: text('question_key').notNull(),
+  type: text('type').notNull(),
+  topic: text('topic').notNull(),
+  text: text('text').notNull(),
+  options: jsonb('options').$type<string[]>(),
+  correctAnswer: jsonb('correct_answer').$type<string | number>().notNull(),
+  explanation: text('explanation').notNull(),
+  linkedConcept: text('linked_concept').notNull(),
+  source: text('source'),
+  resourceNumber: text('resource_number'),
+}, (table) => [
+  primaryKey({ columns: [table.attemptId, table.questionIndex] }),
+  uniqueIndex('quiz_attempt_question_key_idx').on(table.attemptId, table.questionKey),
+]);
 
 export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
   attemptId: text('attempt_id').notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
@@ -84,18 +130,30 @@ export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
   questionIndex: integer('question_index').notNull(),
   submittedAnswer: text('submitted_answer').$type<string | number>().notNull(),
   isCorrect: boolean('is_correct').notNull(),
+  priorMastery: doublePrecision('prior_mastery'),
+  posteriorMastery: doublePrecision('posterior_mastery'),
+  masteryAfterTransition: doublePrecision('mastery_after_transition'),
+  predictedCorrectness: doublePrecision('predicted_correctness'),
+  calculationTrace: jsonb('calculation_trace').$type<Record<string, unknown>>(),
+  answeredAt: timestamp('answered_at'),
 }, (table) => [
   primaryKey({ columns: [table.attemptId, table.questionKey] }),
+  uniqueIndex('quiz_attempt_answer_index_idx').on(table.attemptId, table.questionIndex),
 ]);
 
 export const userTopicProgress = pgTable('user_topic_progress', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   topicId: text('topic_id').notNull().references(() => topics.id),
-  memoryScore: real('memory_score').notNull(),
+  mastery: doublePrecision('mastery').notNull(),
+  stabilityDays: doublePrecision('stability_days').notNull(),
+  successfulReviews: integer('successful_reviews').notNull().default(0),
+  modelVersion: text('model_version').notNull().default('bkt-v1'),
   lastReviewedAt: timestamp('last_reviewed_at').notNull(),
-  nextReviewAt: timestamp('next_review_at').notNull(),
   quizAttempts: integer('quiz_attempts').notNull().default(0),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => [
   primaryKey({ columns: [table.userId, table.topicId] }),
+  check('user_topic_progress_mastery_check', sql`${table.mastery} >= 0 and ${table.mastery} <= 1`),
+  check('user_topic_progress_stability_check', sql`${table.stabilityDays} > 0`),
+  check('user_topic_progress_successful_reviews_check', sql`${table.successfulReviews} >= 0`),
 ]);

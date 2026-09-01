@@ -65,9 +65,13 @@ export type PlacementResult = {
   correctAnswers: number;
   totalQuestions: number;
   percentCorrect: number;
-  resultingMemoryScore: number;
+  resultingMastery: number;
+  masteryScore: number;
+  stabilityDays: number;
+  successfulReviews: number;
   submittedAt: string;
-  nextReviewAt: string;
+  reviewNow: boolean;
+  nextReviewAt: string | null;
   answers: PlacementAnswerResult[];
 };
 

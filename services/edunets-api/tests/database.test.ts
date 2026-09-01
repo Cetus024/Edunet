@@ -191,6 +191,22 @@ describe('student and teacher role migration', () => {
   });
 });
 
+describe('BKT knowledge model migration', () => {
+  it('resets progress while preserving and marking historical attempts', () => {
+    const migrationPath = fileURLToPath(new URL(
+      '../../../database/migrations/0010_bkt_knowledge_model.sql',
+      import.meta.url,
+    ));
+    const migration = readFileSync(migrationPath, 'utf8');
+    expect(migration).toContain('DELETE FROM "user_topic_progress"');
+    expect(migration).not.toContain('DELETE FROM "quiz_attempt"');
+    expect(migration).toContain('"model_version" = \'legacy-tier-v0\'');
+    expect(migration).toContain('quiz_attempt_one_active_speed_topic_idx');
+    expect(migration.indexOf('DELETE FROM "user_topic_progress"'))
+      .toBeLessThan(migration.indexOf('ADD COLUMN "mastery"'));
+  });
+});
+
 describe('Supabase connection safety', () => {
   it('extracts roles and the same project from direct and pooler URLs', () => {
     const runtime = parseSupabaseConnection(

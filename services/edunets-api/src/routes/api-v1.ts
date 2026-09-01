@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { db } from '../../../../database/index.js';
 import {
@@ -18,6 +18,13 @@ import {
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
 import {
+  BKT_PARAMETERS,
+  KNOWLEDGE_MODEL_VERSION,
+  calculateReviewSummary,
+  foldAnswerSequence,
+  type QuestionModelUpdate,
+} from '../lib/knowledge-model.js';
+import {
   getKeyedQuestions,
   getPlacementQuestions,
   getQuizOptions,
@@ -25,14 +32,17 @@ import {
   serializePlacementQuestions,
   type QuizQuestion,
 } from '../lib/question-bank.js';
-import { buildQuizAttemptResponse } from '../lib/quiz-attempt-response.js';
 import {
-  calculateMemoryScore,
-  calculateNextReviewAt,
   calculatePercentCorrect,
 } from '../lib/scoring.js';
 import { loadSession, requireSession } from '../middleware/session.js';
 import { getStudyStateForUser } from '../services/study-state.js';
+import {
+  abandonSpeedSession,
+  createOrResumeSpeedSession,
+  finishSpeedSession,
+  submitSpeedAnswer,
+} from '../services/speed-quiz.js';
 import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import {
   addStudentToScope,
@@ -51,6 +61,7 @@ import {
   quizHistoryQuerySchema,
   quizSetRequestSchema,
   quizSubmissionSchema,
+  speedAnswerSchema,
   studentSearchQuerySchema,
   updateQuestionReviewSchema,
   updateSchoolSchema,
@@ -148,7 +159,7 @@ api.get('/me', loadSession, requireSession, async (context) => {
     subjectName: subjects.name,
     topicId: onboardingProfiles.topicId,
     topicName: topics.name,
-    initialMemoryScore: onboardingProfiles.initialMemoryScore,
+    initialMastery: onboardingProfiles.initialMastery,
     placementAttemptId: onboardingProfiles.placementAttemptId,
     completedAt: onboardingProfiles.completedAt,
   })
@@ -196,7 +207,7 @@ api.get('/me', loadSession, requireSession, async (context) => {
       subjectName: profile.subjectName,
       topicId: profile.topicId,
       topicName: profile.topicName,
-      initialMemoryScore: profile.initialMemoryScore,
+      initialMastery: profile.initialMastery,
       placementAttemptId: profile.placementAttemptId,
       completedAt: profile.completedAt,
       teachingScopes: scopeRows,
@@ -279,7 +290,8 @@ type PlacementAttemptSummary = {
   correctAnswers: number;
   totalQuestions: number;
   percentCorrect: number;
-  resultingMemoryScore: number;
+  currentMastery: number | null;
+  successfulReviewsBefore: number | null;
   submittedAt: Date;
 };
 
@@ -288,6 +300,7 @@ type StoredPlacementAnswer = {
   questionIndex: number;
   submittedAnswer: string | number;
   isCorrect: boolean;
+  calculationTrace: Record<string, unknown> | null;
 };
 
 function buildPlacementResult(
@@ -296,6 +309,8 @@ function buildPlacementResult(
   questions: QuizQuestion[],
 ) {
   const questionByKey = new Map(questions.map((question) => [question.questionKey, question]));
+  const mastery = attempt.currentMastery ?? BKT_PARAMETERS.initialMastery;
+  const summary = calculateReviewSummary(mastery, attempt.successfulReviewsBefore ?? 0, attempt.submittedAt);
   return {
     id: attempt.id,
     submissionId: attempt.submissionId,
@@ -303,9 +318,13 @@ function buildPlacementResult(
     correctAnswers: attempt.correctAnswers,
     totalQuestions: attempt.totalQuestions,
     percentCorrect: attempt.percentCorrect,
-    resultingMemoryScore: attempt.resultingMemoryScore,
+    resultingMastery: mastery,
+    masteryScore: mastery * 100,
+    stabilityDays: summary.stabilityDays,
+    successfulReviews: summary.successfulReviewsAfter,
     submittedAt: attempt.submittedAt,
-    nextReviewAt: calculateNextReviewAt(attempt.resultingMemoryScore, attempt.submittedAt),
+    reviewNow: summary.reviewNow,
+    nextReviewAt: summary.nextReviewAt,
     answers: storedAnswers.map((answer) => {
       const question = questionByKey.get(answer.questionKey);
       if (!question) throw new Error(`Placement question ${answer.questionKey} could not be reconstructed.`);
@@ -316,6 +335,7 @@ function buildPlacementResult(
         isCorrect: answer.isCorrect,
         correctAnswer: question.correctAnswer,
         explanation: question.explanation,
+        model: answer.calculationTrace as QuestionModelUpdate | null,
       };
     }),
   };
@@ -377,7 +397,7 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       subjectName: subjects.name,
       topicId: onboardingProfiles.topicId,
       topicName: topics.name,
-      initialMemoryScore: onboardingProfiles.initialMemoryScore,
+      initialMastery: onboardingProfiles.initialMastery,
       placementAttemptId: onboardingProfiles.placementAttemptId,
       completedAt: onboardingProfiles.completedAt,
     })
@@ -399,7 +419,8 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
           correctAnswers: quizAttempts.correctAnswers,
           totalQuestions: quizAttempts.totalQuestions,
           percentCorrect: quizAttempts.percentCorrect,
-          resultingMemoryScore: quizAttempts.resultingMemoryScore,
+          currentMastery: quizAttempts.currentMastery,
+          successfulReviewsBefore: quizAttempts.successfulReviewsBefore,
           submittedAt: quizAttempts.submittedAt,
         }).from(quizAttempts).where(and(
           eq(quizAttempts.id, existing.placementAttemptId),
@@ -412,6 +433,7 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
             questionIndex: quizAttemptAnswers.questionIndex,
             submittedAnswer: quizAttemptAnswers.submittedAnswer,
             isCorrect: quizAttemptAnswers.isCorrect,
+            calculationTrace: quizAttemptAnswers.calculationTrace,
           }).from(quizAttemptAnswers)
             .where(eq(quizAttemptAnswers.attemptId, attempt.id))
             .orderBy(asc(quizAttemptAnswers.questionIndex));
@@ -453,10 +475,10 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       });
       await transaction.insert(onboardingProfiles).values({
         userId, learningSource: 'none', subjectId: primarySubject.id, topicId: null,
-        initialMemoryScore: null, placementAttemptId: null, completedAt: now, updatedAt: now,
+        initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now,
       }).onConflictDoUpdate({
         target: onboardingProfiles.userId,
-        set: { subjectId: primarySubject.id, topicId: null, initialMemoryScore: null, placementAttemptId: null, completedAt: now, updatedAt: now },
+        set: { subjectId: primarySubject.id, topicId: null, initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now },
       });
       await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
       await transaction.insert(teachingScopes).values(input.teachingScopes.map((scope, position) => ({
@@ -476,7 +498,7 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
           subjectName: primarySubject.name,
           topicId: null,
           topicName: null,
-          initialMemoryScore: null,
+          initialMastery: null,
           placementAttemptId: null,
           completedAt: now,
           teachingScopes: input.teachingScopes,
@@ -508,8 +530,21 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
     });
     const correctAnswers = gradedAnswers.filter((answer) => answer.isCorrect).length;
     const percentCorrect = calculatePercentCorrect(correctAnswers, gradedAnswers.length);
-    const initialMemoryScore = calculateMemoryScore(percentCorrect);
-    const nextReviewAt = calculateNextReviewAt(initialMemoryScore, now);
+    const modelUpdates = foldAnswerSequence(gradedAnswers.map((answer) => answer.isCorrect));
+    const resultingMastery = modelUpdates.at(-1)?.currentMastery ?? BKT_PARAMETERS.initialMastery;
+    const reviewSummary = calculateReviewSummary(resultingMastery, 0, now);
+    const tracedAnswers = gradedAnswers.map((answer, index) => {
+      const update = modelUpdates[index]!;
+      return {
+        ...answer,
+        priorMastery: update.priorMastery,
+        posteriorMastery: update.posteriorMastery,
+        masteryAfterTransition: update.currentMastery,
+        predictedCorrectness: update.predictedCorrectness,
+        calculationTrace: update,
+        answeredAt: now,
+      };
+    });
 
     const [attempt] = await transaction.insert(quizAttempts).values({
       id: randomUUID(),
@@ -522,9 +557,18 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       correctAnswers,
       totalQuestions: gradedAnswers.length,
       percentCorrect,
-      resultingMemoryScore: initialMemoryScore,
+      resultingMemoryScore: null,
+      status: 'completed',
+      modelVersion: KNOWLEDGE_MODEL_VERSION,
+      initialMastery: BKT_PARAMETERS.initialMastery,
+      currentMastery: resultingMastery,
+      stabilityBefore: BKT_PARAMETERS.initialStabilityDays,
+      stabilityAfter: reviewSummary.stabilityDays,
+      successfulReviewsBefore: 0,
+      successfulReviewsAfter: reviewSummary.successfulReviewsAfter,
       startedAt: input.placement.startedAt ? new Date(input.placement.startedAt) : null,
       submittedAt: now,
+      completedAt: now,
     }).onConflictDoNothing({ target: quizAttempts.submissionId }).returning({
       id: quizAttempts.id,
       submissionId: quizAttempts.submissionId,
@@ -532,7 +576,8 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       correctAnswers: quizAttempts.correctAnswers,
       totalQuestions: quizAttempts.totalQuestions,
       percentCorrect: quizAttempts.percentCorrect,
-      resultingMemoryScore: quizAttempts.resultingMemoryScore,
+      currentMastery: quizAttempts.currentMastery,
+      successfulReviewsBefore: quizAttempts.successfulReviewsBefore,
       submittedAt: quizAttempts.submittedAt,
     });
     if (!attempt) throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
@@ -544,26 +589,37 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       target: profiles.userId,
       set: { role: 'student', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
     });
-    await transaction.insert(quizAttemptAnswers).values(gradedAnswers.map((answer) => ({
+    await transaction.insert(quizAttemptAnswers).values(tracedAnswers.map((answer) => ({
       attemptId: attempt.id,
       ...answer,
     })));
     await transaction.insert(onboardingProfiles).values({
       userId, learningSource: 'none', subjectId: selectedTopic.subjectId, topicId: selectedTopic.id,
-      initialMemoryScore, placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
+      initialMastery: resultingMastery, placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
     }).onConflictDoUpdate({
       target: onboardingProfiles.userId,
       set: {
-        subjectId: selectedTopic.subjectId, topicId: selectedTopic.id, initialMemoryScore,
+        subjectId: selectedTopic.subjectId, topicId: selectedTopic.id, initialMastery: resultingMastery,
         placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
       },
     });
     await transaction.insert(userTopicProgress).values({
-      userId, topicId: selectedTopic.id, memoryScore: initialMemoryScore,
-      lastReviewedAt: now, nextReviewAt, quizAttempts: 1, updatedAt: now,
+      userId, topicId: selectedTopic.id, mastery: resultingMastery,
+      stabilityDays: reviewSummary.stabilityDays,
+      successfulReviews: reviewSummary.successfulReviewsAfter,
+      modelVersion: KNOWLEDGE_MODEL_VERSION,
+      lastReviewedAt: now, quizAttempts: 1, updatedAt: now,
     }).onConflictDoUpdate({
       target: [userTopicProgress.userId, userTopicProgress.topicId],
-      set: { memoryScore: initialMemoryScore, lastReviewedAt: now, nextReviewAt, quizAttempts: 1, updatedAt: now },
+      set: {
+        mastery: resultingMastery,
+        stabilityDays: reviewSummary.stabilityDays,
+        successfulReviews: reviewSummary.successfulReviewsAfter,
+        modelVersion: KNOWLEDGE_MODEL_VERSION,
+        lastReviewedAt: now,
+        quizAttempts: 1,
+        updatedAt: now,
+      },
     });
 
     return {
@@ -578,12 +634,12 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
         subjectName: selectedTopic.subjectName,
         topicId: selectedTopic.id,
         topicName: selectedTopic.name,
-        initialMemoryScore,
+        initialMastery: resultingMastery,
         placementAttemptId: attempt.id,
         completedAt: now,
         teachingScopes: [],
       },
-      placementResult: buildPlacementResult(attempt, gradedAnswers, studentPlacementSet.questions),
+      placementResult: buildPlacementResult(attempt, tracedAnswers, studentPlacementSet.questions),
     };
   });
 
@@ -666,12 +722,16 @@ api.get('/me/quiz-options', loadSession, requireSession, async (context) => {
 });
 
 api.post('/me/quiz-sets', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
   const input = quizSetRequestSchema.parse(await readJson(context));
+  if (input.mode === 'speed-round') {
+    const result = await createOrResumeSpeedSession(userId, input);
+    return context.json(result, result.resumed ? 200 : 201);
+  }
   const questionSet = await getKeyedQuestions(
     input.topicId,
     input.mode,
     input.submissionId,
-    input.paperId,
   );
   if (!questionSet) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The database has no complete question set for this quiz mode.');
@@ -682,21 +742,31 @@ api.post('/me/quiz-sets', loadSession, requireSession, async (context) => {
     subjectId: questionSet.subjectId,
     topicId: questionSet.topicId,
     mode: input.mode,
-    ...(input.paperId ? { paperId: input.paperId } : {}),
     questions: questionSet.questions,
   });
+});
+
+api.post('/me/quiz-attempts/:submissionId/answers', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = speedAnswerSchema.parse(await readJson(context));
+  const result = await submitSpeedAnswer(userId, context.req.param('submissionId'), input);
+  return context.json(result, result.idempotentReplay ? 200 : 201);
+});
+
+api.post('/me/quiz-attempts/:submissionId/finish', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  return context.json(await finishSpeedSession(userId, context.req.param('submissionId')));
+});
+
+api.post('/me/quiz-attempts/:submissionId/abandon', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  return context.json(await abandonSpeedSession(userId, context.req.param('submissionId')));
 });
 
 api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = quizSubmissionSchema.parse(await readJson(context));
-
-  const questionSet = await getKeyedQuestions(
-    input.topicId,
-    input.mode,
-    input.submissionId,
-    input.paperId,
-  );
+  const questionSet = await getKeyedQuestions(input.topicId, 'concept-check', input.submissionId);
   if (!questionSet) {
     throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');
   }
@@ -720,7 +790,6 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
   });
   const correctAnswers = gradedAnswers.filter((answer) => answer.isCorrect).length;
   const percentCorrect = calculatePercentCorrect(correctAnswers, questions.length);
-  const resultingMemoryScore = calculateMemoryScore(percentCorrect);
   const now = new Date();
 
   const result = await db.transaction(async (transaction) => {
@@ -742,7 +811,6 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       correctAnswers: quizAttempts.correctAnswers,
       totalQuestions: quizAttempts.totalQuestions,
       percentCorrect: quizAttempts.percentCorrect,
-      resultingMemoryScore: quizAttempts.resultingMemoryScore,
       submittedAt: quizAttempts.submittedAt,
     })
       .from(quizAttempts)
@@ -774,9 +842,12 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       correctAnswers,
       totalQuestions: questions.length,
       percentCorrect,
-      resultingMemoryScore,
+      resultingMemoryScore: null,
+      status: 'completed',
+      modelVersion: 'raw-score-v1',
       startedAt: input.startedAt ? new Date(input.startedAt) : null,
       submittedAt: now,
+      completedAt: now,
     }).onConflictDoNothing({ target: quizAttempts.submissionId }).returning({
       id: quizAttempts.id,
       submissionId: quizAttempts.submissionId,
@@ -786,7 +857,6 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       correctAnswers: quizAttempts.correctAnswers,
       totalQuestions: quizAttempts.totalQuestions,
       percentCorrect: quizAttempts.percentCorrect,
-      resultingMemoryScore: quizAttempts.resultingMemoryScore,
       submittedAt: quizAttempts.submittedAt,
     });
 
@@ -800,7 +870,6 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
         correctAnswers: quizAttempts.correctAnswers,
         totalQuestions: quizAttempts.totalQuestions,
         percentCorrect: quizAttempts.percentCorrect,
-        resultingMemoryScore: quizAttempts.resultingMemoryScore,
         submittedAt: quizAttempts.submittedAt,
       }).from(quizAttempts).where(eq(quizAttempts.submissionId, input.submissionId)).limit(1);
 
@@ -821,26 +890,8 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     await transaction.insert(quizAttemptAnswers).values(gradedAnswers.map((answer) => ({
       attemptId: attempt.id,
       ...answer,
+      answeredAt: now,
     })));
-
-    await transaction.insert(userTopicProgress).values({
-      userId,
-      topicId: questionSet.topicId,
-      memoryScore: resultingMemoryScore,
-      lastReviewedAt: now,
-      nextReviewAt: calculateNextReviewAt(resultingMemoryScore, now),
-      quizAttempts: 1,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: [userTopicProgress.userId, userTopicProgress.topicId],
-      set: {
-        memoryScore: resultingMemoryScore,
-        lastReviewedAt: now,
-        nextReviewAt: calculateNextReviewAt(resultingMemoryScore, now),
-        quizAttempts: sql`${userTopicProgress.quizAttempts} + 1`,
-        updatedAt: now,
-      },
-    });
 
     return {
       ...attempt,
@@ -854,10 +905,7 @@ api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     };
   });
 
-  return context.json(
-    buildQuizAttemptResponse(result),
-    result.idempotentReplay ? 200 : 201,
-  );
+  return context.json(result, result.idempotentReplay ? 200 : 201);
 });
 
 api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {

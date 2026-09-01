@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
 import TeacherDashboardPage from '@/features/teacher-dashboard';
 import {
   subjectSummariesAtom,
@@ -32,14 +33,6 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-// Get the score color based on memory score
-function getScoreColor(score: number | null): { fill: string; text: string; bg: string } {
-  if (score === null) return { fill: 'var(--muted-foreground)', text: 'text-muted-foreground', bg: 'bg-muted' };
-  if (score >= 70) return { fill: 'var(--primary)', text: 'text-foreground', bg: 'bg-primary' };
-  if (score >= 40) return { fill: 'var(--accent)', text: 'text-foreground', bg: 'bg-accent' };
-  return { fill: 'var(--destructive)', text: 'text-foreground', bg: 'bg-destructive' };
-}
-
 // At-risk topic info for the alert cards
 interface AtRiskTopicInfo {
   topic: TopicData;
@@ -52,6 +45,7 @@ interface AtRiskTopicInfo {
 function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number }) {
   const navigate = useNavigate();
   const reviewTime = estimateReviewTime(info.effectiveScore);
+  const scoreColor = getKnowledgeScoreColor(info.effectiveScore);
 
   const handleReviewNow = () => {
     // Navigate to quiz with subject, topic, and the exact displayed memory score pre-filled
@@ -91,7 +85,8 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
                 initial={{ width: 0 }}
                 animate={{ width: `${info.effectiveScore}%` }}
                 transition={{ duration: 0.8, delay: 0.3 + index * 0.1 }}
-                className="h-full bg-destructive rounded-full"
+                className="h-full rounded-full"
+                style={{ backgroundColor: scoreColor.fill }}
               />
             </div>
           </div>
@@ -120,26 +115,13 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
   );
 }
 
-// Circular gauge component with enhanced styling
-// For low scores, background ring shows red to indicate "missing" memory
+// Circular gauge uses the same continuous score scale as every other view.
 function CircularGauge({ score, size = 100 }: { score: number | null; size?: number }) {
   const radius = (size - 14) / 2;
   const circumference = 2 * Math.PI * radius;
   const displayScore = score ?? 0;
   const strokeDashoffset = circumference - (displayScore / 100) * circumference;
-  const color = getScoreColor(score);
-  
-  // For low scores (< 42), show red background ring to emphasize danger
-  const isLowScore = score !== null && score < 42;
-  // For medium scores (42-70), show amber background
-  const isMediumScore = score !== null && score >= 42 && score <= 70;
-  
-  // Get background ring color based on score
-  const getBackgroundRingColor = () => {
-    if (isLowScore) return 'rgba(217, 95, 89, 0.22)';
-    if (isMediumScore) return 'rgba(100, 134, 181, 0.24)';
-    return 'rgba(29, 58, 98, 0.14)';
-  };
+  const color = getKnowledgeScoreColor(score);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -150,26 +132,9 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={getBackgroundRingColor()}
+          stroke={color.background}
           strokeWidth={10}
         />
-        {/* For low scores, show red "missing" portion */}
-        {isLowScore && (
-          <motion.circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="#D9534F"
-            strokeWidth={10}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            initial={{ strokeDashoffset: 0 }}
-            animate={{ strokeDashoffset: (displayScore / 100) * circumference }}
-            transition={{ duration: 1.2, ease: 'easeOut', delay: 0.2 }}
-            opacity={0.35}
-          />
-        )}
         {/* Progress circle - what the student has retained */}
         {score !== null && (
           <motion.circle
@@ -191,7 +156,8 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {score !== null ? (
           <motion.span
-            className={`text-2xl font-bold ${color.text}`}
+            className="text-2xl font-bold"
+            style={{ color: color.fill }}
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 }}
@@ -220,9 +186,9 @@ function SubjectCard({ subject, index }: {
 }) {
   const navigate = useNavigate();
   const score = subject.avgScore;
-  const isAtRisk = score !== null && score < 42;
-  const needsReview = score !== null && score >= 42 && score <= 70;
-  const isOnTrack = score !== null && score > 70;
+  const isAtRisk = score !== null && score < 30;
+  const needsReview = score !== null && score >= 30 && score < 80;
+  const isOnTrack = score !== null && score >= 80;
 
   // Handle review button click
   const handleReviewClick = () => {
@@ -338,7 +304,6 @@ interface PriorityDisplayItem {
   subjectIcon: string;
   memoryScore: number;
   reviewTime: number;
-  isRed: boolean; // true = red (#D9534F), false = gold (#EAA93C)
 }
 
 function PriorityItemRow({
@@ -351,8 +316,7 @@ function PriorityItemRow({
   rank: number;
 }) {
   const navigate = useNavigate();
-  const dotColor = item.isRed ? 'bg-destructive' : 'bg-accent';
-  const scoreBgColor = item.isRed ? 'bg-destructive' : 'bg-accent';
+  const scoreColor = getKnowledgeScoreColor(item.memoryScore);
 
   const handleStart = () => {
     navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=concept-check`);
@@ -373,7 +337,7 @@ function PriorityItemRow({
       {/* Topic info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`w-2 h-2 rounded-full ${dotColor} flex-shrink-0`} />
+          <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: scoreColor.fill }} />
           <span className="font-bold text-foreground">{item.topicName}</span>
           <Badge className="bg-secondary text-secondary-foreground border-0 text-xs font-bold shrink-0">
             {item.subjectIcon} {item.subjectName}
@@ -382,7 +346,8 @@ function PriorityItemRow({
         <div className="flex items-center gap-3 mt-1.5 ml-4">
           <span className="text-xs text-muted-foreground">Memory Score:</span>
           <Badge 
-            className={`border-0 text-xs font-bold ${scoreBgColor} ${item.isRed ? 'text-destructive-foreground' : 'text-accent-foreground'}`}
+            className="border-0 text-xs font-bold"
+            style={{ backgroundColor: scoreColor.fill, color: scoreColor.text }}
           >
             {item.memoryScore}%
           </Badge>
@@ -469,7 +434,6 @@ function StudentDashboard() {
       subjectIcon: item.subjectIcon,
       memoryScore: item.effectiveScore,
       reviewTime: estimateReviewTime(item.effectiveScore),
-      isRed: item.effectiveScore < 42,
     }));
   }, [priorityQueue]);
 

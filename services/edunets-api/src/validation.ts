@@ -69,8 +69,7 @@ export const updateSchoolSchema = z.strictObject({
 export const quizSubmissionSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
-  mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
-  paperId: z.enum(['paper-1', 'paper-2']).optional(),
+  mode: z.literal('concept-check'),
   startedAt: z.iso.datetime({ offset: true }).optional(),
   answers: z.array(z.strictObject({
     questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
@@ -86,8 +85,13 @@ export const quizOptionsQuerySchema = z.strictObject({
 export const quizSetRequestSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
-  mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
-  paperId: z.enum(['paper-1', 'paper-2']).optional(),
+  mode: z.enum(['concept-check', 'speed-round']),
+});
+
+export const speedAnswerSchema = z.strictObject({
+  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
+  questionIndex: z.number().int().min(0).max(9),
+  answer: z.number().int().min(0).max(3),
 });
 
 export const quizHistoryQuerySchema = z.object({

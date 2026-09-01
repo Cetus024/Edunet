@@ -6,24 +6,24 @@ describe('class concept web averages', () => {
   it('uses the full class size as the score denominator', () => {
     const result = summarizeClassTopic(4, [
       {
-        memoryScore: 80,
+        mastery: 0.8,
+        stabilityDays: 2,
         lastReviewedAt: new Date('2026-08-01T08:00:00.000Z'),
-        nextReviewAt: new Date('2026-08-10T08:00:00.000Z'),
         quizAttempts: 2,
       },
       {
-        memoryScore: 60,
+        mastery: 0.6,
+        stabilityDays: 2,
         lastReviewedAt: new Date('2026-08-03T08:00:00.000Z'),
-        nextReviewAt: new Date('2026-08-08T08:00:00.000Z'),
         quizAttempts: 1,
       },
-    ]);
+    ], new Date('2026-08-03T08:00:00.000Z'));
 
     expect(result).toEqual({
-      memoryScore: 35,
+      memoryScore: 22,
       participatingStudents: 2,
       lastReviewedAt: new Date('2026-08-03T08:00:00.000Z'),
-      nextReviewAt: new Date('2026-08-08T08:00:00.000Z'),
+      nextReviewAt: new Date(new Date('2026-08-01T08:00:00.000Z').getTime() - 2 * Math.log(0.85) * 86_400_000),
       quizAttempts: 3,
     });
   });

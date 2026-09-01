@@ -36,7 +36,7 @@ export type StudentOnboardingProfileResponse = OnboardingProfileBase & {
   role: 'student';
   topicId: string;
   topicName: string;
-  initialMemoryScore: number;
+  initialMastery: number | null;
   placementAttemptId: string | null;
 };
 
@@ -44,7 +44,7 @@ export type TeacherOnboardingProfileResponse = OnboardingProfileBase & {
   role: 'teacher';
   topicId: null;
   topicName: null;
-  initialMemoryScore: null;
+  initialMastery: null;
   placementAttemptId: null;
 };
 

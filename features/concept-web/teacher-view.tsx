@@ -19,6 +19,7 @@ import {
   type StudentConceptWebTopic,
 } from '@/lib/api/teacher-students';
 import { useTeachingContext } from '@/lib/teaching-context';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
 
 type NodeKind = 'subject' | 'topic' | 'subconcept';
 type GraphNode = {
@@ -50,13 +51,6 @@ type NormalizedTopic = {
   quizAttempts: number;
   lastReviewedAt: string | null;
   nextReviewAt: string | null;
-};
-
-const tierForScore = (score: number | null) => {
-  if (score === null) return { fill: '#9CA3AF', stroke: '#6B7280', text: '#FFFFFF', label: 'Not started' };
-  if (score >= 70) return { fill: '#186636', stroke: '#0F4A24', text: '#FFFFFF', label: 'Strong' };
-  if (score >= 40) return { fill: '#EAA93C', stroke: '#D99A2F', text: '#17233A', label: 'Review needed' };
-  return { fill: '#D9534F', stroke: '#C0392B', text: '#FFFFFF', label: 'Weak' };
 };
 
 const wrapText = (label: string): string[] => {
@@ -255,13 +249,13 @@ export default function TeacherConceptWebView() {
 
   const priorityTopics = useMemo(
     () => [...normalizedTopics]
-      .filter((topic) => topic.memoryScore === null || topic.memoryScore < 70)
+      .filter((topic) => topic.memoryScore === null || topic.memoryScore < 80)
       .sort((a, b) => (a.memoryScore ?? -1) - (b.memoryScore ?? -1))
       .slice(0, 5),
     [normalizedTopics],
   );
   const improvingTopics = useMemo(
-    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore >= 70),
+    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore >= 80),
     [normalizedTopics],
   );
   const insightSubjectLabel = selectedStudentId
@@ -335,7 +329,7 @@ export default function TeacherConceptWebView() {
     });
   };
 
-  const selectedPopupTier = popup ? tierForScore(popup.node.memoryScore) : null;
+  const selectedPopupTier = popup ? getKnowledgeScoreColor(popup.node.memoryScore) : null;
 
   if (rosterError) {
     return (
@@ -434,8 +428,8 @@ export default function TeacherConceptWebView() {
                 <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
               ))}
               {graph.nodes.map((node: GraphNode) => {
-                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore >= 70;
-                const tier = tierForScore(node.memoryScore);
+                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore >= 80;
+                const tier = getKnowledgeScoreColor(node.memoryScore);
                 const scoreLabel = node.memoryScore === null ? 'not started' : `${node.memoryScore}% mastery`;
                 const highlighted = highlightedId === node.id;
                 const lines = wrapText(node.name);
@@ -458,14 +452,6 @@ export default function TeacherConceptWebView() {
               })}
             </g>
           </svg>
-
-          <div className="absolute bottom-5 left-5 w-[300px] rounded-3xl bg-card p-4 text-card-foreground shadow-xl">
-            <p className="mb-3 font-bold">Legend</p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {[{ c: '#186636', t: '70%+ Strong' }, { c: '#EAA93C', t: '40–69 Review' }, { c: '#D9534F', t: '0–39 Weak' }, { c: '#9CA3AF', t: 'Not Started' }].map((item: { c: string; t: string }) => <div key={item.t} className="flex items-center gap-2"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.c }} />{item.t}</div>)}
-            </div>
-            <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>— solid: branch link</p><p>- - dashed: cross-topic link</p><p>Click any bubble. Drag to pan, scroll to zoom.</p></div>
-          </div>
 
           <div className="absolute bottom-5 right-5 flex flex-col gap-2">
             <Button aria-label="Zoom in" size="icon" className="rounded-full bg-primary text-primary-foreground" onClick={() => setPan((current) => ({ ...current, zoom: clamp(current.zoom + 0.2, 0.4, 2.5) }))}><Plus className="h-4 w-4" /></Button>

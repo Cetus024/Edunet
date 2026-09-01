@@ -36,6 +36,7 @@ import { authClient } from '@/lib/api/auth-client';
 import { currentAccountQueryKey, updateSchool, updateTeachingScopes, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
 import { useCatalog } from '@/lib/api/study';
 import { getRoleLabel, isTeachingRole } from '@/lib/roles';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
 import {
   getEffectiveScore,
   subjectSummariesAtom,
@@ -77,18 +78,6 @@ function useNameEditor(currentName: string) {
   };
 
   return { isEditing, value, setValue, isSaving, startEditing, cancel, save };
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 70) return 'bg-[#186636]';
-  if (score >= 50) return 'bg-[#EAA93C]';
-  return 'bg-red-500';
-}
-
-function getScoreBgColor(score: number): string {
-  if (score >= 70) return 'bg-[#186636]/10';
-  if (score >= 50) return 'bg-[#EAA93C]/10';
-  return 'bg-red-500/10';
 }
 
 function getLastReviewedLabel(value: string | null): string {
@@ -581,13 +570,14 @@ export default function ProfilePage() {
                 </p>
               ) : subjectOverview.map((subject, index) => {
                 const score = subject.score ?? 0;
+                const scoreColor = getKnowledgeScoreColor(score);
                 return (
                   <motion.div key={subject.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + index * 0.06 }} className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2"><span className="text-xl">{subject.icon}</span><span className="font-semibold text-studynow-dark">{subject.name}</span></div>
-                      <span className={`text-lg font-bold ${score >= 70 ? 'text-[var(--success)]' : score >= 50 ? 'text-[#EAA93C]' : 'text-red-500'}`}>{score}%</span>
+                      <span className="text-lg font-bold" style={{ color: scoreColor.fill }}>{score}%</span>
                     </div>
-                    <div className={`mb-2 h-2 overflow-hidden rounded-full ${getScoreBgColor(score)}`}><motion.div initial={{ width: 0 }} animate={{ width: `${score}%` }} className={`h-full rounded-full ${getScoreColor(score)}`} /></div>
+                    <div className="mb-2 h-2 overflow-hidden rounded-full" style={{ backgroundColor: scoreColor.background }}><motion.div initial={{ width: 0 }} animate={{ width: `${score}%` }} className="h-full rounded-full" style={{ backgroundColor: scoreColor.fill }} /></div>
                     <p className="text-xs text-muted-foreground">{getLastReviewedLabel(subject.latestReview)}</p>
                   </motion.div>
                 );
