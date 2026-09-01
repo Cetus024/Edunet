@@ -53,6 +53,33 @@ export function useTranslation() {
 }
 
 /**
+ * Catalog subject names arrive from the database in English and are matched on
+ * by value elsewhere, so they are translated for display only — never replaced
+ * at the source. An unrecognised name falls through unchanged, which is what
+ * should happen if the catalog ever grows a ninth subject before this map does.
+ */
+const SUBJECT_KEYS: Record<string, TranslationKey> = {
+  Biology: 'subject.biology',
+  Chemistry: 'subject.chemistry',
+  Physics: 'subject.physics',
+  English: 'subject.english',
+  History: 'subject.history',
+  Geography: 'subject.geography',
+  'A-Math': 'subject.aMath',
+  'E-Math': 'subject.eMath',
+};
+
+export function localizeSubject(locale: Locale, name: string): string {
+  const key = SUBJECT_KEYS[name];
+  return key ? translate(locale, key) : name;
+}
+
+export function useSubjectName() {
+  const locale = useLocale();
+  return useCallback((name: string) => localizeSubject(locale, name), [locale]);
+}
+
+/**
  * Picks the right side of a bilingual data pair. Catalog and syllabus rows keep
  * their English `name` as the canonical matching key — topic names are joined
  * on by value in squad-data and the concept web's `keyConnectionTopic`, so
