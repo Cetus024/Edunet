@@ -221,16 +221,18 @@ export default function StudySquadPage() {
     [rescueTarget],
   );
 
-  const openDiscussionRoom = useCallback(() => {
-    if (!rescueTarget || !discussionTopicId) return;
-    const query = new URLSearchParams({
-      topicId: discussionTopicId,
-      topic: rescueTarget.topic.topic,
-      subject: rescueTarget.topic.subject,
-    });
+  const startTopicDiscussion = useCallback((subject: string, topicName: string) => {
+    const rubricTopicId = resolveRubricTopicId(subject, topicName);
+    if (!rubricTopicId) return;
+    const query = new URLSearchParams({ topicId: rubricTopicId, topic: topicName, subject });
     setRescueTarget(null);
     navigate(`/discussion-room?${query.toString()}`);
-  }, [discussionTopicId, navigate, rescueTarget]);
+  }, [navigate]);
+
+  const openDiscussionRoom = useCallback(() => {
+    if (!rescueTarget) return;
+    startTopicDiscussion(rescueTarget.topic.subject, rescueTarget.topic.topic);
+  }, [rescueTarget, startTopicDiscussion]);
 
   const closeRescueDialog = () => {
     if (sendState === 'sending') return;
@@ -347,6 +349,14 @@ export default function StudySquadPage() {
                   <Badge className="mb-4 rounded-full border-0 bg-secondary text-secondary-foreground">Study Squad</Badge>
                   <h1 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">Keep your squad learning together</h1>
                   <p className="mt-3 text-muted-foreground">Invite friends, compare memory scores, and send 10-minute rescues before streaks break.</p>
+                  {/* The general entry: any topic, not only the ones the squad
+                      is currently weak at. Goes to the room's own picker. */}
+                  <Button
+                    onClick={() => navigate('/discussion-room')}
+                    className="mt-4 rounded-full bg-primary text-primary-foreground hover:bg-accent"
+                  >
+                    <Mic className="mr-2 h-4 w-4" /> Start a discussion room
+                  </Button>
                 </div>
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] bg-primary text-primary-foreground shadow-lg">
                   <Users className="h-12 w-12" />
@@ -448,18 +458,36 @@ export default function StudySquadPage() {
                         </div>
                         <Badge className="border-0 bg-destructive text-primary-foreground">At risk</Badge>
                       </div>
-                      {activeRescueByMember[member.id] ? (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Badge className="rounded-full border-0 bg-secondary text-secondary-foreground">Rescue sent ⏳</Badge>
-                          <Button onClick={() => navigate(`/rescue-join?roomId=${encodeURIComponent(activeRescueByMember[member.id]?.roomId ?? 'demo-room-chemical-bonding')}`)} size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-accent">
-                            Open Rescue Room
+                      {/* The discussion entry sits outside this branch on
+                          purpose. Once a rescue has been sent the card swaps to
+                          "Open Rescue Room" and the rescue dialog becomes
+                          unreachable -- so an entry point that only lived in
+                          that dialog disappeared exactly for the topics the
+                          squad is working on hardest. */}
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        {activeRescueByMember[member.id] ? (
+                          <>
+                            <Badge className="rounded-full border-0 bg-secondary text-secondary-foreground">Rescue sent ⏳</Badge>
+                            <Button onClick={() => navigate(`/rescue-join?roomId=${encodeURIComponent(activeRescueByMember[member.id]?.roomId ?? 'demo-room-chemical-bonding')}`)} size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-accent">
+                              Open Rescue Room
+                            </Button>
+                          </>
+                        ) : (
+                          <Button onClick={() => openRescueDialog(member, topic)} size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-primary">
+                            <Bell className="mr-2 h-4 w-4" /> Rescue {member.name}
                           </Button>
-                        </div>
-                      ) : (
-                        <Button onClick={() => openRescueDialog(member, topic)} className="mt-4 rounded-full bg-accent text-accent-foreground hover:bg-primary">
-                          <Bell className="mr-2 h-4 w-4" /> Rescue {member.name}
-                        </Button>
-                      )}
+                        )}
+                        {resolveRubricTopicId(topic.subject, topic.topic) && (
+                          <Button
+                            onClick={() => startTopicDiscussion(topic.subject, topic.topic)}
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full border-primary text-foreground hover:bg-secondary"
+                          >
+                            <Mic className="mr-2 h-4 w-4" /> Discuss
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

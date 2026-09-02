@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useCurrentAccount } from '@/lib/api/me';
+import { useCatalog } from '@/lib/api/study';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useTranscription } from '@/hooks/use-transcription';
 import {
@@ -40,6 +41,7 @@ export default function DiscussionRoomPage() {
   const subjectLabel = searchParams.get('subject') ?? '';
 
   const { data: account } = useCurrentAccount();
+  const { data: catalog } = useCatalog();
   const speakerName = account?.user.name?.trim() || 'You';
 
   const subconcepts = useMemo(() => getSubconcepts(topicId), [topicId]);
@@ -85,7 +87,52 @@ export default function DiscussionRoomPage() {
     await start();
   }, [reset, start]);
 
-  if (!topicId || subconcepts.length === 0) {
+  // Reached with no topic — from the sidebar, or a bare link. Offer the choice
+  // rather than an error, so the room is usable without going through Study
+  // Squad first. Only topics that actually carry a rubric are listed.
+  if (!topicId) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5 p-4 pb-28 sm:p-6">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight">Discussion room</h1>
+          <p className="mt-1 text-sm font-semibold text-muted-foreground">
+            Pick a topic, explain it out loud for three minutes, and see which parts you covered.
+          </p>
+        </div>
+        {catalog?.subjects.map((subject) => {
+          const usable = subject.topics.filter((entry) => getSubconcepts(entry.id).length > 0);
+          if (usable.length === 0) return null;
+          return (
+            <Card key={subject.id} className="rounded-[1.5rem] border-0 floaty-card">
+              <CardContent className="p-5">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                  {subject.name}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {usable.map((entry) => (
+                    <Button
+                      key={entry.id}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => navigate(`/discussion-room?${new URLSearchParams({
+                        topicId: entry.id, topic: entry.name, subject: subject.name,
+                      }).toString()}`)}
+                    >
+                      {entry.name}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+        {!catalog && <p className="text-sm text-muted-foreground">Loading topics…</p>}
+      </div>
+    );
+  }
+
+  if (subconcepts.length === 0) {
     return (
       <div className="mx-auto max-w-2xl p-6">
         <Card className="rounded-[1.5rem] border-0 floaty-card">
@@ -96,8 +143,8 @@ export default function DiscussionRoomPage() {
               A discussion room scores what was said against the topic’s subconcepts, and there are
               none on record for “{topicLabel || 'this topic'}”.
             </p>
-            <Button onClick={() => navigate('/study-squad')} className="rounded-full">
-              Back to Study Squad
+            <Button onClick={() => navigate('/discussion-room')} className="rounded-full">
+              Choose another topic
             </Button>
           </CardContent>
         </Card>
