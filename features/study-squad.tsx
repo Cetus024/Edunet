@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Copy, Crown, Flame, Flag, Instagram, Loader2, Mail, Medal, Send, Sparkles, Timer, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Copy, Crown, Flame, Flag, Instagram, Loader2, Mail, Medal, Mic, Send, Sparkles, Timer, Users, Zap } from 'lucide-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -210,6 +211,26 @@ export default function StudySquadPage() {
     setCustomMessage('');
     setSendState('idle');
   };
+
+  // The rubric is keyed by catalog topic id. The demo roster's weak topics
+  // carry short slugs instead, so the id is derived from subject + topic name,
+  // which resolves for both. null means this topic has no rubric, and the entry
+  // point is hidden rather than opening a room that could not score anything.
+  const discussionTopicId = useMemo(
+    () => (rescueTarget ? resolveRubricTopicId(rescueTarget.topic.subject, rescueTarget.topic.topic) : null),
+    [rescueTarget],
+  );
+
+  const openDiscussionRoom = useCallback(() => {
+    if (!rescueTarget || !discussionTopicId) return;
+    const query = new URLSearchParams({
+      topicId: discussionTopicId,
+      topic: rescueTarget.topic.topic,
+      subject: rescueTarget.topic.subject,
+    });
+    setRescueTarget(null);
+    navigate(`/discussion-room?${query.toString()}`);
+  }, [discussionTopicId, navigate, rescueTarget]);
 
   const closeRescueDialog = () => {
     if (sendState === 'sending') return;
@@ -603,11 +624,33 @@ export default function StudySquadPage() {
 
                   {sendState === 'error' && <p className="rounded-xl bg-destructive p-3 text-sm font-bold text-primary-foreground">Couldn&apos;t send this nudge. Try again.</p>}
 
-                  <Button onClick={sendRescueNudge} disabled={sendState === 'sending' || sendState === 'success'} className="w-full rounded-full bg-primary text-primary-foreground hover:bg-accent">
-                    {sendState === 'sending' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {sendState === 'success' && <CheckCircle2 className="mr-2 h-4 w-4" />}
-                    {sendState === 'success' ? 'Sent' : rescueSprintEnabled ? 'Send Rescue Nudge' : 'Send Nudge'}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button onClick={sendRescueNudge} disabled={sendState === 'sending' || sendState === 'success'} className="w-full rounded-full bg-primary text-primary-foreground hover:bg-accent">
+                      {sendState === 'sending' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {sendState === 'success' && <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      {sendState === 'success' ? 'Sent' : rescueSprintEnabled ? 'Send Rescue Nudge' : 'Send Nudge'}
+                    </Button>
+
+                    {/* The second way out of this dialog: instead of nudging
+                        someone else to revise, explain the topic yourself and
+                        get it checked. Hidden rather than disabled when the
+                        topic has no rubric -- a room that cannot score anything
+                        would return a blank review with no error. */}
+                    {discussionTopicId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={openDiscussionRoom}
+                        className="w-full rounded-full border-primary text-foreground hover:bg-secondary"
+                      >
+                        <Mic className="mr-2 h-4 w-4" />
+                        Start a {rescueTarget.topic.topic} discussion room
+                      </Button>
+                    )}
+                    <p className="text-center text-xs font-semibold text-muted-foreground">
+                      Send a 10-minute rescue, or explain the topic out loud yourself.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
