@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Circle, CircleDot, Mic, Square, Timer } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Circle, CircleDot, Loader2, Mic, Sparkles, Square, ThumbsUp, TriangleAlert, Timer } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { useCatalog } from '@/lib/api/study';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useTranscription } from '@/hooks/use-transcription';
 import { useMicLevel } from '@/hooks/use-mic-level';
+import { requestExplanationAnalysis, type ExplanationAnalysis } from '@/lib/api/discussion';
 import {
   getSubconcepts,
   reviewDiscussion,
@@ -51,6 +52,8 @@ export default function DiscussionRoomPage() {
 
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_DURATION_SECONDS);
   const [review, setReview] = useState<DiscussionReview | null>(null);
+  const [analysis, setAnalysis] = useState<ExplanationAnalysis | null>(null);
+  const [analysisState, setAnalysisState] = useState<'idle' | 'running' | 'done' | 'unavailable' | 'failed'>('idle');
   // The transcript is read when the timer fires, which happens inside an
   // interval closure — a ref keeps that read current without restarting the
   // countdown every time a word is recognised.
@@ -63,9 +66,23 @@ export default function DiscussionRoomPage() {
 
   const finish = useCallback(async () => {
     await stop();
+    const spoken = transcriptRef.current;
     setReview(reviewDiscussion(topicId, [
-      { speakerId: account?.user.id ?? 'me', speakerName, text: transcriptRef.current },
+      { speakerId: account?.user.id ?? 'me', speakerName, text: spoken },
     ]));
+
+    // The rubric result is already on screen at this point. The marking runs
+    // after it and only ever adds to it, so a model that is unconfigured, slow
+    // or failing costs the student nothing they already had.
+    if (spoken.trim().split(/\s+/).length < 12) return;
+    setAnalysisState('running');
+    try {
+      const response = await requestExplanationAnalysis({ topicId, transcript: spoken });
+      setAnalysis(response.analysis);
+      setAnalysisState(response.available ? 'done' : 'unavailable');
+    } catch {
+      setAnalysisState('failed');
+    }
   }, [account?.user.id, speakerName, stop, topicId]);
 
   useEffect(() => {
@@ -84,6 +101,8 @@ export default function DiscussionRoomPage() {
 
   const begin = useCallback(async () => {
     setReview(null);
+    setAnalysis(null);
+    setAnalysisState('idle');
     reset();
     setSecondsLeft(DEFAULT_DURATION_SECONDS);
     await start();
@@ -265,6 +284,62 @@ export default function DiscussionRoomPage() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="rounded-[1.5rem] border-0 floaty-card">
                 <CardContent className="space-y-4 p-5">
+                  {analysisState === 'running' && (
+                    <div className="flex items-center gap-2 rounded-[1.15rem] border border-border p-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <p className="text-sm font-bold text-muted-foreground">Marking your explanation…</p>
+                    </div>
+                  )}
+
+                  {analysis && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <h2 className="text-xl font-black">What you got right and wrong</h2>
+                      </div>
+                      {analysis.summary && (
+                        <p className="text-sm font-semibold text-foreground">{analysis.summary}</p>
+                      )}
+
+                      {/* Mistakes first: a wrong idea left uncorrected costs more
+                          than a right one left unpraised. */}
+                      {analysis.incorrect.map((item, index) => (
+                        <div key={`wrong-${index}`} className="rounded-[1.15rem] border border-destructive bg-background p-4">
+                          <div className="flex items-start gap-2">
+                            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                            <div>
+                              <p className="text-sm font-black">{item.point}</p>
+                              {item.quote && (
+                                <p className="mt-1 text-xs italic text-muted-foreground">“{item.quote}”</p>
+                              )}
+                              <p className="mt-2 text-sm font-semibold">{item.correction}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {analysis.correct.map((item, index) => (
+                        <div key={`right-${index}`} className="rounded-[1.15rem] border border-border bg-background p-3">
+                          <div className="flex items-start gap-2">
+                            <ThumbsUp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <div>
+                              <p className="text-sm font-black">{item.point}</p>
+                              {item.quote && (
+                                <p className="mt-1 text-xs italic text-muted-foreground">“{item.quote}”</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(analysisState === 'unavailable' || analysisState === 'failed') && (
+                    <p className="rounded-[1.15rem] border border-border p-3 text-xs font-semibold text-muted-foreground">
+                      Marking is not available right now, so only the coverage check below is shown.
+                    </p>
+                  )}
+
                   <div>
                     <h2 className="text-xl font-black">What to fix</h2>
                     {/* The rubric detects whether a subconcept was talked about.

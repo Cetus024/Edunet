@@ -16,6 +16,9 @@ import {
   teachingScopes,
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
+import { analyzeExplanation } from '../services/explanation-analysis.js';
+import { getAnalysisModel, isAnalysisConfigured } from '../services/modelarts.js';
+import { discussionAnalysisSchema } from '../validation.js';
 import {
   KNOWLEDGE_MODEL_VERSION,
   PHASE1_PARAMETERS,
@@ -796,6 +799,35 @@ api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {
       })),
     })),
   });
+});
+
+// Marks a spoken explanation against the syllabus content this project already
+// holds. Separate from the client-side rubric on purpose: the rubric answers
+// "was it mentioned", deterministically and offline; this answers "was it
+// right", and needs a model.
+//
+// Never fails the request. If analysis is unconfigured, times out, or comes
+// back unparseable, the response says so and the room keeps showing rubric
+// coverage. Losing the marking should never cost a student the session.
+api.post('/me/discussion-analysis', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = discussionAnalysisSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({ available: false, analysis: null });
+  }
+
+  const model = getAnalysisModel();
+  if (!model) return context.json({ available: false, analysis: null });
+
+  try {
+    const analysis = await analyzeExplanation(input.topicId, input.transcript, model);
+    return context.json({ available: true, analysis });
+  } catch {
+    // The upstream error can echo the prompt, which carries the transcript, so
+    // it is not logged or returned.
+    return context.json({ available: true, analysis: null });
+  }
 });
 
 export { api as apiV1 };

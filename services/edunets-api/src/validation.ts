@@ -127,3 +127,12 @@ export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
 export type QuizSetRequest = z.infer<typeof quizSetRequestSchema>;
 export type CreateEnquiryRequest = z.infer<typeof createEnquirySchema>;
 export type SendEnquiryMessageRequest = z.infer<typeof sendEnquiryMessageSchema>;
+
+// Transcript of a spoken explanation, marked against the topic's syllabus
+// content. The upper bound is generous next to a three-minute session (~450
+// words) so a longer room does not start rejecting work, while still capping
+// what reaches the model.
+export const discussionAnalysisSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  transcript: z.string().trim().min(1).max(20_000),
+});
