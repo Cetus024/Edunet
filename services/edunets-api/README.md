@@ -86,25 +86,17 @@ Student onboarding first requests a placement set with a UUID, subject, and topi
 
 The example abbreviates the answers array; the API requires the exact ten keys issued for the set. It grades on the server, stores the placement attempt and answers, creates the first topic progress row, and completes onboarding in one transaction. Teacher onboarding instead requires `role`, `schoolId`, and one or more named `teachingScopes`. Only Student and Teacher roles are accepted.
 
-A quiz submission is:
+A Phase 1 assessment starts with:
 
 ```json
 {
   "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
   "topicId": "amath-trig",
-  "mode": "concept-check",
-  "startedAt": "2026-07-31T06:30:00.000Z",
-  "answers": [
-    { "questionKey": "amath-trig:v1:q01", "answer": 1 },
-    { "questionKey": "amath-trig:v1:q02", "answer": "adjacent" },
-    { "questionKey": "amath-trig:v1:q03", "answer": 0 },
-    { "questionKey": "amath-trig:v1:q04", "answer": "14.0" },
-    { "questionKey": "amath-trig:v1:q05", "answer": 1 }
-  ]
+  "mode": "mcq"
 }
 ```
 
-The server requires exactly the five versioned keys from the static question bank, re-grades every answer, computes Memory Score and Next Review itself, then updates progress in the same transaction. The POST response includes `nextReviewAt`, calculated from that attempt's persisted `submittedAt` and resulting score. Repeating the same globally unique `submissionId` returns the stored per-question grading and original result without increasing the attempt count.
+`mcq` sessions contain 10 questions and `essay` sessions contain five 10-mark questions. Answers are posted one at a time for immediate feedback; Essay answers include a student-entered `marksObtained` value from 0–10 with at most two decimal places. Finishing publishes the assessment-only posterior with `P(T)=0`. The idempotent `feedback-complete` endpoint applies `P(T)=0.20` once, recomputes the separate mode Memory and the averaged Concept Memory, and saves one combined reminder. Starting a newer assessment for the same topic closes any older pending correction opportunity.
 
 Students can create and read only their own real enquiry threads. Teachers can read and reply only to threads assigned to them. The recipient directory returns completed Teacher profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
 

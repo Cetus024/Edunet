@@ -3,10 +3,10 @@ import { and, asc, eq, ilike, inArray, ne, or } from 'drizzle-orm';
 import { db } from '../../../../database/index.js';
 import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
-import { classroomEnrollments, onboardingProfiles, profiles, teachingScopes, userTopicProgress } from '../../../../database/schema/learning.js';
+import { classroomEnrollments, onboardingProfiles, profiles, teachingScopes, userTopicModeProgress, userTopicProgress } from '../../../../database/schema/learning.js';
 import { ApiError } from '../errors.js';
 import { summarizeClassTopic } from '../lib/class-concept-web.js';
-import { calculateDynamicProgress } from '../lib/knowledge-model.js';
+import { PHASE1_PARAMETERS, calculateConceptMemory } from '../lib/knowledge-model.js';
 import { isRecipientRole, type EnquiryActor } from '../lib/enquiries.js';
 import { loadEnquiryActor } from './enquiries.js';
 
@@ -36,9 +36,8 @@ export type StudentConceptWebResponse = {
     id: string;
     name: string;
     memoryScore: number | null;
-    masteryScore: number | null;
-    stabilityDays: number | null;
-    successfulReviews: number;
+    modeScores: ReturnType<typeof calculateConceptMemory>['modes'];
+    recommendedMode: 'mcq' | 'essay' | null;
     reviewNow: boolean;
     lastReviewedAt: Date | null;
     nextReviewAt: Date | null;
@@ -245,23 +244,36 @@ export async function getClassConceptWebForTeacher(
     .where(eq(topics.subjectId, teacher.subjectId))
     .orderBy(asc(topics.position));
 
-  const progressRows = roster.length === 0
-    ? []
-    : await db.select({
-      topicId: userTopicProgress.topicId,
-      mastery: userTopicProgress.mastery,
-      stabilityDays: userTopicProgress.stabilityDays,
-      lastReviewedAt: userTopicProgress.lastReviewedAt,
-      quizAttempts: userTopicProgress.quizAttempts,
-    })
-      .from(userTopicProgress)
-      .where(inArray(userTopicProgress.userId, roster.map((student) => student.id)));
+  const [progressRows, reminderRows] = roster.length === 0
+    ? [[], []]
+    : await Promise.all([
+        db.select({
+          userId: userTopicModeProgress.userId,
+          topicId: userTopicModeProgress.topicId,
+          mode: userTopicModeProgress.assessmentMode,
+          mastery: userTopicModeProgress.mastery,
+          lastUpdatedAt: userTopicModeProgress.lastUpdatedAt,
+          quizAttempts: userTopicModeProgress.quizAttempts,
+        }).from(userTopicModeProgress)
+          .where(inArray(userTopicModeProgress.userId, roster.map((student) => student.id))),
+        db.select({
+          topicId: userTopicProgress.topicId,
+          nextReviewAt: userTopicProgress.nextReviewAt,
+        }).from(userTopicProgress)
+          .where(inArray(userTopicProgress.userId, roster.map((student) => student.id))),
+      ]);
 
   const progressByTopic = new Map<string, typeof progressRows>();
   for (const progress of progressRows) {
     const topicProgress = progressByTopic.get(progress.topicId) ?? [];
     topicProgress.push(progress);
     progressByTopic.set(progress.topicId, topicProgress);
+  }
+  const remindersByTopic = new Map<string, Date[]>();
+  for (const reminder of reminderRows) {
+    const dates = remindersByTopic.get(reminder.topicId) ?? [];
+    dates.push(reminder.nextReviewAt);
+    remindersByTopic.set(reminder.topicId, dates);
   }
 
   return {
@@ -273,7 +285,7 @@ export async function getClassConceptWebForTeacher(
       return {
         id: topic.id,
         name: topic.name,
-        ...summarizeClassTopic(roster.length, topicProgress),
+        ...summarizeClassTopic(roster.length, topicProgress, new Date(), remindersByTopic.get(topic.id) ?? []),
       };
     }),
   };
@@ -312,38 +324,50 @@ export async function getStudentConceptWebForTeacher(
     .where(eq(topics.subjectId, teacher.subjectId))
     .orderBy(asc(topics.position));
 
-  const progressRows = await db.select({
-    topicId: userTopicProgress.topicId,
-    mastery: userTopicProgress.mastery,
-    stabilityDays: userTopicProgress.stabilityDays,
-    successfulReviews: userTopicProgress.successfulReviews,
-    lastReviewedAt: userTopicProgress.lastReviewedAt,
-    quizAttempts: userTopicProgress.quizAttempts,
-  })
-    .from(userTopicProgress)
-    .where(eq(userTopicProgress.userId, studentId));
+  const [progressRows, reminderRows] = await Promise.all([
+    db.select({
+      topicId: userTopicModeProgress.topicId,
+      mode: userTopicModeProgress.assessmentMode,
+      mastery: userTopicModeProgress.mastery,
+      lastUpdatedAt: userTopicModeProgress.lastUpdatedAt,
+      quizAttempts: userTopicModeProgress.quizAttempts,
+    }).from(userTopicModeProgress).where(eq(userTopicModeProgress.userId, studentId)),
+    db.select({ topicId: userTopicProgress.topicId, nextReviewAt: userTopicProgress.nextReviewAt })
+      .from(userTopicProgress).where(eq(userTopicProgress.userId, studentId)),
+  ]);
 
-  const progressByTopic = new Map(progressRows.map((progress) => [progress.topicId, progress]));
+  const progressByTopic = new Map<string, typeof progressRows>();
+  for (const progress of progressRows) {
+    const rows = progressByTopic.get(progress.topicId) ?? [];
+    rows.push(progress);
+    progressByTopic.set(progress.topicId, rows);
+  }
+  const reminderByTopic = new Map(reminderRows.map((row) => [row.topicId, row.nextReviewAt]));
 
   return {
     student: { id: student.id, name: student.name },
     subject: subjectRow,
     topics: topicRows.map((topic) => {
-      const progress = progressByTopic.get(topic.id);
-      const dynamic = progress
-        ? calculateDynamicProgress(progress.mastery, progress.stabilityDays, progress.lastReviewedAt)
-        : null;
+      const rows = progressByTopic.get(topic.id) ?? [];
+      const calculatedAt = new Date();
+      const concept = calculateConceptMemory(rows, calculatedAt);
+      const nextReviewAt = reminderByTopic.get(topic.id) ?? null;
+      const lastReviewedAt = rows.reduce<Date | null>((latest, row) => (
+        latest === null || row.lastUpdatedAt > latest ? row.lastUpdatedAt : latest
+      ), null);
       return {
         id: topic.id,
         name: topic.name,
-        memoryScore: dynamic?.memoryScore ?? null,
-        masteryScore: dynamic?.masteryScore ?? null,
-        stabilityDays: progress?.stabilityDays ?? null,
-        successfulReviews: progress?.successfulReviews ?? 0,
-        reviewNow: dynamic?.reviewNow ?? false,
-        lastReviewedAt: progress?.lastReviewedAt ?? null,
-        nextReviewAt: dynamic?.nextReviewAt ?? null,
-        quizAttempts: progress?.quizAttempts ?? 0,
+        memoryScore: concept.conceptMemoryScore,
+        modeScores: concept.modes,
+        recommendedMode: concept.recommendedMode,
+        reviewNow: concept.conceptMemory !== null && (
+          concept.conceptMemory <= PHASE1_PARAMETERS.memoryThreshold
+          || (nextReviewAt !== null && nextReviewAt <= calculatedAt)
+        ),
+        lastReviewedAt,
+        nextReviewAt,
+        quizAttempts: rows.reduce((sum, row) => sum + row.quizAttempts, 0),
       };
     }),
   };

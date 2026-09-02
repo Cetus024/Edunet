@@ -234,6 +234,7 @@ const practiceQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
       options: question.options ? JSON.stringify(question.options) : null,
       blankWord: question.blankWord,
       wordLimit: question.wordLimit,
+      maxMarks: question.type === 'structured' ? 10 : null,
       source: question.source,
       resourceNumber: question.resourceNumber,
       diagramUrl: question.diagramUrl,
@@ -288,6 +289,7 @@ const placementQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => {
       options: JSON.stringify(options),
       blankWord: null,
       wordLimit: null,
+      maxMarks: null,
       source: 'EduNets placement bank',
       resourceNumber: null,
       diagramUrl: null,
@@ -295,4 +297,30 @@ const placementQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => {
   }));
 });
 
-export const quizQuestionSeed = [...practiceQuestionSeed, ...placementQuestionSeed];
+const essayQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
+  subject.topics.flatMap((topic) => {
+    const sourceQuestions = topic.questions.filter((question) => question.type !== 'structured').slice(0, 4);
+    if (sourceQuestions.length !== 4) {
+      throw new Error(`Topic ${topic.id} does not have four source questions for Essay derivation.`);
+    }
+    return sourceQuestions.map((question, index) => ({
+      id: `${topic.id}-q${String(index + 13).padStart(3, '0')}`,
+      topicId: topic.id,
+      type: 'structured' as const,
+      usage: 'practice' as const,
+      text: `Explain "${question.linkedConcept}" in ${topic.name}. Include the relevant reasoning and key details.`,
+      correctAnswer: question.explanation,
+      explanation: question.explanation,
+      linkedConcept: question.linkedConcept,
+      options: null,
+      blankWord: null,
+      wordLimit: 120,
+      maxMarks: 10,
+      source: 'EduNets Phase 1 Essay test bank',
+      resourceNumber: null,
+      diagramUrl: null,
+    }));
+  })
+));
+
+export const quizQuestionSeed = [...practiceQuestionSeed, ...placementQuestionSeed, ...essayQuestionSeed];

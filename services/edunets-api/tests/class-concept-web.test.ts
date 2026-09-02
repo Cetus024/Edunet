@@ -6,24 +6,26 @@ describe('class concept web averages', () => {
   it('uses the full class size as the score denominator', () => {
     const result = summarizeClassTopic(4, [
       {
+        userId: 'student-1',
+        mode: 'mcq',
         mastery: 0.8,
-        stabilityDays: 2,
-        lastReviewedAt: new Date('2026-08-01T08:00:00.000Z'),
+        lastUpdatedAt: new Date('2026-08-03T08:00:00.000Z'),
         quizAttempts: 2,
       },
       {
+        userId: 'student-2',
+        mode: 'essay',
         mastery: 0.6,
-        stabilityDays: 2,
-        lastReviewedAt: new Date('2026-08-03T08:00:00.000Z'),
+        lastUpdatedAt: new Date('2026-08-03T08:00:00.000Z'),
         quizAttempts: 1,
       },
     ], new Date('2026-08-03T08:00:00.000Z'));
 
     expect(result).toEqual({
-      memoryScore: 22,
+      memoryScore: 35,
       participatingStudents: 2,
       lastReviewedAt: new Date('2026-08-03T08:00:00.000Z'),
-      nextReviewAt: new Date(new Date('2026-08-01T08:00:00.000Z').getTime() - 2 * Math.log(0.85) * 86_400_000),
+      nextReviewAt: null,
       quizAttempts: 3,
     });
   });
@@ -36,5 +38,19 @@ describe('class concept web averages', () => {
       nextReviewAt: null,
       quizAttempts: 0,
     });
+  });
+
+  it('returns the earliest saved combined reminder for the class topic', () => {
+    const result = summarizeClassTopic(1, [{
+      userId: 'student-1',
+      mode: 'mcq',
+      mastery: 0.8,
+      lastUpdatedAt: new Date('2026-09-01T00:00:00Z'),
+      quizAttempts: 1,
+    }], new Date('2026-09-01T00:00:00Z'), [
+      new Date('2026-09-04T00:00:00Z'),
+      new Date('2026-09-02T00:00:00Z'),
+    ]);
+    expect(result.nextReviewAt).toEqual(new Date('2026-09-02T00:00:00Z'));
   });
 });

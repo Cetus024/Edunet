@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { SubjectData } from '@/lib/study-data';
+import type { ModeCalculation } from '@/lib/api/quiz';
 import { apiRequest } from '@/lib/api/client';
 
 export type CatalogSchool = {
@@ -67,11 +68,8 @@ export type PlacementResult = {
   percentCorrect: number;
   resultingMastery: number;
   masteryScore: number;
-  stabilityDays: number;
-  successfulReviews: number;
   submittedAt: string;
-  reviewNow: boolean;
-  nextReviewAt: string | null;
+  model: ModeCalculation;
   answers: PlacementAnswerResult[];
 };
 

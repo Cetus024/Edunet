@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, LoaderCircle, Trophy, XCircle } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { formatModelPercent } from '@/lib/knowledge-number-format';
 import { PLACEMENT_RESULT_KEY, type StoredPlacementResult } from './storage';
 
 function readStoredResult(): StoredPlacementResult | null {
@@ -49,11 +50,31 @@ export default function PlacementResultPage() {
               <div className="mx-auto mt-6 max-w-md rounded-2xl bg-white/10 p-5">
                 <div className="flex items-end justify-between gap-4"><span className="text-sm font-bold text-white/75">Starting mastery</span><span className="text-4xl font-black">{result.masteryScore.toFixed(2)}%</span></div>
                 <Progress value={result.masteryScore} className="mt-4 h-2 bg-white/20" />
-                <p className="mt-3 text-left text-xs font-semibold text-white/65">Stability {result.stabilityDays.toFixed(4)} days · {result.successfulReviews} successful review</p>
+                <p className="mt-3 text-left text-xs font-semibold text-white/65">Phase 1 MCQ batch result · feedback transition P(T)=0.20 applied automatically</p>
               </div>
             </div>
 
             <div className="px-5 py-8 sm:px-10">
+              <section className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div><p className="text-xs font-black uppercase tracking-wider text-slate-500">Phase 1 formula</p><h2 className="mt-1 text-xl font-black text-[var(--edunets-ink)]">Assessment evidence + automatic feedback</h2></div>
+                  <div className="text-right"><p className="text-xs font-bold text-slate-500">Posterior → final mastery</p><p className="font-mono text-lg font-black">{formatModelPercent(result.model.posteriorMastery)} → {formatModelPercent(result.model.currentMastery)}</p></div>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {result.model.trace.map((step) => (
+                    <div key={step.step} className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3"><p className="text-sm font-black">{step.label}</p><span className="font-mono text-xs font-black">{step.value.toFixed(4)}</span></div>
+                      <p className="mt-2 break-words font-mono text-xs text-slate-700">{step.symbolic}</p>
+                      <p className="mt-1 break-words font-mono text-xs text-slate-500">{step.substitution}</p>
+                      <p className="mt-1 break-words rounded-lg bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700">{step.calculation}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-600">{step.explanation}</p>
+                      <dl className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-[10px] text-slate-500">
+                        {step.symbols.map((symbol) => <div key={symbol.symbol} className="flex gap-2"><dt className="shrink-0 font-mono font-black text-slate-700">{symbol.symbol}{symbol.value === undefined ? '' : `=${symbol.value.toFixed(4)}`}</dt><dd>{symbol.meaning}</dd></div>)}
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              </section>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div><h2 className="text-2xl font-black text-[var(--edunets-ink)]">Review your answers</h2><p className="mt-1 text-sm font-semibold text-slate-600">This first submission is final. Use Smart Quiz to keep improving.</p></div>
                 <Button onClick={() => { sessionStorage.removeItem(PLACEMENT_RESULT_KEY); window.location.replace('/dashboard'); }} className="rounded-xl bg-[var(--edunets-dark-blue)] font-black">Open dashboard<ArrowRight className="ml-2 h-4 w-4" /></Button>

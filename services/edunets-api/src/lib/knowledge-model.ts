@@ -1,89 +1,87 @@
-export const KNOWLEDGE_MODEL_VERSION = 'bkt-v1' as const;
+export const KNOWLEDGE_MODEL_VERSION = 'phase1-v1' as const;
 
-export const BKT_PARAMETERS = Object.freeze({
+export const PHASE1_PARAMETERS = Object.freeze({
   initialMastery: 0.35,
   transition: 0.20,
-  slip: 0.10,
-  guess: 0.20,
-  initialStabilityDays: 1.5,
-  stabilityGrowth: 0.20,
-  retentionTarget: 0.85,
-  successThreshold: 0.80,
+  mcqSlip: 0.20,
+  mcqGuess: 0.25,
+  mcqEvidenceStrength: 0.30,
+  essaySlip: 0.15,
+  essayGuess: 0.05,
+  stabilityDays: 7.83,
+  memoryThreshold: 0.60,
+  maximumReminderDays: 4,
 });
+
+export type AssessmentMode = 'mcq' | 'essay';
 
 export type FormulaSymbol = {
   symbol: string;
   meaning: string;
   value?: number;
-  unit?: 'probability' | 'percent' | 'days' | 'count';
+  unit?: 'probability' | 'percent' | 'days' | 'count' | 'marks';
 };
 
 export type FormulaTraceStep = {
-  step: 'prior' | 'bayesian_update' | 'learning_transition' | 'prediction';
+  step: 'prior_decay' | 'likelihood_known' | 'likelihood_unknown' | 'bayesian_update' | 'learning_transition';
   label: string;
   symbolic: string;
   substitution: string;
   calculation: string;
   explanation: string;
   symbols: FormulaSymbol[];
-  inputs: Record<string, number | boolean>;
-  numerator?: number;
-  denominator?: number;
   value: number;
-  percentageValue: number;
+  percentageValue?: number;
 };
 
-export type QuestionModelUpdate = {
+export type ModeCalculation = {
   version: typeof KNOWLEDGE_MODEL_VERSION;
-  parameters: typeof BKT_PARAMETERS;
-  isCorrect: boolean;
+  parameters: typeof PHASE1_PARAMETERS;
+  mode: AssessmentMode;
+  previousMastery: number;
+  elapsedDays: number;
   priorMastery: number;
+  observationScore: number;
+  evidenceKnown: number;
+  evidenceUnknown: number;
   posteriorMastery: number;
+  transitionUsed: number;
   learningGain: number;
   currentMastery: number;
   masteryScore: number;
-  predictedCorrectness: number;
   trace: FormulaTraceStep[];
+  mcq?: { correct: number; wrong: number; total: number };
+  essay?: { marksObtained: number; maximumMarks: number };
 };
 
-export type ReviewSummary = {
+export type ModeProgressInput = {
+  mode: AssessmentMode;
   mastery: number;
+  lastUpdatedAt: Date;
+  quizAttempts?: number;
+};
+
+export type ModeMemory = ModeProgressInput & {
+  elapsedDays: number;
+  memory: number;
+  memoryScore: number;
   masteryScore: number;
-  stabilityDays: number;
-  successfulReviewsBefore: number;
-  successfulReviewsAfter: number;
-  successful: boolean;
+};
+
+export type ConceptMemorySummary = {
+  calculatedAt: Date;
+  modes: { mcq: ModeMemory | null; essay: ModeMemory | null };
+  conceptMemory: number | null;
+  conceptMemoryScore: number | null;
+  recommendedMode: AssessmentMode | null;
   reviewNow: boolean;
-  nextReviewAt: Date | null;
-  nextReviewInDays: number | null;
-  memoryNow: number;
-  memoryIn6Hours: number;
-  memoryIn1Day: number;
-  trace: {
-    mastery: DetailedFormula;
-    stability: DetailedFormula;
-    memory: DetailedFormula & { deltaDays: number };
-    memoryIn6Hours: DetailedFormula & { deltaDays: number };
-    memoryIn1Day: DetailedFormula & { deltaDays: number };
-    nextReview: DetailedFormula & { valueDays: number | null };
-  };
 };
 
-export type DetailedFormula = {
-  label: string;
-  symbolic: string;
-  substitution: string;
-  calculation: string;
-  explanation: string;
-  symbols: FormulaSymbol[];
-  value: number | null;
-  unit: 'probability' | 'percent' | 'days';
-};
-
-export type LiveQuestionCalculation = QuestionModelUpdate & {
-  priorSource: 'initial_model' | 'stored_mastery' | 'previous_question';
-  projection: ReviewSummary;
-  projectionIsProvisional: true;
+export type ReminderSummary = {
+  reviewNow: boolean;
+  rawDays: number;
+  reviewInDays: number;
+  nextReviewAt: Date;
 };
 
 function assertProbability(value: number, name: string): void {
@@ -92,296 +90,239 @@ function assertProbability(value: number, name: string): void {
   }
 }
 
-export function formatFormulaNumber(value: number): string {
-  return Number(value.toFixed(4)).toString();
+function assertNonNegative(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0) throw new RangeError(`${name} must be non-negative.`);
 }
 
-export function calculateQuestionUpdate(priorMastery: number, isCorrect: boolean): QuestionModelUpdate {
-  assertProbability(priorMastery, 'priorMastery');
-  const { slip, guess, transition } = BKT_PARAMETERS;
-  const numerator = isCorrect ? priorMastery * (1 - slip) : priorMastery * slip;
-  const denominator = isCorrect
-    ? numerator + (1 - priorMastery) * guess
-    : numerator + (1 - priorMastery) * (1 - guess);
-  const posteriorMastery = numerator / denominator;
-  const learningGain = (1 - posteriorMastery) * transition;
+export function formatFormulaNumber(value: number): string {
+  return value.toFixed(4);
+}
+
+export function elapsedDaysBetween(previous: Date, current: Date): number {
+  return Math.max(0, current.getTime() - previous.getTime()) / 86_400_000;
+}
+
+export function decayMastery(previousMastery: number, elapsedDays: number): number {
+  assertProbability(previousMastery, 'previousMastery');
+  assertNonNegative(elapsedDays, 'elapsedDays');
+  return previousMastery * Math.exp(-elapsedDays / PHASE1_PARAMETERS.stabilityDays);
+}
+
+function calculateModeResult(input: {
+  mode: AssessmentMode;
+  previousMastery: number;
+  elapsedDays: number;
+  observationScore: number;
+  evidenceKnown: number;
+  evidenceUnknown: number;
+  transitionUsed: number;
+  mcq?: ModeCalculation['mcq'];
+  essay?: ModeCalculation['essay'];
+}): ModeCalculation {
+  const priorMastery = decayMastery(input.previousMastery, input.elapsedDays);
+  const numerator = priorMastery * input.evidenceKnown;
+  const denominator = numerator + (1 - priorMastery) * input.evidenceUnknown;
+  const posteriorMastery = denominator === 0 ? priorMastery : numerator / denominator;
+  const learningGain = (1 - posteriorMastery) * input.transitionUsed;
   const currentMastery = posteriorMastery + learningGain;
-  const knownContribution = currentMastery * (1 - slip);
-  const guessContribution = (1 - currentMastery) * guess;
-  const predictedCorrectness = knownContribution + guessContribution;
-  const evidenceFormula = isCorrect
-    ? 'P(L|C) = p(1-Slip) / [p(1-Slip) + (1-p)Guess]'
-    : 'P(L|W) = p×Slip / [p×Slip + (1-p)(1-Guess)]';
-  const evidenceSubstitution = isCorrect
-    ? `${formatFormulaNumber(priorMastery)}×(1-${formatFormulaNumber(slip)}) / [${formatFormulaNumber(priorMastery)}×(1-${formatFormulaNumber(slip)}) + (1-${formatFormulaNumber(priorMastery)})×${formatFormulaNumber(guess)}]`
-    : `${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(slip)} / [${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(slip)} + (1-${formatFormulaNumber(priorMastery)})×(1-${formatFormulaNumber(guess)})]`;
-  const evidenceExplanation = isCorrect
-    ? 'Uses the correct answer as evidence to estimate how likely the learner was already in the learned state.'
-    : 'Uses the wrong answer as evidence to estimate how likely the learner was still in the learned state despite a possible slip.';
-  const evidenceSymbols: FormulaSymbol[] = [
-    { symbol: 'L', meaning: 'The learner is in the learned state.' },
-    { symbol: isCorrect ? 'C' : 'W', meaning: isCorrect ? 'The observed answer is correct.' : 'The observed answer is wrong.' },
-    { symbol: 'p', meaning: 'Prior mastery probability before this answer.', value: priorMastery, unit: 'probability' },
-    { symbol: 'Slip', meaning: 'Probability of answering incorrectly despite knowing the skill.', value: slip, unit: 'probability' },
-    { symbol: 'Guess', meaning: 'Probability of answering correctly without knowing the skill.', value: guess, unit: 'probability' },
-  ];
+  const decayMultiplier = Math.exp(-input.elapsedDays / PHASE1_PARAMETERS.stabilityDays);
+  const knownSymbolic = input.mode === 'mcq'
+    ? 'A_MC = [(1-Slip_MC)^c × Slip_MC^w]^λ'
+    : 'A_E = (1-Slip_E)^q × Slip_E^(1-q)';
+  const unknownSymbolic = input.mode === 'mcq'
+    ? 'B_MC = [Guess_MC^c × (1-Guess_MC)^w]^λ'
+    : 'B_E = Guess_E^q × (1-Guess_E)^(1-q)';
 
   return {
     version: KNOWLEDGE_MODEL_VERSION,
-    parameters: BKT_PARAMETERS,
-    isCorrect,
+    parameters: PHASE1_PARAMETERS,
+    mode: input.mode,
+    previousMastery: input.previousMastery,
+    elapsedDays: input.elapsedDays,
     priorMastery,
+    observationScore: input.observationScore,
+    evidenceKnown: input.evidenceKnown,
+    evidenceUnknown: input.evidenceUnknown,
     posteriorMastery,
+    transitionUsed: input.transitionUsed,
     learningGain,
     currentMastery,
     masteryScore: currentMastery * 100,
-    predictedCorrectness,
+    ...(input.mcq ? { mcq: input.mcq } : {}),
+    ...(input.essay ? { essay: input.essay } : {}),
     trace: [
       {
-        step: 'prior', label: 'Prior mastery', symbolic: 'p = P(Lt-1)',
-        substitution: `p = ${formatFormulaNumber(priorMastery)}`,
-        calculation: `${formatFormulaNumber(priorMastery)} = ${formatFormulaNumber(priorMastery * 100)}%`,
-        explanation: 'Shows the model\'s estimate of mastery immediately before the current answer is observed.',
+        step: 'prior_decay',
+        label: 'Time-decayed prior mastery',
+        symbolic: 'P(L_prior) = P(L_previous) × exp(-Δt/S)',
+        substitution: `${formatFormulaNumber(input.previousMastery)} × exp(-${formatFormulaNumber(input.elapsedDays)}/${formatFormulaNumber(PHASE1_PARAMETERS.stabilityDays)})`,
+        calculation: `${formatFormulaNumber(input.previousMastery)} × ${formatFormulaNumber(decayMultiplier)} = ${formatFormulaNumber(priorMastery)}`,
+        explanation: input.elapsedDays === 0
+          ? 'No time decay is needed; the saved mastery or the initial P(L0)=0.35 is used as this assessment\'s fixed prior.'
+          : 'Previous mastery is decayed before new assessment evidence is applied.',
         symbols: [
-          { symbol: 'p', meaning: 'The prior mastery probability.', value: priorMastery, unit: 'probability' },
-          { symbol: 'P', meaning: 'Probability of an event.' },
-          { symbol: 'L', meaning: 'The learner is in the learned state.' },
-          { symbol: 't-1', meaning: 'The state immediately before the current question.' },
+          { symbol: 'P(L_previous)', meaning: 'Mastery saved after the previous assessment or correction.', value: input.previousMastery, unit: 'probability' },
+          { symbol: 'Δt', meaning: 'Days since this mode was last updated.', value: input.elapsedDays, unit: 'days' },
+          { symbol: 'S', meaning: 'Fixed Phase 1 memory stability.', value: PHASE1_PARAMETERS.stabilityDays, unit: 'days' },
         ],
-        inputs: { priorMastery }, value: priorMastery, percentageValue: priorMastery * 100,
+        value: priorMastery,
+        percentageValue: priorMastery * 100,
       },
       {
-        step: 'bayesian_update', label: `Bayesian update after ${isCorrect ? 'correct' : 'wrong'}`,
-        symbolic: evidenceFormula, substitution: evidenceSubstitution,
-        calculation: `${formatFormulaNumber(numerator)} / ${formatFormulaNumber(denominator)} = ${formatFormulaNumber(posteriorMastery)}`,
-        explanation: evidenceExplanation,
-        symbols: evidenceSymbols,
-        inputs: { priorMastery, slip, guess, isCorrect }, numerator, denominator,
-        value: posteriorMastery, percentageValue: posteriorMastery * 100,
-      },
-      {
-        step: 'learning_transition', label: 'Learning transition',
-        symbolic: 'P(Lt) = posterior + (1-posterior)×T',
-        substitution: `${formatFormulaNumber(posteriorMastery)} + (1-${formatFormulaNumber(posteriorMastery)})×${formatFormulaNumber(transition)}`,
-        calculation: `${formatFormulaNumber(posteriorMastery)} + ${formatFormulaNumber(learningGain)} = ${formatFormulaNumber(currentMastery)}`,
-        explanation: 'Adds the chance that the learner acquired the skill from this learning opportunity after the answer was observed.',
-        symbols: [
-          { symbol: 'P(Lt)', meaning: 'Mastery probability after the current learning opportunity.', value: currentMastery, unit: 'probability' },
-          { symbol: 'posterior', meaning: 'Mastery probability after the Bayesian evidence update.', value: posteriorMastery, unit: 'probability' },
-          { symbol: 'T', meaning: 'Probability of learning the skill during this opportunity.', value: transition, unit: 'probability' },
-        ],
-        inputs: { posteriorMastery, transition, learningGain },
-        value: currentMastery, percentageValue: currentMastery * 100,
-      },
-      {
-        step: 'prediction', label: 'Predicted next correctness',
-        symbolic: 'P(CorrectNext) = P(Lt)(1-Slip) + (1-P(Lt))Guess',
-        substitution: `${formatFormulaNumber(currentMastery)}×(1-${formatFormulaNumber(slip)}) + (1-${formatFormulaNumber(currentMastery)})×${formatFormulaNumber(guess)}`,
-        calculation: `${formatFormulaNumber(knownContribution)} + ${formatFormulaNumber(guessContribution)} = ${formatFormulaNumber(predictedCorrectness)}`,
-        explanation: 'Combines the chance of a learned student answering without slipping and an unlearned student guessing correctly.',
-        symbols: [
-          { symbol: 'CorrectNext', meaning: 'The next answer is correct.' },
-          { symbol: 'P(Lt)', meaning: 'Current mastery probability after learning transition.', value: currentMastery, unit: 'probability' },
-          { symbol: 'Slip', meaning: 'Probability of answering incorrectly despite knowing the skill.', value: slip, unit: 'probability' },
-          { symbol: 'Guess', meaning: 'Probability of answering correctly without knowing the skill.', value: guess, unit: 'probability' },
-        ],
-        inputs: { currentMastery, slip, guess, knownContribution, guessContribution },
-        value: predictedCorrectness, percentageValue: predictedCorrectness * 100,
-      },
-    ],
-  };
-}
-
-export function foldAnswerSequence(
-  answers: readonly boolean[],
-  initialMastery = BKT_PARAMETERS.initialMastery,
-): QuestionModelUpdate[] {
-  const updates: QuestionModelUpdate[] = [];
-  let mastery: number = initialMastery;
-  for (const isCorrect of answers) {
-    const update = calculateQuestionUpdate(mastery, isCorrect);
-    updates.push(update);
-    mastery = update.currentMastery;
-  }
-  return updates;
-}
-
-export function calculateStability(mastery: number, successfulReviews: number): number {
-  assertProbability(mastery, 'mastery');
-  if (!Number.isInteger(successfulReviews) || successfulReviews < 0) {
-    throw new RangeError('successfulReviews must be a non-negative integer.');
-  }
-  const { initialStabilityDays, stabilityGrowth, guess } = BKT_PARAMETERS;
-  const base = 1 + stabilityGrowth * ((mastery - guess) / (1 - guess));
-  return initialStabilityDays * (base ** successfulReviews);
-}
-
-export function calculateMemory(
-  mastery: number,
-  stabilityDays: number,
-  lastReviewedAt: Date,
-  calculatedAt = new Date(),
-): number {
-  assertProbability(mastery, 'mastery');
-  if (!Number.isFinite(stabilityDays) || stabilityDays <= 0) {
-    throw new RangeError('stabilityDays must be greater than zero.');
-  }
-  const deltaDays = Math.max(0, calculatedAt.getTime() - lastReviewedAt.getTime()) / 86_400_000;
-  return mastery * Math.exp(-deltaDays / stabilityDays);
-}
-
-export function calculateReviewSummary(
-  mastery: number,
-  successfulReviewsBefore: number,
-  reviewedAt: Date,
-): ReviewSummary {
-  assertProbability(mastery, 'mastery');
-  const successful = mastery >= BKT_PARAMETERS.successThreshold;
-  const successfulReviewsAfter = successful ? successfulReviewsBefore + 1 : successfulReviewsBefore;
-  const stabilityDays = calculateStability(mastery, successfulReviewsAfter);
-  const nextReviewInDays = successful ? -stabilityDays * Math.log(BKT_PARAMETERS.retentionTarget) : null;
-  const nextReviewAt = nextReviewInDays === null ? null : new Date(reviewedAt.getTime() + nextReviewInDays * 86_400_000);
-  const memoryNow = calculateMemory(mastery, stabilityDays, reviewedAt, reviewedAt);
-  const memoryIn6Hours = calculateMemory(mastery, stabilityDays, reviewedAt, new Date(reviewedAt.getTime() + 21_600_000));
-  const memoryIn1Day = calculateMemory(mastery, stabilityDays, reviewedAt, new Date(reviewedAt.getTime() + 86_400_000));
-  const { initialStabilityDays, stabilityGrowth, guess, retentionTarget } = BKT_PARAMETERS;
-  const normalizedMastery = (mastery - guess) / (1 - guess);
-  const growthAdjustment = stabilityGrowth * normalizedMastery;
-  const stabilityBase = 1 + growthAdjustment;
-  const stabilityPower = stabilityBase ** successfulReviewsAfter;
-  const memoryTrace = (label: string, deltaDays: number, value: number) => ({
-    label,
-    symbolic: 'Memory(t) = Mastery × exp(-Δt/Stability)',
-    substitution: `${formatFormulaNumber(mastery)} × exp(-${formatFormulaNumber(deltaDays)}/${formatFormulaNumber(stabilityDays)})`,
-    calculation: `${formatFormulaNumber(mastery)} × ${formatFormulaNumber(Math.exp(-deltaDays / stabilityDays))} = ${formatFormulaNumber(value)} = ${formatFormulaNumber(value * 100)}%`,
-    explanation: 'Projects retained accessible memory by applying exponential decay to the current mastery estimate over elapsed time.',
-    symbols: [
-      { symbol: 'Memory(t)', meaning: 'Projected retained memory at time t.', value, unit: 'probability' as const },
-      { symbol: 'Mastery', meaning: 'Mastery probability at the latest review.', value: mastery, unit: 'probability' as const },
-      { symbol: 'exp', meaning: 'The exponential function.' },
-      { symbol: 'Δt', meaning: 'Elapsed time since the latest review, measured in days.', value: deltaDays, unit: 'days' as const },
-      { symbol: 'Stability', meaning: 'The current forgetting-curve time scale, measured in days.', value: stabilityDays, unit: 'days' as const },
-    ],
-    value,
-    unit: 'probability' as const,
-    deltaDays,
-  });
-
-  return {
-    mastery, masteryScore: mastery * 100, stabilityDays,
-    successfulReviewsBefore, successfulReviewsAfter, successful,
-    reviewNow: !successful, nextReviewAt, nextReviewInDays,
-    memoryNow, memoryIn6Hours, memoryIn1Day,
-    trace: {
-      mastery: {
-        label: 'Mastery score',
-        symbolic: 'Mastery Score = 100 × P(Lt)',
-        substitution: `100 × ${formatFormulaNumber(mastery)}`,
-        calculation: `${formatFormulaNumber(mastery * 100)}%`,
-        explanation: 'Converts the current mastery probability into the percentage shown to the learner.',
-        symbols: [
-          { symbol: 'P(Lt)', meaning: 'Current mastery probability after the latest learning transition.', value: mastery, unit: 'probability' },
-        ],
-        value: mastery * 100,
-        unit: 'percent',
-      },
-      stability: {
-        label: 'Stability',
-        symbolic: 'S = S0 × [1 + k × (P(Lt)-Guess)/(1-Guess)]^n',
-        substitution: `${formatFormulaNumber(initialStabilityDays)} × [1 + ${formatFormulaNumber(stabilityGrowth)} × (${formatFormulaNumber(mastery)}-${formatFormulaNumber(guess)})/(1-${formatFormulaNumber(guess)})]^${successfulReviewsAfter}`,
-        calculation: `${formatFormulaNumber(initialStabilityDays)} × [1 + ${formatFormulaNumber(growthAdjustment)}]^${successfulReviewsAfter} = ${formatFormulaNumber(initialStabilityDays)} × ${formatFormulaNumber(stabilityPower)} = ${formatFormulaNumber(stabilityDays)} days`,
-        explanation: 'Estimates how slowly memory should decay from normalized mastery and the number of successful reviews.',
-        symbols: [
-          { symbol: 'S', meaning: 'Calculated stability in days.', value: stabilityDays, unit: 'days' },
-          { symbol: 'S0', meaning: 'Initial stability before successful-review growth.', value: initialStabilityDays, unit: 'days' },
-          { symbol: 'k', meaning: 'Growth strength applied at each successful review.', value: stabilityGrowth },
-          { symbol: 'P(Lt)', meaning: 'Current mastery probability.', value: mastery, unit: 'probability' },
-          { symbol: 'Guess', meaning: 'Guess probability used as the baseline mastery level.', value: guess, unit: 'probability' },
-          { symbol: 'n', meaning: 'Number of successful reviews after applying this result.', value: successfulReviewsAfter, unit: 'count' },
-        ],
-        value: stabilityDays,
-        unit: 'days',
-      },
-      memory: memoryTrace('Memory now', 0, memoryNow),
-      memoryIn6Hours: memoryTrace('Memory after 6 hours', 0.25, memoryIn6Hours),
-      memoryIn1Day: memoryTrace('Memory after 1 day', 1, memoryIn1Day),
-      nextReview: {
-        label: successful ? 'Next review delay' : 'Immediate review trigger',
-        symbolic: successful ? 'Δt = -S × ln(retentionTarget)' : 'Mastery < 0.8 → Review Now',
-        substitution: successful ? `-${formatFormulaNumber(stabilityDays)} × ln(${formatFormulaNumber(retentionTarget)})` : `${formatFormulaNumber(mastery)} < ${formatFormulaNumber(BKT_PARAMETERS.successThreshold)}`,
-        calculation: successful
-          ? `-${formatFormulaNumber(stabilityDays)} × ${formatFormulaNumber(Math.log(retentionTarget))} = ${formatFormulaNumber(nextReviewInDays!)} days`
-          : `${formatFormulaNumber(mastery * 100)}% < ${formatFormulaNumber(BKT_PARAMETERS.successThreshold * 100)}% → Review Now`,
-        explanation: successful
-          ? 'Solves the exponential decay curve for the time when retained memory reaches the configured fraction of current mastery.'
-          : 'Requests immediate review because the final mastery is below the configured success threshold.',
-        symbols: successful
+        step: 'likelihood_known',
+        label: 'Likelihood if the concept is known',
+        symbolic: knownSymbolic,
+        substitution: input.mode === 'mcq'
+          ? `[(1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)})^${input.mcq!.correct} × ${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)}^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
+          : `(1-${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)})^${formatFormulaNumber(input.observationScore)} × ${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)}^(1-${formatFormulaNumber(input.observationScore)})`,
+        calculation: `A = ${formatFormulaNumber(input.evidenceKnown)}`,
+        explanation: 'Measures how compatible the complete result is with a learner who knows the concept.',
+        symbols: input.mode === 'mcq'
           ? [
-              { symbol: 'Δt', meaning: 'Delay until the next review, measured in days.', value: nextReviewInDays!, unit: 'days' },
-              { symbol: 'S', meaning: 'Current stability in days.', value: stabilityDays, unit: 'days' },
-              { symbol: 'ln', meaning: 'The natural logarithm.' },
-              { symbol: 'retentionTarget', meaning: 'Target retained fraction of current mastery.', value: retentionTarget, unit: 'probability' },
+              { symbol: 'c', meaning: 'Correct MCQ answers.', value: input.mcq!.correct, unit: 'count' },
+              { symbol: 'w', meaning: 'Wrong MCQ answers.', value: input.mcq!.wrong, unit: 'count' },
+              { symbol: 'λ', meaning: 'MCQ evidence-strength control.', value: PHASE1_PARAMETERS.mcqEvidenceStrength },
             ]
-          : [
-              { symbol: 'Mastery', meaning: 'Current mastery probability.', value: mastery, unit: 'probability' },
-              { symbol: 'successThreshold', meaning: 'Minimum mastery required for a successful review.', value: BKT_PARAMETERS.successThreshold, unit: 'probability' },
-            ],
-        value: nextReviewInDays,
-        unit: 'days',
-        valueDays: nextReviewInDays,
+          : [{ symbol: 'q', meaning: 'Essay marks divided by maximum marks.', value: input.observationScore, unit: 'probability' }],
+        value: input.evidenceKnown,
       },
-    },
+      {
+        step: 'likelihood_unknown',
+        label: 'Likelihood if the concept is not known',
+        symbolic: unknownSymbolic,
+        substitution: input.mode === 'mcq'
+          ? `[${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)}^${input.mcq!.correct} × (1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)})^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
+          : `${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)}^${formatFormulaNumber(input.observationScore)} × (1-${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)})^(1-${formatFormulaNumber(input.observationScore)})`,
+        calculation: `B = ${formatFormulaNumber(input.evidenceUnknown)}`,
+        explanation: 'Measures how compatible the complete result is with guessing or partial performance without mastery.',
+        symbols: input.mode === 'mcq'
+          ? [{ symbol: 'Guess_MC', meaning: 'Chance of a correct four-choice guess.', value: PHASE1_PARAMETERS.mcqGuess, unit: 'probability' }]
+          : [{ symbol: 'Guess_E', meaning: 'Chance of earning Essay marks without mastery.', value: PHASE1_PARAMETERS.essayGuess, unit: 'probability' }],
+        value: input.evidenceUnknown,
+      },
+      {
+        step: 'bayesian_update',
+        label: 'Bayesian observation update',
+        symbolic: 'P(L|result) = prior×A / [prior×A + (1-prior)×B]',
+        substitution: `${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(input.evidenceKnown)} / [${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(input.evidenceKnown)} + (1-${formatFormulaNumber(priorMastery)})×${formatFormulaNumber(input.evidenceUnknown)}]`,
+        calculation: `${formatFormulaNumber(numerator)} / ${formatFormulaNumber(denominator)} = ${formatFormulaNumber(posteriorMastery)}`,
+        explanation: 'Combines the decayed prior with the evidence from the complete assessment.',
+        symbols: [
+          { symbol: 'A', meaning: 'Likelihood when the concept is known.', value: input.evidenceKnown },
+          { symbol: 'B', meaning: 'Likelihood when the concept is not known.', value: input.evidenceUnknown },
+        ],
+        value: posteriorMastery,
+        percentageValue: posteriorMastery * 100,
+      },
+      {
+        step: 'learning_transition',
+        label: input.transitionUsed > 0 ? 'Learning after completed corrections' : 'Assessment-only result',
+        symbolic: 'P(L_new) = posterior + (1-posterior) × P(T_used)',
+        substitution: `${formatFormulaNumber(posteriorMastery)} + (1-${formatFormulaNumber(posteriorMastery)}) × ${formatFormulaNumber(input.transitionUsed)}`,
+        calculation: `${formatFormulaNumber(posteriorMastery)} + ${formatFormulaNumber(learningGain)} = ${formatFormulaNumber(currentMastery)}`,
+        explanation: input.transitionUsed > 0
+          ? 'P(T)=0.20 is applied exactly once after corrections are explicitly completed.'
+          : 'P(T)=0 while this is assessment-only; the evidence update still becomes the saved mastery.',
+        symbols: [{ symbol: 'P(T_used)', meaning: 'Learning transition used for this result.', value: input.transitionUsed, unit: 'probability' }],
+        value: currentMastery,
+        percentageValue: currentMastery * 100,
+      },
+    ],
   };
 }
 
-export function calculateLiveQuestion(
-  priorMastery: number,
-  isCorrect: boolean,
-  priorSource: LiveQuestionCalculation['priorSource'],
-  successfulReviewsBefore: number,
-  answeredAt: Date,
-): LiveQuestionCalculation {
-  const update = calculateQuestionUpdate(priorMastery, isCorrect);
-  return {
-    ...update,
-    priorSource,
-    projection: calculateReviewSummary(update.currentMastery, successfulReviewsBefore, answeredAt),
-    projectionIsProvisional: true,
-  };
+export function calculateMcqMastery(input: {
+  previousMastery?: number;
+  elapsedDays?: number;
+  correct: number;
+  wrong: number;
+  feedbackCompleted?: boolean;
+}): ModeCalculation {
+  const previousMastery = input.previousMastery ?? PHASE1_PARAMETERS.initialMastery;
+  const elapsedDays = input.elapsedDays ?? 0;
+  if (!Number.isInteger(input.correct) || !Number.isInteger(input.wrong) || input.correct < 0 || input.wrong < 0 || input.correct + input.wrong <= 0) {
+    throw new RangeError('MCQ correct and wrong counts must be non-negative integers with a positive total.');
+  }
+  const { mcqSlip: slip, mcqGuess: guess, mcqEvidenceStrength: lambda } = PHASE1_PARAMETERS;
+  const evidenceKnown = (((1 - slip) ** input.correct) * (slip ** input.wrong)) ** lambda;
+  const evidenceUnknown = ((guess ** input.correct) * ((1 - guess) ** input.wrong)) ** lambda;
+  return calculateModeResult({
+    mode: 'mcq', previousMastery, elapsedDays,
+    observationScore: input.correct / (input.correct + input.wrong),
+    evidenceKnown, evidenceUnknown,
+    transitionUsed: input.feedbackCompleted ? PHASE1_PARAMETERS.transition : 0,
+    mcq: { correct: input.correct, wrong: input.wrong, total: input.correct + input.wrong },
+  });
 }
 
-export function restoreLiveQuestionCalculation(
-  stored: Pick<QuestionModelUpdate, 'priorMastery' | 'isCorrect'> & {
-    priorSource?: LiveQuestionCalculation['priorSource'];
-  },
-  fallbackPriorSource: LiveQuestionCalculation['priorSource'],
-  successfulReviewsBefore: number,
-  answeredAt: Date,
-): LiveQuestionCalculation {
-  return calculateLiveQuestion(
-    stored.priorMastery,
-    stored.isCorrect,
-    stored.priorSource ?? fallbackPriorSource,
-    successfulReviewsBefore,
-    answeredAt,
-  );
+export function calculateEssayMastery(input: {
+  previousMastery?: number;
+  elapsedDays?: number;
+  marksObtained: number;
+  maximumMarks: number;
+  feedbackCompleted?: boolean;
+}): ModeCalculation {
+  const previousMastery = input.previousMastery ?? PHASE1_PARAMETERS.initialMastery;
+  const elapsedDays = input.elapsedDays ?? 0;
+  assertNonNegative(input.marksObtained, 'marksObtained');
+  if (!Number.isFinite(input.maximumMarks) || input.maximumMarks <= 0 || input.marksObtained > input.maximumMarks) {
+    throw new RangeError('Essay marks must be between zero and the positive maximum mark.');
+  }
+  const q = input.marksObtained / input.maximumMarks;
+  const { essaySlip: slip, essayGuess: guess } = PHASE1_PARAMETERS;
+  const evidenceKnown = ((1 - slip) ** q) * (slip ** (1 - q));
+  const evidenceUnknown = (guess ** q) * ((1 - guess) ** (1 - q));
+  return calculateModeResult({
+    mode: 'essay', previousMastery, elapsedDays, observationScore: q,
+    evidenceKnown, evidenceUnknown,
+    transitionUsed: input.feedbackCompleted ? PHASE1_PARAMETERS.transition : 0,
+    essay: { marksObtained: input.marksObtained, maximumMarks: input.maximumMarks },
+  });
 }
 
-export function calculateDynamicProgress(
-  mastery: number,
-  stabilityDays: number,
-  lastReviewedAt: Date,
+export function calculateMemory(mastery: number, lastUpdatedAt: Date, calculatedAt = new Date()): number {
+  return decayMastery(mastery, elapsedDaysBetween(lastUpdatedAt, calculatedAt));
+}
+
+export function calculateConceptMemory(
+  progress: readonly ModeProgressInput[],
   calculatedAt = new Date(),
-) {
-  const memory = calculateMemory(mastery, stabilityDays, lastReviewedAt, calculatedAt);
-  const reviewNow = mastery < BKT_PARAMETERS.successThreshold;
-  const nextReviewInDays = reviewNow ? null : -stabilityDays * Math.log(BKT_PARAMETERS.retentionTarget);
+): ConceptMemorySummary {
+  const memories = progress.map((entry): ModeMemory => {
+    const elapsedDays = elapsedDaysBetween(entry.lastUpdatedAt, calculatedAt);
+    const memory = decayMastery(entry.mastery, elapsedDays);
+    return { ...entry, elapsedDays, memory, memoryScore: memory * 100, masteryScore: entry.mastery * 100 };
+  });
+  const mcq = memories.find((entry) => entry.mode === 'mcq') ?? null;
+  const essay = memories.find((entry) => entry.mode === 'essay') ?? null;
+  const available = [mcq, essay].filter((entry): entry is ModeMemory => entry !== null);
+  const conceptMemory = available.length === 0
+    ? null
+    : available.reduce((sum, entry) => sum + entry.memory, 0) / available.length;
+  let recommendedMode: AssessmentMode | null = null;
+  if (mcq && essay) recommendedMode = mcq.memory <= essay.memory ? 'mcq' : 'essay';
+  else recommendedMode = mcq?.mode ?? essay?.mode ?? null;
   return {
-    memory,
-    memoryScore: memory * 100,
-    masteryScore: mastery * 100,
-    reviewNow,
-    nextReviewAt: nextReviewInDays === null ? null : new Date(lastReviewedAt.getTime() + nextReviewInDays * 86_400_000),
     calculatedAt,
+    modes: { mcq, essay },
+    conceptMemory,
+    conceptMemoryScore: conceptMemory === null ? null : conceptMemory * 100,
+    recommendedMode,
+    reviewNow: conceptMemory !== null && conceptMemory <= PHASE1_PARAMETERS.memoryThreshold,
+  };
+}
+
+export function calculateReminder(conceptMemory: number, calculatedAt = new Date()): ReminderSummary {
+  assertProbability(conceptMemory, 'conceptMemory');
+  if (conceptMemory <= PHASE1_PARAMETERS.memoryThreshold) {
+    return { reviewNow: true, rawDays: 0, reviewInDays: 0, nextReviewAt: calculatedAt };
+  }
+  const rawDays = PHASE1_PARAMETERS.stabilityDays * Math.log(conceptMemory / PHASE1_PARAMETERS.memoryThreshold);
+  const reviewInDays = Math.min(PHASE1_PARAMETERS.maximumReminderDays, Math.ceil(rawDays));
+  return {
+    reviewNow: false,
+    rawDays,
+    reviewInDays,
+    nextReviewAt: new Date(calculatedAt.getTime() + reviewInDays * 86_400_000),
   };
 }

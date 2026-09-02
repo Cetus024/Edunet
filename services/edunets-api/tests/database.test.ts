@@ -28,7 +28,7 @@ describe('database catalog seed', () => {
     expect(schoolSeed).toHaveLength(151);
     expect(subjectSeed).toHaveLength(8);
     expect(topicSeed).toHaveLength(51);
-    expect(quizQuestionSeed).toHaveLength(612);
+    expect(quizQuestionSeed).toHaveLength(816);
   });
 
   it('uses unique school, subject, and topic IDs', () => {
@@ -63,14 +63,17 @@ describe('database catalog seed', () => {
     }
   });
 
-  it('provides ten placement MCQs per topic without changing practice sets', () => {
+  it('provides ten MCQs and five ten-mark Essay questions per topic', () => {
     for (const topic of topicSeed) {
       const rows = quizQuestionSeed.filter((question) => question.topicId === topic.id);
       const placement = rows.filter((question) => question.type === 'mcq'
         && (question.usage === 'placement' || question.usage === 'both'));
       const practice = rows.filter((question) => question.usage === 'practice' || question.usage === 'both');
+      const essays = rows.filter((question) => question.type === 'structured');
       expect(placement, topic.id).toHaveLength(10);
-      expect(practice, topic.id).toHaveLength(5);
+      expect(practice, topic.id).toHaveLength(9);
+      expect(essays, topic.id).toHaveLength(5);
+      expect(essays.every((question) => question.maxMarks === 10), topic.id).toBe(true);
     }
   });
 });
@@ -191,19 +194,21 @@ describe('student and teacher role migration', () => {
   });
 });
 
-describe('BKT knowledge model migration', () => {
-  it('resets progress while preserving and marking historical attempts', () => {
+describe('Phase 1 dual-memory migration', () => {
+  it('clears only old learning evidence and installs dual-mode progress', () => {
     const migrationPath = fileURLToPath(new URL(
-      '../../../database/migrations/0010_bkt_knowledge_model.sql',
+      '../../../database/migrations/0011_phase1_dual_memory.sql',
       import.meta.url,
     ));
     const migration = readFileSync(migrationPath, 'utf8');
     expect(migration).toContain('DELETE FROM "user_topic_progress"');
-    expect(migration).not.toContain('DELETE FROM "quiz_attempt"');
-    expect(migration).toContain('"model_version" = \'legacy-tier-v0\'');
-    expect(migration).toContain('quiz_attempt_one_active_speed_topic_idx');
-    expect(migration.indexOf('DELETE FROM "user_topic_progress"'))
-      .toBeLessThan(migration.indexOf('ADD COLUMN "mastery"'));
+    expect(migration).toContain('DELETE FROM "quiz_attempt"');
+    expect(migration).toContain('CREATE TABLE "user_topic_mode_progress"');
+    expect(migration).toContain("'phase1-v1'");
+    expect(migration).toContain('quiz_attempt_one_active_topic_idx');
+    expect(migration).not.toContain('DELETE FROM "user"');
+    expect(migration).not.toContain('DELETE FROM "subjects"');
+    expect(migration).not.toContain('DELETE FROM "topics"');
   });
 });
 

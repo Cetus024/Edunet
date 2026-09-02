@@ -16,6 +16,12 @@ export type StudentConceptWebTopic = {
   id: string;
   name: string;
   memoryScore: number | null;
+  modeScores: {
+    mcq: { mode: 'mcq'; mastery: number; memory: number; memoryScore: number; masteryScore: number; lastUpdatedAt: string; elapsedDays: number; quizAttempts?: number } | null;
+    essay: { mode: 'essay'; mastery: number; memory: number; memoryScore: number; masteryScore: number; lastUpdatedAt: string; elapsedDays: number; quizAttempts?: number } | null;
+  };
+  recommendedMode: 'mcq' | 'essay' | null;
+  reviewNow: boolean;
   lastReviewedAt: string | null;
   nextReviewAt: string | null;
   quizAttempts: number;

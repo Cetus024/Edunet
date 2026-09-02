@@ -23,7 +23,7 @@ import { subjectsAtom, type SubjectData, type TopicData } from '@/lib/study-data
 import { getKnowledgeScoreColor } from '@/lib/score-color';
 
 type KeyConnection = { topic: string; explanation: string };
-type SubConcept = { id: string; name: string; memoryScore: number | null; description: string; keyConnection: KeyConnection };
+type SubConcept = { id: string; name: string; memoryScore: number | null; description: string; keyConnection: KeyConnection; recommendedMode?: 'mcq' | 'essay' | null; reviewNow?: boolean; modeScores?: TopicData['modeScores'] };
 type Topic = SubConcept & { subConcepts: SubConcept[] };
 type SubjectEntry = { icon: string; topics: Topic[] };
 type NodeKind = 'subject' | 'topic' | 'subconcept';
@@ -55,6 +55,9 @@ export default function StudentConceptWebView() {
           id: topicData.id,
           name: topicData.name,
           memoryScore: topicData.memoryScore,
+          recommendedMode: topicData.recommendedMode,
+          reviewNow: topicData.reviewNow,
+          modeScores: topicData.modeScores,
           description: subconceptSeeds.length > 0
             ? `${topicData.name} covers ${subconceptSeeds.map((seed) => seed.name).join(', ')}.`
             : `${topicData.name} is part of your ${subjectData.name} O-Level learning map.`,
@@ -70,6 +73,9 @@ export default function StudentConceptWebView() {
             // Detail nodes inherit the authenticated parent topic score — there
             // is no separate real per-subtopic score to track.
             memoryScore: topicData.memoryScore,
+            recommendedMode: topicData.recommendedMode,
+            reviewNow: topicData.reviewNow,
+            modeScores: topicData.modeScores,
           })),
         };
       });
@@ -370,7 +376,8 @@ export default function StudentConceptWebView() {
               <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
             ))}
             {graph.nodes.map((node: GraphNode) => {
-              const greyed = weakOnly && node.memoryScore !== null && node.memoryScore >= 80;
+              const due = node.reviewNow ?? (node.memoryScore !== null && node.memoryScore <= 60);
+              const greyed = weakOnly && node.kind !== 'subject' && !due;
               const tier = getKnowledgeScoreColor(node.memoryScore);
               const scoreLabel = node.memoryScore === null ? 'Not Started' : `memory score ${node.memoryScore}%`;
               const highlighted = highlightedId === node.id;
@@ -428,12 +435,14 @@ export default function StudentConceptWebView() {
               <div className="rounded-2xl bg-muted p-4">
                 <div className="flex items-center justify-between"><span className="font-bold">Memory score</span><span className="rounded-full px-3 py-1 text-sm font-black" style={{ backgroundColor: selectedPopupTier.fill, color: selectedPopupTier.text }}>{popup.node.memoryScore === null ? 'Not Started' : `${popup.node.memoryScore}%`}</span></div>
                 <p className="mt-2 text-sm font-semibold text-muted-foreground">Risk label: {selectedPopupTier.label}</p>
+                {popup.node.modeScores && <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">MCQ Memory</span><strong className="mt-1 block">{popup.node.modeScores.mcq ? `${popup.node.modeScores.mcq.memoryScore.toFixed(2)}%` : 'Not attempted'}</strong></div><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">Essay Memory</span><strong className="mt-1 block">{popup.node.modeScores.essay ? `${popup.node.modeScores.essay.memoryScore.toFixed(2)}%` : 'Not attempted'}</strong></div></div>}
+                {popup.node.recommendedMode && <p className="mt-2 text-sm font-bold">Recommended practice: {popup.node.recommendedMode.toUpperCase()}</p>}
               </div>
               <div className="rounded-2xl border border-[#EAA93C] bg-gradient-to-br from-[#FFF3C4] to-white p-4 text-[#17233A]">
                 <div className="mb-2 flex items-center gap-2 font-black"><Link2 className="h-4 w-4" /> Key Connection</div>
                 <p className="text-sm">Links to <strong>{popup.node.keyConnection.topic}</strong>: {popup.node.keyConnection.explanation}</p>
               </div>
-              <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground shadow-lg" onClick={() => navigate(`/quiz?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(quizTopicName)}&concept=${encodeURIComponent(popup.node.id)}`)}><Brain className="mr-2 h-4 w-4" /> Quiz me on this <ChevronRight className="ml-2 h-4 w-4" /></Button>
+              <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground shadow-lg" onClick={() => navigate(`/quiz?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(quizTopicName)}&concept=${encodeURIComponent(popup.node.id)}&mode=${popup.node.recommendedMode ?? 'mcq'}`)}><Brain className="mr-2 h-4 w-4" /> Quiz me on this <ChevronRight className="ml-2 h-4 w-4" /></Button>
             </div>
           </motion.div>
         )}

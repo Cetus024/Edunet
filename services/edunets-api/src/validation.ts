@@ -66,17 +66,6 @@ export const updateSchoolSchema = z.strictObject({
   schoolId: z.string().trim().min(1).max(128),
 });
 
-export const quizSubmissionSchema = z.strictObject({
-  submissionId: z.uuid(),
-  topicId: z.string().trim().min(1).max(128),
-  mode: z.literal('concept-check'),
-  startedAt: z.iso.datetime({ offset: true }).optional(),
-  answers: z.array(z.strictObject({
-    questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
-    answer: z.union([z.string().max(4_000), z.number().int().nonnegative()]),
-  })).min(1).max(50),
-});
-
 export const quizOptionsQuerySchema = z.strictObject({
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
@@ -85,13 +74,14 @@ export const quizOptionsQuerySchema = z.strictObject({
 export const quizSetRequestSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
-  mode: z.enum(['concept-check', 'speed-round']),
+  mode: z.enum(['mcq', 'essay']),
 });
 
-export const speedAnswerSchema = z.strictObject({
+export const assessmentAnswerSchema = z.strictObject({
   questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
   questionIndex: z.number().int().min(0).max(9),
-  answer: z.number().int().min(0).max(3),
+  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(3)]),
+  marksObtained: z.number().min(0).max(10).multipleOf(0.01).optional(),
 });
 
 export const quizHistoryQuerySchema = z.object({
@@ -134,7 +124,6 @@ export const addStudentToScopeSchema = z.strictObject({
 });
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
-export type QuizSubmission = z.infer<typeof quizSubmissionSchema>;
 export type QuizSetRequest = z.infer<typeof quizSetRequestSchema>;
 export type CreateEnquiryRequest = z.infer<typeof createEnquirySchema>;
 export type SendEnquiryMessageRequest = z.infer<typeof sendEnquiryMessageSchema>;

@@ -6,8 +6,7 @@ import {
   questionRecipientsQuerySchema,
   quizOptionsQuerySchema,
   quizSetRequestSchema,
-  quizSubmissionSchema,
-  speedAnswerSchema,
+  assessmentAnswerSchema,
   sendEnquiryMessageSchema,
   signupReferralCodeSchema,
   updateTeachingScopesSchema,
@@ -67,43 +66,51 @@ describe('onboarding validation', () => {
 });
 
 describe('quiz submission validation', () => {
-  it('requires a UUID submission ID and versioned question keys', () => {
-    const result = quizSubmissionSchema.safeParse({
-      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'amath-trig',
-      mode: 'concept-check',
-      answers: [{ questionKey: 'amath-trig:v1:q01', answer: 2 }],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts database quiz option and set requests', () => {
+  it('accepts only MCQ and Essay assessment-set requests', () => {
     expect(quizOptionsQuerySchema.safeParse({ subjectId: 'biology', topicId: 'biology-ecology' }).success).toBe(true);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
       topicId: 'biology-ecology',
-      mode: 'speed-round',
+      mode: 'mcq',
+    }).success).toBe(true);
+    expect(quizSetRequestSchema.safeParse({
+      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
+      topicId: 'biology-ecology',
+      mode: 'essay',
     }).success).toBe(true);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
       topicId: 'biology-ecology',
       mode: 'past-paper',
     }).success).toBe(false);
-    expect(speedAnswerSchema.safeParse({
+    expect(quizSetRequestSchema.safeParse({
+      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
+      topicId: 'biology-ecology',
+      mode: 'speed-round',
+    }).success).toBe(false);
+  });
+
+  it('accepts typed answers and enforces Essay mark precision and range', () => {
+    expect(assessmentAnswerSchema.safeParse({
       questionKey: 'biology-ecology:v1:q01',
       questionIndex: 0,
       answer: 2,
     }).success).toBe(true);
-  });
-
-  it('rejects client-invented key formats', () => {
-    const result = quizSubmissionSchema.safeParse({
-      submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'amath-trig',
-      mode: 'concept-check',
-      answers: [{ questionKey: 'amath-trig:q1', answer: 2 }],
-    });
-    expect(result.success).toBe(false);
+    expect(assessmentAnswerSchema.safeParse({
+      questionKey: 'biology-ecology:v1:q13',
+      questionIndex: 0,
+      answer: 'A supported written response.',
+      marksObtained: 7.25,
+    }).success).toBe(true);
+    for (const marksObtained of [-0.01, 10.01, 7.123, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(assessmentAnswerSchema.safeParse({
+        questionKey: 'biology-ecology:v1:q13', questionIndex: 0,
+        answer: 'A supported written response.', marksObtained,
+      }).success).toBe(false);
+    }
+    expect(assessmentAnswerSchema.safeParse({
+      questionKey: 'biology-ecology:q1', questionIndex: 0, answer: 2,
+    }).success).toBe(false);
   });
 });
 

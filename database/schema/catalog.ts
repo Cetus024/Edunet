@@ -39,9 +39,11 @@ export const quizQuestions = pgTable('quiz_questions', {
   options: text('options'), // JSON array for MCQ options
   blankWord: text('blank_word'), // For fill-blank questions
   wordLimit: integer('word_limit'), // For structured questions
+  maxMarks: integer('max_marks'), // Phase 1 Essay questions use 10 marks
   source: text('source'),
   resourceNumber: text('resource_number'),
   diagramUrl: text('diagram_url'),
 }, (table) => [
   check('quiz_questions_usage_check', sql`${table.usage} in ('practice', 'placement', 'both')`),
+  check('quiz_questions_max_marks_check', sql`(${table.type} = 'structured' and ${table.maxMarks} = 10) or (${table.type} <> 'structured' and ${table.maxMarks} is null)`),
 ]);

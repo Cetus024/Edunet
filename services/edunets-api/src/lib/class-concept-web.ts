@@ -1,9 +1,10 @@
-import { calculateDynamicProgress } from './knowledge-model.js';
+import { calculateConceptMemory, type AssessmentMode } from './knowledge-model.js';
 
 export type ClassTopicProgress = {
+  userId: string;
+  mode: AssessmentMode;
   mastery: number;
-  stabilityDays: number;
-  lastReviewedAt: Date;
+  lastUpdatedAt: Date;
   quizAttempts: number;
 };
 
@@ -11,36 +12,30 @@ export function summarizeClassTopic(
   classSize: number,
   progressRows: readonly ClassTopicProgress[],
   calculatedAt = new Date(),
+  reminderDates: readonly Date[] = [],
 ) {
   if (classSize <= 0 || progressRows.length === 0) {
-    return {
-      memoryScore: null,
-      participatingStudents: 0,
-      lastReviewedAt: null,
-      nextReviewAt: null,
-      quizAttempts: 0,
-    };
+    return { memoryScore: null, participatingStudents: 0, lastReviewedAt: null, nextReviewAt: null, quizAttempts: 0 };
   }
-
-  const dynamicRows = progressRows.map((progress) => ({
-    ...progress,
-    dynamic: calculateDynamicProgress(progress.mastery, progress.stabilityDays, progress.lastReviewedAt, calculatedAt),
-  }));
-  const scoreTotal = dynamicRows.reduce((sum, progress) => sum + progress.dynamic.memoryScore, 0);
+  const byStudent = new Map<string, ClassTopicProgress[]>();
+  for (const row of progressRows) {
+    const rows = byStudent.get(row.userId) ?? [];
+    rows.push(row);
+    byStudent.set(row.userId, rows);
+  }
+  const studentScores = [...byStudent.values()]
+    .map((rows) => calculateConceptMemory(rows, calculatedAt).conceptMemoryScore)
+    .filter((score): score is number => score !== null);
   const lastReviewedAt = progressRows.reduce<Date | null>((latest, progress) => (
-    !latest || progress.lastReviewedAt > latest ? progress.lastReviewedAt : latest
+    latest === null || progress.lastUpdatedAt > latest ? progress.lastUpdatedAt : latest
   ), null);
-  const nextReviewAt = dynamicRows.reduce<Date | null>((earliest, progress) => {
-    const next = progress.dynamic.nextReviewAt;
-    if (!next) return earliest;
-    return !earliest || next < earliest ? next : earliest;
-  }, null);
-
   return {
-    memoryScore: Math.round(scoreTotal / classSize),
-    participatingStudents: progressRows.length,
+    memoryScore: Math.round(studentScores.reduce((sum, score) => sum + score, 0) / classSize),
+    participatingStudents: studentScores.length,
     lastReviewedAt,
-    nextReviewAt,
+    nextReviewAt: reminderDates.length > 0
+      ? new Date(Math.min(...reminderDates.map((date) => date.getTime())))
+      : null,
     quizAttempts: progressRows.reduce((sum, progress) => sum + progress.quizAttempts, 0),
   };
 }

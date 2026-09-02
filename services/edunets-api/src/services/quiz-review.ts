@@ -31,12 +31,10 @@ export type QuizReviewResponse = {
 };
 
 /**
- * Aggregates real wrong answers from the roster's concept-check attempts,
+ * Aggregates real wrong answers from the roster's MCQ attempts,
  * grouped by topic, so teachers can review/refine the explanation shown for
- * each question. Scoped to concept-check only: past-paper and speed-round
- * attempts key every question under whichever single topic was selected in
-   * the quiz-setup UI, so topic attribution
- * for those modes is not reliable enough to group by here.
+ * each question. Essay self-marks are excluded until trusted AI grading is
+ * introduced.
  */
 export async function getQuizReviewForTeacher(
   teacherUserId: string,
@@ -62,7 +60,7 @@ export async function getQuizReviewForTeacher(
     .innerJoin(quizAttemptAnswers, eq(quizAttemptAnswers.attemptId, quizAttempts.id))
     .where(and(
       inArray(quizAttempts.userId, roster.map((student) => student.id)),
-      eq(quizAttempts.quizMode, 'concept-check'),
+      eq(quizAttempts.quizMode, 'mcq'),
       eq(quizAttempts.subjectId, subjectRow.id),
       eq(quizAttemptAnswers.isCorrect, false),
     ))

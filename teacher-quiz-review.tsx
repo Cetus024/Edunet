@@ -71,7 +71,7 @@ export function TeacherQuizReview() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-primary">Smart Quiz review</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Review explanations shown after a wrong answer on a Concept quiz.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Review explanations shown after a wrong MCQ answer. Essay self-marks are not treated as errors.</p>
           </div>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function TeacherQuizReview() {
 
           {!isLoading && !error && !selectedTopic ? (
             topics.length === 0 ? (
-              <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">No wrong answers to review yet for this subject — nothing shows up here until a student misses a question on a Concept quiz.</p>
+              <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">No wrong MCQ answers to review yet for this subject.</p>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {topics.map((topic) => {

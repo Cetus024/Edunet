@@ -19,6 +19,7 @@ import {
   priorityQueueAtom,
   estimateReviewTime,
   getEffectiveScore,
+  isAtRisk as isReviewDue,
   atRiskTopicsAtom,
   subjectsAtom,
   type SubjectSummary,
@@ -51,7 +52,7 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
 
   const handleReviewNow = () => {
     // Navigate to quiz with subject, topic, and the exact displayed memory score pre-filled
-    navigate(`/quiz?subject=${encodeURIComponent(info.subjectName)}&topic=${encodeURIComponent(info.topic.name)}&score=${info.effectiveScore}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(info.subjectName)}&topic=${encodeURIComponent(info.topic.name)}&score=${info.effectiveScore}&mode=${info.topic.recommendedMode ?? 'mcq'}`);
   };
 
   return (
@@ -190,26 +191,30 @@ function SubjectCard({ subject, index }: {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const score = subject.avgScore;
-  const isAtRisk = score !== null && score < 30;
-  const needsReview = score !== null && score >= 30 && score < 80;
-  const isOnTrack = score !== null && score >= 80;
+  const reviewDue = subject.atRiskCount > 0;
+  const isAtRisk = reviewDue && score !== null && score < 30;
+  const needsReview = reviewDue && !isAtRisk;
+  const isOnTrack = score !== null && !reviewDue;
 
   // Handle review button click
   const handleReviewClick = () => {
-    const topicsWithScores = subject.topics
+    const reviewCandidates = subject.atRiskCount > 0 ? subject.topics.filter(isReviewDue) : subject.topics;
+    const topicsWithScores = reviewCandidates
       .filter((topic: TopicData) => topic.memoryScore !== null)
       .map((entry: TopicData) => ({
-      name: entry.name,
-      score: getEffectiveScore(entry) ?? 0,
+        name: entry.name,
+        score: getEffectiveScore(entry) ?? 0,
+        mode: entry.recommendedMode ?? 'mcq',
       }));
-    topicsWithScores.sort((a: { name: string; score: number }, b: { name: string; score: number }) => a.score - b.score);
+    topicsWithScores.sort((a, b) => a.score - b.score);
     const topicToReview = topicsWithScores[0] ?? {
       name: subject.topics[0]?.name ?? '',
       score: null,
+      mode: subject.topics[0]?.recommendedMode ?? 'mcq',
     };
     if (!topicToReview.name) return;
     const scoreParameter = topicToReview.score === null ? '' : `&score=${topicToReview.score}`;
-    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topicToReview.name)}${scoreParameter}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topicToReview.name)}${scoreParameter}&mode=${topicToReview.mode}`);
   };
 
   // Format last reviewed text based on memory strength
@@ -308,6 +313,7 @@ interface PriorityDisplayItem {
   subjectIcon: string;
   memoryScore: number;
   reviewTime: number;
+  recommendedMode: 'mcq' | 'essay';
 }
 
 function PriorityItemRow({
@@ -324,7 +330,7 @@ function PriorityItemRow({
   const scoreColor = getKnowledgeScoreColor(item.memoryScore);
 
   const handleStart = () => {
-    navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=${item.recommendedMode}`);
   };
 
   return (
@@ -468,6 +474,7 @@ function StudentDashboard() {
       subjectIcon: item.subjectIcon,
       memoryScore: item.effectiveScore,
       reviewTime: estimateReviewTime(item.effectiveScore),
+      recommendedMode: item.topic.recommendedMode ?? 'mcq',
     }));
   }, [priorityQueue]);
 

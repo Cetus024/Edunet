@@ -82,6 +82,7 @@ async function replaceCatalog(): Promise<void> {
           options: sql`excluded.options`,
           blankWord: sql`excluded.blank_word`,
           wordLimit: sql`excluded.word_limit`,
+          maxMarks: sql`excluded.max_marks`,
           source: sql`excluded.source`,
           resourceNumber: sql`excluded.resource_number`,
           diagramUrl: sql`excluded.diagram_url`,

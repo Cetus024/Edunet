@@ -81,29 +81,36 @@ export const quizAttempts = pgTable('quiz_attempt', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: text('subject_id').notNull(),
   topicId: text('topic_id').notNull(),
-  quizMode: text('quiz_mode', { enum: ['past-paper', 'concept-check', 'speed-round', 'placement'] as const }).notNull(),
+  quizMode: text('quiz_mode', { enum: ['mcq', 'essay', 'placement'] as const }).notNull(),
   questionSetVersion: text('question_set_version').notNull(),
   correctAnswers: integer('correct_answers').notNull(),
   totalQuestions: integer('total_questions').notNull(),
   percentCorrect: real('percent_correct').notNull(),
   resultingMemoryScore: real('resulting_memory_score'),
   status: text('status', { enum: ['in_progress', 'completed', 'abandoned'] as const }).notNull().default('completed'),
-  modelVersion: text('model_version').notNull().default('legacy-tier-v0'),
+  modelVersion: text('model_version').notNull().default('phase1-v1'),
   initialMastery: doublePrecision('initial_mastery'),
+  priorMastery: doublePrecision('prior_mastery'),
+  priorElapsedDays: doublePrecision('prior_elapsed_days'),
+  posteriorMastery: doublePrecision('posterior_mastery'),
   currentMastery: doublePrecision('current_mastery'),
-  stabilityBefore: doublePrecision('stability_before'),
-  stabilityAfter: doublePrecision('stability_after'),
-  successfulReviewsBefore: integer('successful_reviews_before'),
-  successfulReviewsAfter: integer('successful_reviews_after'),
+  marksObtained: doublePrecision('marks_obtained'),
+  maximumMarks: doublePrecision('maximum_marks'),
+  feedbackStatus: text('feedback_status', { enum: ['pending', 'completed', 'skipped'] as const }).notNull().default('pending'),
+  calculationTrace: jsonb('calculation_trace').$type<Record<string, unknown>>(),
   startedAt: timestamp('started_at'),
   submittedAt: timestamp('submitted_at').notNull(),
   completedAt: timestamp('completed_at'),
+  feedbackCompletedAt: timestamp('feedback_completed_at'),
+  feedbackSkippedAt: timestamp('feedback_skipped_at'),
   abandonedAt: timestamp('abandoned_at'),
 }, (table) => [
   check('quiz_attempt_status_check', sql`${table.status} in ('in_progress', 'completed', 'abandoned')`),
-  uniqueIndex('quiz_attempt_one_active_speed_topic_idx')
+  check('quiz_attempt_mode_check', sql`${table.quizMode} in ('mcq', 'essay', 'placement')`),
+  check('quiz_attempt_feedback_status_check', sql`${table.feedbackStatus} in ('pending', 'completed', 'skipped')`),
+  uniqueIndex('quiz_attempt_one_active_topic_idx')
     .on(table.userId, table.topicId)
-    .where(sql`${table.quizMode} = 'speed-round' and ${table.status} = 'in_progress'`),
+    .where(sql`${table.status} = 'in_progress'`),
 ]);
 
 export const quizAttemptQuestions = pgTable('quiz_attempt_question', {
@@ -119,6 +126,7 @@ export const quizAttemptQuestions = pgTable('quiz_attempt_question', {
   linkedConcept: text('linked_concept').notNull(),
   source: text('source'),
   resourceNumber: text('resource_number'),
+  maxMarks: integer('max_marks'),
 }, (table) => [
   primaryKey({ columns: [table.attemptId, table.questionIndex] }),
   uniqueIndex('quiz_attempt_question_key_idx').on(table.attemptId, table.questionKey),
@@ -129,12 +137,9 @@ export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
   questionKey: text('question_key').notNull(),
   questionIndex: integer('question_index').notNull(),
   submittedAnswer: text('submitted_answer').$type<string | number>().notNull(),
-  isCorrect: boolean('is_correct').notNull(),
-  priorMastery: doublePrecision('prior_mastery'),
-  posteriorMastery: doublePrecision('posterior_mastery'),
-  masteryAfterTransition: doublePrecision('mastery_after_transition'),
-  predictedCorrectness: doublePrecision('predicted_correctness'),
-  calculationTrace: jsonb('calculation_trace').$type<Record<string, unknown>>(),
+  isCorrect: boolean('is_correct'),
+  marksObtained: doublePrecision('marks_obtained'),
+  maximumMarks: doublePrecision('maximum_marks'),
   answeredAt: timestamp('answered_at'),
 }, (table) => [
   primaryKey({ columns: [table.attemptId, table.questionKey] }),
@@ -144,16 +149,25 @@ export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
 export const userTopicProgress = pgTable('user_topic_progress', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   topicId: text('topic_id').notNull().references(() => topics.id),
-  mastery: doublePrecision('mastery').notNull(),
-  stabilityDays: doublePrecision('stability_days').notNull(),
-  successfulReviews: integer('successful_reviews').notNull().default(0),
-  modelVersion: text('model_version').notNull().default('bkt-v1'),
-  lastReviewedAt: timestamp('last_reviewed_at').notNull(),
+  nextReviewAt: timestamp('next_review_at').notNull(),
+  reminderCalculatedAt: timestamp('reminder_calculated_at').notNull(),
   quizAttempts: integer('quiz_attempts').notNull().default(0),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => [
   primaryKey({ columns: [table.userId, table.topicId] }),
-  check('user_topic_progress_mastery_check', sql`${table.mastery} >= 0 and ${table.mastery} <= 1`),
-  check('user_topic_progress_stability_check', sql`${table.stabilityDays} > 0`),
-  check('user_topic_progress_successful_reviews_check', sql`${table.successfulReviews} >= 0`),
+]);
+
+export const userTopicModeProgress = pgTable('user_topic_mode_progress', {
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  topicId: text('topic_id').notNull().references(() => topics.id),
+  assessmentMode: text('assessment_mode', { enum: ['mcq', 'essay'] as const }).notNull(),
+  mastery: doublePrecision('mastery').notNull(),
+  lastUpdatedAt: timestamp('last_updated_at').notNull(),
+  quizAttempts: integer('quiz_attempts').notNull().default(0),
+  modelVersion: text('model_version').notNull().default('phase1-v1'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.topicId, table.assessmentMode] }),
+  check('user_topic_mode_progress_mode_check', sql`${table.assessmentMode} in ('mcq', 'essay')`),
+  check('user_topic_mode_progress_mastery_check', sql`${table.mastery} >= 0 and ${table.mastery} <= 1`),
 ]);

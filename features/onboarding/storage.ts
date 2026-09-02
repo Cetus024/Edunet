@@ -2,7 +2,7 @@ import type { PlacementQuestion, PlacementResult, PlacementSetResponse } from '@
 import type { OnboardingRole } from './types';
 
 export const ONBOARDING_DRAFT_KEY = 'edunets:onboarding-draft:v2';
-export const PLACEMENT_RESULT_KEY = 'edunets:placement-result:v1';
+export const PLACEMENT_RESULT_KEY = 'edunets:placement-result:phase1-v1';
 
 export type OnboardingDraft = {
   step: number;

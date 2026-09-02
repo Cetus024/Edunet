@@ -1,5 +1,6 @@
 import { defineConfig } from 'drizzle-kit';
 
+import './database/env';
 import { EDUNETS_SCHEMA_NAME } from './database/constants';
 
 // A deliberately unusable fallback lets schema-only generation run without

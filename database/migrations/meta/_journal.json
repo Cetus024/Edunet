@@ -78,6 +78,13 @@
       "when": 1788242599773,
       "tag": "0010_bkt_knowledge_model",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788335047857,
+      "tag": "0011_phase1_dual_memory",
+      "breakpoints": true
     }
   ]
 }

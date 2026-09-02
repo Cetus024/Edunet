@@ -7,9 +7,11 @@ export interface TopicData {
   subjectId: string;
   name: string;
   memoryScore: number | null; // null = not started (grey "Not Started")
-  masteryScore?: number | null;
-  stabilityDays?: number | null;
-  successfulReviews?: number;
+  modeScores?: {
+    mcq: { mastery: number; masteryScore: number; memory: number; memoryScore: number; lastUpdatedAt: string; elapsedDays: number; mode: 'mcq'; quizAttempts?: number } | null;
+    essay: { mastery: number; masteryScore: number; memory: number; memoryScore: number; lastUpdatedAt: string; elapsedDays: number; mode: 'essay'; quizAttempts?: number } | null;
+  };
+  recommendedMode?: 'mcq' | 'essay' | null;
   reviewNow?: boolean;
   calculatedAt?: string;
   lastReviewedAt: string | null; // ISO date string
@@ -81,10 +83,13 @@ export function getEffectiveScore(topic: TopicData): number | null {
   return topic.memoryScore;
 }
 
-// Check if topic is "at risk" (below 42%)
+// Review due is supplied by the Phase 1 API. The score/date fallback keeps
+// locally seeded preview data aligned with the same 60% reminder rule.
 export function isAtRisk(topic: TopicData): boolean {
   const score = getEffectiveScore(topic);
-  return score !== null && score < 42;
+  if (score === null) return false;
+  if (typeof topic.reviewNow === 'boolean') return topic.reviewNow;
+  return score <= 60 || (topic.nextReviewAt !== null && new Date(topic.nextReviewAt) <= new Date());
 }
 
 // Get days until next review
@@ -306,8 +311,8 @@ export const priorityQueueAtom = atom((get) => {
   const topics = get(allTopicsAtom);
   const subjects = get(subjectsAtom);
   
-  // Filter out not-started topics
-  const startedTopics = topics.filter(t => t.memoryScore !== null);
+  // The review queue contains only concepts whose saved reminder is due.
+  const startedTopics = topics.filter(isAtRisk);
   
   // Calculate priority score for each topic
   const withPriority: PriorityQueueItem[] = startedTopics.map(topic => {

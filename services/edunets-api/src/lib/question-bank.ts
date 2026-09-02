@@ -6,7 +6,7 @@ import { db } from '../../../../database/index.js';
 import { quizQuestions, subjects, topics } from '../../../../database/schema/catalog.js';
 
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
-export type QuizQuestionMode = 'concept-check' | 'speed-round' | 'placement';
+export type QuizQuestionMode = 'mcq' | 'essay' | 'placement';
 
 export interface QuizQuestion {
   questionKey: string;
@@ -21,6 +21,7 @@ export interface QuizQuestion {
   options?: string[];
   blankWord?: string;
   wordLimit?: number;
+  maxMarks?: number;
   diagramUrl?: string;
 }
 
@@ -115,6 +116,7 @@ function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
     ...(options ? { options } : {}),
     ...(row.blankWord ? { blankWord: row.blankWord } : {}),
     ...(row.wordLimit !== null ? { wordLimit: row.wordLimit } : {}),
+    ...(row.maxMarks !== null ? { maxMarks: row.maxMarks } : {}),
     ...(row.diagramUrl ? { diagramUrl: row.diagramUrl } : {}),
   };
 }
@@ -154,6 +156,7 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
     options: quizQuestions.options,
     blankWord: quizQuestions.blankWord,
     wordLimit: quizQuestions.wordLimit,
+    maxMarks: quizQuestions.maxMarks,
     source: quizQuestions.source,
     resourceNumber: quizQuestions.resourceNumber,
     diagramUrl: quizQuestions.diagramUrl,
@@ -174,7 +177,7 @@ function candidateRows(
   _selectedTopicPosition: number,
   mode: QuizQuestionMode,
 ): QuestionPoolRow[] | null {
-  if (mode === 'placement' || mode === 'speed-round') {
+  if (mode === 'placement' || mode === 'mcq') {
     return rows.filter((row) => (
       row.topicId === selectedTopicId
       && row.type === 'mcq'
@@ -182,9 +185,8 @@ function candidateRows(
     ));
   }
 
-  const practiceRows = rows.filter((row) => row.usage === 'practice' || row.usage === 'both');
-  if (mode === 'concept-check') {
-    return practiceRows.filter((row) => row.topicId === selectedTopicId);
+  if (mode === 'essay') {
+    return rows.filter((row) => row.topicId === selectedTopicId && row.type === 'structured');
   }
 
   return null;
@@ -200,28 +202,29 @@ export function selectQuestionRows(
   const candidates = candidateRows(rows, selectedTopicId, selectedTopicPosition, mode);
   if (!candidates
     || candidates.length === 0
-    || (mode === 'speed-round' && candidates.length < 10)
+    || (mode === 'mcq' && candidates.length < 10)
+    || (mode === 'essay' && candidates.length < 5)
     || (mode === 'placement' && candidates.length < 10)) {
     return null;
   }
 
   const shuffled = seededShuffle(candidates, `${seed}:${mode}`);
-  return shuffled.slice(0, mode === 'concept-check' ? 5 : 10);
+  return shuffled.slice(0, mode === 'essay' ? 5 : 10);
 }
 
 export async function getQuizOptions(topicId: string, subjectId: string) {
   const pool = await loadQuestionPool(topicId);
   if (!pool || pool.subjectId !== subjectId) return null;
 
-  const conceptCount = Math.min(5, candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'concept-check')?.length ?? 0);
-  const speedCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'speed-round')?.length ?? 0;
+  const mcqCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'mcq')?.length ?? 0;
+  const essayCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'essay')?.length ?? 0;
 
   return {
     subjectId: pool.subjectId,
     topicId: pool.topicId,
     modes: {
-      conceptCheck: { available: conceptCount > 0, questionCount: conceptCount },
-      speedRound: { available: speedCandidateCount >= 10, questionCount: speedCandidateCount >= 10 ? 10 : 0 },
+      mcq: { available: mcqCandidateCount >= 10, questionCount: mcqCandidateCount >= 10 ? 10 : 0 },
+      essay: { available: essayCandidateCount >= 5, questionCount: essayCandidateCount >= 5 ? 5 : 0 },
     },
   };
 }
