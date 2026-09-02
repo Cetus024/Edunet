@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Circle, CircleDot, Loader2, Mic, Sparkles, Square, ThumbsUp, TriangleAlert, Timer } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Circle, CircleDot, Copy, Loader2, Mic, Sparkles, Square, ThumbsUp, TriangleAlert, Timer } from 'lucide-react';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -408,9 +409,26 @@ export default function DiscussionRoomPage() {
               <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                 Live transcript
               </p>
-              {isRecording && (
+              {isRecording ? (
                 <Badge className="rounded-full border-0 bg-destructive text-primary-foreground">REC</Badge>
-              )}
+              ) : finalTranscript.trim() ? (
+                // Lets a real transcript leave the browser as text, so what was
+                // actually captured can be read, kept, or marked by hand while
+                // no model is wired up.
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 rounded-full px-2 text-xs"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(finalTranscript.trim())
+                      .then(() => toast.success('Transcript copied'))
+                      .catch(() => toast.error('Could not copy the transcript'));
+                  }}
+                >
+                  <Copy className="mr-1 h-3.5 w-3.5" /> Copy
+                </Button>
+              ) : null}
             </div>
 
             {/* Recognition reports words, never audio. A moving bar with no text
