@@ -334,9 +334,14 @@ export default function DiscussionRoomPage() {
                     </div>
                   )}
 
-                  {(analysisState === 'unavailable' || analysisState === 'failed') && (
+                  {/* 'unavailable' means no model is configured for this
+                      deployment. That is a setup state, not something a student
+                      can act on, so it says nothing and the coverage check
+                      stands alone. Only a call that was expected to work and
+                      did not is worth reporting. */}
+                  {analysisState === 'failed' && (
                     <p className="rounded-[1.15rem] border border-border p-3 text-xs font-semibold text-muted-foreground">
-                      Marking is not available right now, so only the coverage check below is shown.
+                      Marking could not run this time, so only the coverage check below is shown.
                     </p>
                   )}
 
