@@ -130,6 +130,13 @@ export const discussionSignals = pgTable('discussion_signal', {
  *
  * `summary` is left null by the rubric scorer. It is where a generated summary
  * lands later without the shape of this table changing.
+ *
+ * **A discussion review never writes back to a memory score.** It is read by
+ * the people who were in the room and nothing else: no mastery update, no BKT
+ * evidence, no row in the learning tables. This is a deliberate boundary, not
+ * an unfinished wire. The rubric measures whether a subconcept was *talked
+ * about*, which is not evidence that it is *known* — feeding it into mastery
+ * would let a student raise their score by saying the right words out loud.
  */
 export const discussionReviews = pgTable('discussion_review', {
   id: text('id').primaryKey(),
