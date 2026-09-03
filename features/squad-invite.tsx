@@ -16,6 +16,7 @@ import {
   useStudySquadInvitation,
 } from '@/lib/api/study-squads';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
+import { useTranslation } from '@/lib/i18n';
 
 export default function SquadInvitePage() {
   const [searchParams] = useSearchParams();
@@ -25,20 +26,21 @@ export default function SquadInvitePage() {
   const invitationQuery = useStudySquadInvitation(token);
   const accountQuery = useCurrentAccount();
   const [isGooglePending, setIsGooglePending] = useState(false);
+  const { t } = useTranslation();
 
   const acceptMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('This squad invitation link is incomplete.');
+      if (!token) throw new Error(t('squadInvite.incomplete'));
       return acceptStudySquadInvitation(token);
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: studySquadQueryKey });
-      toast.success(`You joined ${result.squad?.name ?? 'the study squad'}.`);
+      toast.success(t('squadInvite.joined', { squad: result.squad?.name ?? t('squadInvite.joinedFallback') }));
       navigate('/study-squad', { replace: true });
     },
     onError: (error) => {
-      toast.error('Could not join the squad', {
-        description: error instanceof Error ? error.message : 'Try the invitation again.',
+      toast.error(t('squadInvite.couldNotJoin'), {
+        description: error instanceof Error ? error.message : t('squadInvite.tryAgain'),
       });
     },
   });
@@ -54,7 +56,7 @@ export default function SquadInvitePage() {
       });
       if (result.error) throw result.error;
     } catch (error) {
-      toast.error(getAuthErrorMessage(error, 'EduNets could not start Google sign-in.'));
+      toast.error(getAuthErrorMessage(error, t('squadInvite.googleSignInFailed')));
       setIsGooglePending(false);
     }
   };
@@ -63,7 +65,7 @@ export default function SquadInvitePage() {
   const account = accountQuery.data;
   const isLoading = Boolean(token) && (invitationQuery.isPending || accountQuery.isPending);
   const error = !token
-    ? new Error('This squad invitation link is incomplete.')
+    ? new Error(t('squadInvite.incomplete'))
     : invitationQuery.error ?? accountQuery.error;
 
   return (
@@ -77,31 +79,31 @@ export default function SquadInvitePage() {
           {isLoading ? (
             <div className="mt-7" aria-busy="true">
               <Loader2 className="mx-auto h-7 w-7 animate-spin text-[var(--edunets-dark-blue)]" />
-              <p className="mt-3 font-bold">Checking your squad invitation…</p>
+              <p className="mt-3 font-bold">{t('squadInvite.checking')}</p>
             </div>
           ) : error ? (
             <div className="mt-7">
-              <h1 className="text-3xl font-black text-[var(--edunets-dark-blue)]">Invitation unavailable</h1>
+              <h1 className="text-3xl font-black text-[var(--edunets-dark-blue)]">{t('squadInvite.unavailable')}</h1>
               <p className="mt-3 text-sm font-medium leading-6 text-[var(--edunets-ink)]/70">
-                {error instanceof Error ? error.message : 'This invitation cannot be opened.'}
+                {error instanceof Error ? error.message : t('squadInvite.cannotOpen')}
               </p>
               <Button onClick={() => navigate('/')} variant="outline" className="mt-6 rounded-full">
-                Go to EduNets
+                {t('squadInvite.goToEdunets')}
               </Button>
             </div>
           ) : invitation ? (
             <div className="mt-7">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[var(--edunets-light-blue)]">Study Squad invitation</p>
-              <h1 className="mt-3 text-3xl font-black text-[var(--edunets-dark-blue)] sm:text-4xl">Join {invitation.squadName}</h1>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[var(--edunets-light-blue)]">{t('squadInvite.title')}</p>
+              <h1 className="mt-3 text-3xl font-black text-[var(--edunets-dark-blue)] sm:text-4xl">{t('squadInvite.join', { squad: invitation.squadName })}</h1>
               <p className="mx-auto mt-4 max-w-md font-medium leading-7 text-[var(--edunets-ink)]/70">
-                {invitation.inviterName} invited you to learn together and help each other with quick rescue sessions.
+                {t('squadInvite.invitedBy', { name: invitation.inviterName })}
               </p>
 
               <div className="mt-8">
                 {account ? (
                   <>
                     <p className="mb-4 text-sm font-semibold text-[var(--edunets-ink)]/70">
-                      Signed in as {account.user.email}
+                      {t('squadInvite.signedInAs', { email: account.user.email })}
                     </p>
                     <Button
                       onClick={() => acceptMutation.mutate()}
@@ -111,12 +113,12 @@ export default function SquadInvitePage() {
                       {acceptMutation.isPending
                         ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                      Accept invitation
+                      {t('squadInvite.accept')}
                     </Button>
                   </>
                 ) : (
                   <GoogleAuthButton
-                    label="Continue with the invited Google account"
+                    label={t('squadInvite.continueWithGoogle')}
                     busy={isGooglePending}
                     disabled={isGooglePending}
                     onClick={() => void continueWithGoogle()}
@@ -125,7 +127,7 @@ export default function SquadInvitePage() {
               </div>
 
               <p className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-[var(--edunets-ink)]/60">
-                <LogIn className="h-4 w-4" /> Only the email address that received the invitation can join.
+                <LogIn className="h-4 w-4" /> {t('squadInvite.emailOnly')}
               </p>
             </div>
           ) : null}

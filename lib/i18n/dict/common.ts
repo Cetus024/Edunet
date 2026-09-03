@@ -21,6 +21,13 @@ export const commonDict = {
   'common.error': { en: 'Something went wrong', zh: '出了点问题' },
   'common.empty': { en: 'Nothing here yet', zh: '这里还没有内容' },
 
+  // Shared between discussion-room.tsx and revision-room.tsx — both render a
+  // CoverageVerdict from lib/discussion-rubric.ts against the same three
+  // states.
+  'verdict.covered': { en: 'Covered', zh: '已覆盖' },
+  'verdict.partial': { en: 'Partly', zh: '部分覆盖' },
+  'verdict.missed': { en: 'Not mentioned', zh: '未提及' },
+
   'subject.biology': { en: 'Biology', zh: '生物' },
   'subject.chemistry': { en: 'Chemistry', zh: '化学' },
   'subject.physics': { en: 'Physics', zh: '物理' },

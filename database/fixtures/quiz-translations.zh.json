@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "locale": "zh",
+  "questions": {
+    "biology-cell-division-mitosis:v1:q01": {
+      "text": "有丝分裂的主要结果是什么？",
+      "options": [
+        "四个遗传上不同的细胞",
+        "两个遗传上完全相同的细胞",
+        "两个单倍体配子",
+        "一个染色体数减半的细胞"
+      ],
+      "explanation": "有丝分裂产生两个遗传上完全相同的子细胞，其染色体数与母细胞相同。",
+      "reviewed": false
+    },
+    "biology-cell-division-mitosis:v1:q02": {
+      "text": "在有丝分裂的哪个时期，染色体排列在细胞的赤道板上？",
+      "options": ["前期", "中期", "后期", "末期"],
+      "explanation": "染色体在中期沿细胞赤道板排列。",
+      "reviewed": false
+    },
+    "biology-cell-division-mitosis:v1:q03": {
+      "text": "后期会发生什么？",
+      "options": [
+        "DNA 进行复制",
+        "核膜重新形成",
+        "姐妹染色单体移向细胞两极",
+        "染色体变得不可见"
+      ],
+      "explanation": "在后期，姐妹染色单体分离，并被纺锤丝拉向细胞两极。",
+      "reviewed": false
+    },
+    "biology-cell-division-mitosis:v1:q04": {
+      "text": "有丝分裂对生长、修复和 _____ 生殖具有重要意义。",
+      "explanation": "有丝分裂产生遗传上完全相同的细胞，用于无性生殖。",
+      "reviewed": false
+    },
+    "biology-cell-division-mitosis:v1:q05": {
+      "text": "解释为什么有丝分裂产生的子细胞与母细胞具有相同的染色体数。",
+      "explanation": "DNA 在有丝分裂前已完成复制，每条染色体的一份拷贝分别进入一个子细胞，因此染色体数得以维持。",
+      "reviewed": false
+    },
+
+    "biology-ecology:v1:q01": {
+      "text": "在食物链中，哪一类生物构成第一营养级？",
+      "options": ["生产者", "初级消费者", "次级消费者", "分解者"],
+      "explanation": "生产者通常通过光合作用获取能量，构成第一营养级。",
+      "reviewed": false
+    },
+    "biology-ecology:v1:q02": {
+      "text": "分解者在生态系统中的作用是什么？",
+      "options": [
+        "制造阳光",
+        "使矿质养分重新循环",
+        "只取食活的植物",
+        "阻止呼吸作用"
+      ],
+      "explanation": "分解者分解死亡的有机物，把矿质养分释放回环境中。",
+      "reviewed": false
+    },
+    "biology-ecology:v1:q03": {
+      "text": "为什么营养级越高，可获得的能量越少？",
+      "options": [
+        "能量由消费者创造",
+        "能量通过呼吸作用和排泄物散失",
+        "生产者不消耗能量",
+        "所有生物量都被取食"
+      ],
+      "explanation": "能量通过呼吸作用以热的形式散失，也随未被取食或未被消化的物质流失。",
+      "reviewed": false
+    },
+    "biology-ecology:v1:q04": {
+      "text": "由多条食物链相互交织形成的网络称为食物 _____。",
+      "explanation": "食物网展示生态系统中多种生物之间的取食关系。",
+      "reviewed": false
+    },
+    "biology-ecology:v1:q05": {
+      "text": "解释森林砍伐如何降低生物多样性。",
+      "explanation": "森林砍伐造成栖息地丧失，使食物来源和繁殖场所消失，可导致种群数量下降甚至物种灭绝。",
+      "reviewed": false
+    },
+
+    "biology-genetics:v1:q01": {
+      "text": "什么是等位基因？",
+      "options": ["基因的一种形式", "一整条染色体", "一类蛋白质", "一种细胞器"],
+      "explanation": "等位基因是位于同源染色体相同基因座上的基因的不同形式。",
+      "reviewed": false
+    },
+    "biology-genetics:v1:q02": {
+      "text": "哪个术语描述生物体的遗传组成？",
+      "options": ["表现型", "基因型", "变异", "突变率"],
+      "explanation": "基因型指生物体所具有的等位基因组合。",
+      "reviewed": false
+    },
+    "biology-genetics:v1:q03": {
+      "text": "下列哪个基因型是杂合的？",
+      "options": ["TT", "tt", "Tt", "T"],
+      "explanation": "杂合基因型含有两个不同的等位基因，例如 Tt。",
+      "reviewed": false
+    },
+    "biology-genetics:v1:q04": {
+      "text": "携带遗传信息的分子是 _____。",
+      "explanation": "DNA 以其碱基序列的形式储存遗传信息。",
+      "reviewed": false
+    },
+    "biology-genetics:v1:q05": {
+      "text": "一株杂合的高茎植物 Tt 与一株矮茎植物 tt 杂交。写出后代为矮茎的概率。",
+      "explanation": "Tt × tt 的杂交结果为 Tt、tt、Tt、tt，因此四个后代中预期有两个为矮茎，即 50%。",
+      "reviewed": false
+    },
+
+    "biology-nutrition:v1:q01": {
+      "text": "哪种酶把淀粉消化为麦芽糖？",
+      "options": ["淀粉酶", "蛋白酶", "脂肪酶", "胃蛋白酶"],
+      "explanation": "淀粉酶催化淀粉分解为麦芽糖。",
+      "reviewed": false
+    },
+    "biology-nutrition:v1:q02": {
+      "text": "消化后的食物主要在哪里被吸收？",
+      "options": ["胃", "小肠", "大肠", "食道"],
+      "explanation": "小肠具有绒毛和微绒毛，提供了很大的吸收表面积。",
+      "reviewed": false
+    },
+    "biology-nutrition:v1:q03": {
+      "text": "胆汁在消化过程中的功能是什么？",
+      "options": ["消化蛋白质", "乳化脂肪", "把淀粉转化为葡萄糖", "吸收水分"],
+      "explanation": "胆汁把大的脂肪滴乳化成小脂肪滴，增大脂肪酶作用的表面积。",
+      "reviewed": false
+    },
+    "biology-nutrition:v1:q04": {
+      "text": "小肠中称为 _____ 的指状突起增大了吸收表面积。",
+      "explanation": "绒毛大大增加了可用于吸收的表面积。",
+      "reviewed": false
+    },
+    "biology-nutrition:v1:q05": {
+      "text": "一名学生出现牙龈出血、伤口愈合缓慢的症状。指出缺乏的维生素并解释你的判断。",
+      "explanation": "维生素 C 是维持结缔组织健康所必需的；缺乏会引起坏血病，症状包括牙龈出血和伤口难以愈合。",
+      "reviewed": false
+    },
+
+    "biology-reproduction:v1:q01": {
+      "text": "在人体女性生殖系统中，受精通常发生在哪里？",
+      "options": ["子宫", "输卵管", "卵巢", "子宫颈"],
+      "explanation": "受精通常发生在输卵管中，此时精子细胞核与卵细胞核融合。",
+      "reviewed": false
+    },
+    "biology-reproduction:v1:q02": {
+      "text": "胎盘的主要功能之一是什么？",
+      "options": ["产生精子", "在母体与胎儿之间交换物质", "释放卵子", "储存尿液"],
+      "explanation": "胎盘使氧气、养分和废物得以交换，同时母体血液与胎儿血液不直接混合。",
+      "reviewed": false
+    },
+    "biology-reproduction:v1:q03": {
+      "text": "哪一项是无性生殖的特征？",
+      "options": [
+        "配子融合",
+        "必须有两个亲本",
+        "后代在遗传上完全相同",
+        "减数分裂产生变异"
+      ],
+      "explanation": "无性生殖只涉及一个亲本，通常产生遗传上完全相同的后代。",
+      "reviewed": false
+    },
+    "biology-reproduction:v1:q04": {
+      "text": "成熟卵子从卵巢中释放的过程称为 _____。",
+      "explanation": "排卵是成熟卵子从卵巢中释放出来的过程。",
+      "reviewed": false
+    },
+    "biology-reproduction:v1:q05": {
+      "text": "描述精子细胞适于到达并使卵子受精的一项适应特征。",
+      "explanation": "精子具有用于游动的鞭毛、提供能量的大量线粒体，以及含有酶、可穿入卵子的顶体。",
+      "reviewed": false
+    },
+
+    "biology-respiration:v1:q01": {
+      "text": "哪个文字方程式表示有氧呼吸？",
+      "options": [
+        "葡萄糖 → 乳酸",
+        "葡萄糖 + 氧气 → 二氧化碳 + 水",
+        "二氧化碳 + 水 → 葡萄糖 + 氧气",
+        "葡萄糖 → 乙醇 + 二氧化碳"
+      ],
+      "explanation": "有氧呼吸通过葡萄糖与氧气反应生成二氧化碳和水来释放能量。",
+      "reviewed": false
+    },
+    "biology-respiration:v1:q02": {
+      "text": "有氧呼吸主要在哪种细胞器中进行？",
+      "options": ["细胞核", "核糖体", "线粒体", "叶绿体"],
+      "explanation": "有氧呼吸主要在线粒体中进行。",
+      "reviewed": false
+    },
+    "biology-respiration:v1:q03": {
+      "text": "剧烈运动进行无氧呼吸时，肌肉中会积累哪种物质？",
+      "options": ["乙醇", "乳酸", "尿素", "糖原"],
+      "explanation": "人体肌肉细胞在无氧呼吸时产生乳酸。",
+      "reviewed": false
+    },
+    "biology-respiration:v1:q04": {
+      "text": "运动后为清除乳酸所需要的额外氧气称为氧 _____。",
+      "explanation": "氧债在运动后通过持续加快的呼吸和心率来偿还。",
+      "reviewed": false
+    },
+    "biology-respiration:v1:q05": {
+      "text": "解释为什么运动时呼吸频率会加快。",
+      "explanation": "运动中的肌肉呼吸作用加快，需要更多氧气，同时产生更多二氧化碳，因此肺通气量增加。",
+      "reviewed": false
+    },
+
+    "biology-transport:v1:q01": {
+      "text": "红细胞中哪种物质能与氧气可逆结合？",
+      "options": ["纤维蛋白", "血红蛋白", "血浆", "糖原"],
+      "explanation": "血红蛋白与氧气可逆结合，从而把氧气运输到全身。",
+      "reviewed": false
+    },
+    "biology-transport:v1:q02": {
+      "text": "哪种血管把血液从心脏运出？",
+      "options": ["动脉", "静脉", "毛细血管", "微静脉"],
+      "explanation": "动脉在相对较高的压力下把血液从心脏运出。",
+      "reviewed": false
+    },
+    "biology-transport:v1:q03": {
+      "text": "哪种植物组织把水和无机盐离子从根运输到叶？",
+      "options": ["韧皮部", "木质部", "表皮", "叶肉"],
+      "explanation": "木质部导管把水和溶解的无机盐离子向上运输到植物各处。",
+      "reviewed": false
+    },
+    "biology-transport:v1:q04": {
+      "text": "血液中运输溶解物质的液体成分称为 _____。",
+      "explanation": "血浆运输血细胞、养分、激素、二氧化碳和尿素。",
+      "reviewed": false
+    },
+    "biology-transport:v1:q05": {
+      "text": "解释为什么人体循环系统被称为双循环。",
+      "explanation": "在一次完整的循环中，血液两次流经心脏：一次经过肺循环，一次经过体循环。",
+      "reviewed": false
+    }
+  }
+}

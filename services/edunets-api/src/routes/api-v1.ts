@@ -45,6 +45,7 @@ import {
 } from '../services/assessment-quiz.js';
 import { commitModeProgress, lockTopic } from '../services/phase1-progress.js';
 import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
+import { localizeQuestions, parseLocale } from '../lib/question-translations.js';
 import {
   addStudentToScope,
   getClassConceptWebForTeacher,
@@ -74,6 +75,28 @@ function requireUserId(context: Context<AppEnv>): string {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
   return user.id;
+}
+
+/**
+ * Localizes the `questions` array on an assessment-session response, if it has
+ * one. Four routes return this shape (create, answer, finish, feedback-complete)
+ * and an idempotent replay or an abandon response carries no `questions` at
+ * all, so the check is structural rather than per-route.
+ *
+ * Applied at the route rather than inside assessment-quiz.ts, so that service
+ * keeps returning one canonical (English) shape and translation stays a
+ * presentation concern at the edge — the same boundary the placement-set route
+ * uses.
+ */
+function localizeSessionQuestions<T extends { questions?: unknown }>(result: T, context: Context<AppEnv>): T {
+  if (!Array.isArray(result.questions)) return result;
+  return {
+    ...result,
+    questions: localizeQuestions(
+      result.questions as { questionKey: string; text: string; options?: string[] }[],
+      parseLocale(context.req.header('accept-language')),
+    ),
+  };
 }
 
 async function loadTeachingScopes(userId: string) {
@@ -355,7 +378,10 @@ api.post('/me/onboarding/placement-set', loadSession, requireSession, async (con
     submissionId: input.submissionId,
     subjectId: questionSet.subjectId,
     topicId: questionSet.topicId,
-    questions: serializePlacementQuestions(questionSet.questions),
+    questions: localizeQuestions(
+      serializePlacementQuestions(questionSet.questions),
+      parseLocale(context.req.header('accept-language')),
+    ),
   });
 });
 
@@ -707,24 +733,26 @@ api.post('/me/quiz-sets', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = quizSetRequestSchema.parse(await readJson(context));
   const result = await createOrResumeAssessmentSession(userId, input);
-  return context.json(result, result.resumed ? 200 : 201);
+  return context.json(localizeSessionQuestions(result, context), result.resumed ? 200 : 201);
 });
 
 api.post('/me/quiz-attempts/:submissionId/answers', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = assessmentAnswerSchema.parse(await readJson(context));
   const result = await submitAssessmentAnswer(userId, context.req.param('submissionId'), input);
-  return context.json(result, result.idempotentReplay ? 200 : 201);
+  return context.json(localizeSessionQuestions(result, context), result.idempotentReplay ? 200 : 201);
 });
 
 api.post('/me/quiz-attempts/:submissionId/finish', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  return context.json(await finishAssessmentSession(userId, context.req.param('submissionId')));
+  const result = await finishAssessmentSession(userId, context.req.param('submissionId'));
+  return context.json(localizeSessionQuestions(result, context));
 });
 
 api.post('/me/quiz-attempts/:submissionId/feedback-complete', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  return context.json(await completeAssessmentFeedback(userId, context.req.param('submissionId')));
+  const result = await completeAssessmentFeedback(userId, context.req.param('submissionId'));
+  return context.json(localizeSessionQuestions(result, context));
 });
 
 api.post('/me/quiz-attempts/:submissionId/abandon', loadSession, requireSession, async (context) => {
