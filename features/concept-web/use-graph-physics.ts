@@ -21,6 +21,7 @@ type PhysicsBody = PhysicsNodeSeed & {
   homeX: number;
   homeY: number;
   homeZ: number;
+  z: number;
   vx: number;
   vy: number;
   vz: number;
