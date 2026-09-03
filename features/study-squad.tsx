@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
+import { useTranslation } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Mic, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Mic, Orbit, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ const fallbackMember: SquadMember = {
 };
 
 export default function StudySquadPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
@@ -60,6 +62,7 @@ export default function StudySquadPage() {
   const [highlightedMemberId, setHighlightedMemberId] = useState<string | null>(null);
   const [highlightedSubject, setHighlightedSubject] = useState<string | null>(null);
   const [highlightedTopic, setHighlightedTopic] = useState<string | null>(null);
+  const [conceptContext, setConceptContext] = useState<{ subject: string; topic: string } | null>(null);
   const [rescueTarget, setRescueTarget] = useState<RescueTarget | null>(null);
   const [rescueSprintEnabled, setRescueSprintEnabled] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(presetMessages[0]);
@@ -249,10 +252,12 @@ export default function StudySquadPage() {
 
   useEffect(() => {
     const friendId = searchParams.get('friendId');
-    if (!friendId) return;
-
     const subject = searchParams.get('subject');
     const topic = searchParams.get('topic');
+    if (!friendId && !subject && !topic) return;
+
+    if (subject && topic) setConceptContext({ subject, topic });
+
     const targetMember = rankedMembers.find((member: SquadMember) => member.id === friendId);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('friendId');
@@ -329,6 +334,15 @@ export default function StudySquadPage() {
     const query = new URLSearchParams({ topicId: rubricTopicId, topic: topicName, subject });
     setRescueTarget(null);
     navigate(`/revision-room?${query.toString()}`);
+  }, [navigate]);
+
+  const openConceptWeb = useCallback((subject?: string, topicName?: string) => {
+    const query = new URLSearchParams();
+    if (subject) query.set('subject', subject);
+    if (topicName) query.set('topic', topicName);
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    setRescueTarget(null);
+    navigate(`/concept-web${suffix}`);
   }, [navigate]);
 
   const openDiscussionRoom = useCallback(() => {
@@ -430,12 +444,35 @@ export default function StudySquadPage() {
                   <p className="mt-3 text-muted-foreground">Invite friends, compare memory scores, and send 10-minute rescues before streaks break.</p>
                   {/* The general entry: any topic, not only the ones the squad
                       is currently weak at. Goes to the room's own picker. */}
-                  <Button
-                    onClick={() => navigate('/revision-room')}
-                    className="mt-4 rounded-full bg-primary text-primary-foreground hover:bg-accent"
-                  >
-                    <Mic className="mr-2 h-4 w-4" /> Start a Revision Room
-                  </Button>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => navigate('/revision-room')}
+                      className="rounded-full bg-primary text-primary-foreground hover:bg-accent"
+                    >
+                      <Mic className="mr-2 h-4 w-4" /> Start a Revision Room
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => openConceptWeb()}
+                      className="rounded-full border-primary text-foreground hover:bg-secondary"
+                    >
+                      <Orbit className="mr-2 h-4 w-4" /> {t('squad.openConceptWeb')}
+                    </Button>
+                  </div>
+                  {conceptContext && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-accent/40 bg-accent/15 px-4 py-3 text-sm">
+                      <span className="font-black">{t('squad.fromConceptWeb')}</span>
+                      <span className="font-semibold">{conceptContext.subject} · {conceptContext.topic}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openConceptWeb(conceptContext.subject, conceptContext.topic)}
+                        className="ml-auto rounded-full"
+                      >
+                        {t('squad.backToBubble')} <ArrowUpRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] bg-primary text-primary-foreground shadow-lg">
                   <Users className="h-12 w-12" />
@@ -690,6 +727,14 @@ export default function StudySquadPage() {
                             <Mic className="mr-2 h-4 w-4" /> Discuss
                           </Button>
                         )}
+                        <Button
+                          onClick={() => openConceptWeb(topic.subject, topic.topic)}
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full border-primary text-foreground hover:bg-secondary"
+                        >
+                          <Orbit className="mr-2 h-4 w-4" /> {t('squad.viewInConceptWeb')}
+                        </Button>
                       </div>
                     </div>
                   );
@@ -894,6 +939,15 @@ export default function StudySquadPage() {
                         Start a {rescueTarget.topic.topic} Revision Room
                       </Button>
                     )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => openConceptWeb(rescueTarget.topic.subject, rescueTarget.topic.topic)}
+                      className="w-full rounded-full border-primary text-foreground hover:bg-secondary"
+                    >
+                      <Orbit className="mr-2 h-4 w-4" />
+                      {t('squad.viewTopicInConceptWeb', { topic: rescueTarget.topic.topic })}
+                    </Button>
                     <p className="text-center text-xs font-semibold text-muted-foreground">
                       Send a 10-minute rescue, or explain the topic out loud yourself.
                     </p>

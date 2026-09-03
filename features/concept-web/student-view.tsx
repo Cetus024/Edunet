@@ -5,6 +5,7 @@ import { useAtomValue } from 'jotai';
 import { motion, useReducedMotion } from 'motion/react';
 import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Orbit, Plus, RotateCcw, Users, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
+import { useTranslation } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -75,6 +76,7 @@ const wrapText = (label: string): string[] => {
 
 export default function StudentConceptWebView() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const authenticatedSubjects = useAtomValue(subjectsAtom);
   const subjectsData = useMemo<Record<string, SubjectEntry>>(() => {
@@ -239,7 +241,9 @@ export default function StudentConceptWebView() {
     const point = clientToGraphPoint(event.clientX, event.clientY);
     if (!point) return;
     const position = positionFor(node);
-    const dragZ = physicsActive ? 112 : position.z;
+    // Drag in the node's existing depth plane. Lifting it to a different z on
+    // pointer-down also affects simple clicks and creates a visible offset.
+    const dragZ = position.z;
     const unprojectedPoint = unprojectDepth(point.x, point.y, dragZ);
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -254,7 +258,7 @@ export default function StudentConceptWebView() {
       moved: false,
     };
     setDraggedNode(node.id);
-  }, [clientToGraphPoint, physicsActive, positionFor, setDraggedNode]);
+  }, [clientToGraphPoint, positionFor, setDraggedNode]);
 
   const handleNodePointerMove = useCallback((event: React.PointerEvent<SVGGElement>) => {
     const drag = nodeDragRef.current;
@@ -263,7 +267,12 @@ export default function StudentConceptWebView() {
     if (!point) return;
     const unprojectedPoint = unprojectDepth(point.x, point.y, drag.z);
     event.stopPropagation();
-    if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) > 5) drag.moved = true;
+    // Ignore the tiny pointer movement browsers can emit during a normal
+    // click. It must not be written back as a new physics position.
+    if (!drag.moved) {
+      if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) <= 5) return;
+      drag.moved = true;
+    }
     moveNode(drag.id, {
       x: unprojectedPoint.x - drag.offsetX,
       y: unprojectedPoint.y - drag.offsetY,
@@ -528,7 +537,7 @@ export default function StudentConceptWebView() {
               const interactionScale = highlighted ? 1.15 : activated ? 1.22 : 1;
               const renderedOpacity = projected.depthOpacity * (greyed ? 0.35 : 1);
               return (
-                <motion.g key={node.id} data-node="true" data-depth={projected.z.toFixed(1)} role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}. Drag to rearrange.`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onPointerDown={(event: React.PointerEvent<SVGGElement>) => handleNodePointerDown(event, node)} onPointerMove={handleNodePointerMove} onPointerUp={handleNodePointerUp} onPointerCancel={handleNodePointerUp} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: projected.depthScale * 0.75 }} animate={{ opacity: renderedOpacity, scale: projected.depthScale * interactionScale }} transition={{ opacity: { duration: 0.2 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.16 } }} style={{ cursor: 'grab', transformOrigin: `${projected.screenX}px ${projected.screenY}px` }}>
+                <motion.g key={node.id} data-node="true" data-depth={projected.z.toFixed(1)} role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}. Drag to rearrange.`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onPointerDown={(event: React.PointerEvent<SVGGElement>) => handleNodePointerDown(event, node)} onPointerMove={handleNodePointerMove} onPointerUp={handleNodePointerUp} onPointerCancel={handleNodePointerUp} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: projected.depthScale * 0.75 }} animate={{ opacity: renderedOpacity, scale: projected.depthScale * interactionScale }} transition={{ opacity: { duration: 0.2 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.16 } }} style={{ cursor: 'grab', transformBox: 'view-box', originX: projected.screenX / 1_000, originY: projected.screenY / 800 }}>
                   {node.kind === 'subject' && <circle cx={projected.screenX} cy={projected.screenY} r={node.r + 14} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.45" />}
                   {highlighted && <><circle cx={projected.screenX} cy={projected.screenY} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={projected.screenX} cy={projected.screenY} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
                   <circle cx={projected.screenX} cy={projected.screenY} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter={projected.depthRatio > 0.68 ? 'url(#node-front-glow)' : 'url(#node-shadow)'} />
@@ -581,6 +590,13 @@ export default function StudentConceptWebView() {
                 <p className="text-sm">Links to <strong>{popup.node.keyConnection.topic}</strong>: {popup.node.keyConnection.explanation}</p>
               </div>
               <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground shadow-lg" onClick={() => navigate(`/quiz?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(quizTopicName)}&concept=${encodeURIComponent(popup.node.id)}&mode=${popup.node.recommendedMode ?? 'mcq'}`)}><Brain className="mr-2 h-4 w-4" /> Quiz me on this <ChevronRight className="ml-2 h-4 w-4" /></Button>
+              <Button
+                variant="outline"
+                className="h-12 w-full rounded-2xl border-primary text-foreground"
+                onClick={() => navigate(`/study-squad?subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(quizTopicName)}`)}
+              >
+                <Users className="mr-2 h-4 w-4" /> {t('conceptWeb.studyWithSquad')}
+              </Button>
             </div>
           </motion.div>
         )}

@@ -1,4 +1,5 @@
 import { commonDict } from './dict/common';
+import { conceptWebLinkDict } from './dict/concept-web-link';
 import { dashboardDict } from './dict/dashboard';
 import { navDict } from './dict/nav';
 import { rescueRoomDict } from './dict/rescue-room';
@@ -8,6 +9,7 @@ import { squadInviteDict } from './dict/squad-invite';
 
 export const dictionary = {
   ...commonDict,
+  ...conceptWebLinkDict,
   ...dashboardDict,
   ...navDict,
   ...rescueRoomDict,

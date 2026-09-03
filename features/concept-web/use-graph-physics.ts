@@ -191,16 +191,14 @@ export function useGraphPhysics(
     if (!nodeId) return;
     const body = bodiesRef.current.get(nodeId);
     if (body) {
+      // Pointer-down also fires for an ordinary click. Keep the body at its
+      // current depth here so opening a node does not re-project it at a new
+      // screen position. The node is still frozen while it is being dragged.
       body.vx = 0;
       body.vy = 0;
       body.vz = 0;
-      body.z = enabled ? 112 : 0;
-      setPositions((current) => ({
-        ...current,
-        [nodeId]: { x: body.x, y: body.y, z: body.z },
-      }));
     }
-  }, [enabled]);
+  }, []);
 
   const moveNode = useCallback((nodeId: string, position: GraphPlanePosition) => {
     const body = bodiesRef.current.get(nodeId);
