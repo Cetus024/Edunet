@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Circle, CircleDot, Copy, Loader2, Mic, Sparkles, Square, ThumbsUp, TriangleAlert, Timer } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Circle, CircleDot, Copy, Loader2, MessagesSquare, Mic, Sparkles, Square, ThumbsUp, TriangleAlert, Timer } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -14,6 +14,13 @@ import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useTranscription } from '@/hooks/use-transcription';
 import { useMicLevel } from '@/hooks/use-mic-level';
 import { requestExplanationAnalysis, type ExplanationAnalysis } from '@/lib/api/discussion';
+import {
+  STAGE_SECONDS,
+  findRepeatedPhrase,
+  nextCue,
+  shouldAdvance,
+  stagePrompt,
+} from '@/lib/discussion-mediator';
 import {
   getSubconcepts,
   reviewDiscussion,
@@ -55,6 +62,9 @@ export default function DiscussionRoomPage() {
   const [review, setReview] = useState<DiscussionReview | null>(null);
   const [analysis, setAnalysis] = useState<ExplanationAnalysis | null>(null);
   const [analysisState, setAnalysisState] = useState<'idle' | 'running' | 'done' | 'unavailable' | 'failed'>('idle');
+  const [stageIndex, setStageIndex] = useState(0);
+  const [stageElapsed, setStageElapsed] = useState(0);
+  const [silenceSeconds, setSilenceSeconds] = useState(0);
   // The transcript is read when the timer fires, which happens inside an
   // interval closure — a ref keeps that read current without restarting the
   // countdown every time a word is recognised.
@@ -86,6 +96,11 @@ export default function DiscussionRoomPage() {
     }
   }, [account?.user.id, speakerName, stop, topicId]);
 
+  // The meter updates about twelve times a second; the mediator only needs to
+  // know, once a second, whether anything was heard. A ref keeps the fast
+  // signal out of the timer's dependencies.
+  const micLevelRef = useRef(0);
+
   useEffect(() => {
     if (status !== 'recording') return undefined;
     const timer = setInterval(() => {
@@ -96,6 +111,8 @@ export default function DiscussionRoomPage() {
         }
         return previous - 1;
       });
+      setStageElapsed((previous) => previous + 1);
+      setSilenceSeconds((previous) => (micLevelRef.current > 0.06 ? 0 : previous + 1));
     }, 1000);
     return () => clearInterval(timer);
   }, [status, finish]);
@@ -104,12 +121,18 @@ export default function DiscussionRoomPage() {
     setReview(null);
     setAnalysis(null);
     setAnalysisState('idle');
+    setStageIndex(0);
+    setStageElapsed(0);
+    setSilenceSeconds(0);
     reset();
     setSecondsLeft(DEFAULT_DURATION_SECONDS);
     await start();
   }, [reset, start]);
 
   const { level: micLevel, available: micAvailable } = useMicLevel(isRecording);
+  useEffect(() => {
+    micLevelRef.current = micLevel;
+  }, [micLevel]);
 
   // Scored on every transcript change, interim text included, so a subconcept
   // you have not reached yet is visible while there is still time to reach it.
@@ -120,6 +143,36 @@ export default function DiscussionRoomPage() {
     [topicId, finalTranscript, interimTranscript],
   );
   const shownCoverage = review?.group ?? liveCoverage;
+
+  const repeatedPhrase = useMemo(() => findRepeatedPhrase(finalTranscript), [finalTranscript]);
+  const mediatorInput = useMemo(() => ({
+    subconcepts,
+    coverage: liveCoverage,
+    stageIndex,
+    elapsedInStage: stageElapsed,
+    silenceSeconds,
+    repeatedPhrase,
+  }), [subconcepts, liveCoverage, stageIndex, stageElapsed, silenceSeconds, repeatedPhrase]);
+
+  const cue = isRecording ? nextCue(mediatorInput) : null;
+  const currentStage = subconcepts[stageIndex];
+
+  // Advancing is a state change, so it belongs in an effect rather than inside
+  // the tick's updater.
+  useEffect(() => {
+    if (!isRecording) return;
+    if (shouldAdvance(mediatorInput)) {
+      setStageIndex((previous) => Math.min(previous + 1, subconcepts.length));
+      setStageElapsed(0);
+      setSilenceSeconds(0);
+    }
+  }, [isRecording, mediatorInput, subconcepts.length]);
+
+  const skipStage = useCallback(() => {
+    setStageIndex((previous) => Math.min(previous + 1, subconcepts.length));
+    setStageElapsed(0);
+    setSilenceSeconds(0);
+  }, [subconcepts.length]);
   const spokenWords = finalTranscript.trim() ? finalTranscript.trim().split(/\s+/).length : 0;
 
   // Reached with no topic — from the sidebar, or a bare link. Offer the choice
@@ -203,6 +256,49 @@ export default function DiscussionRoomPage() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="space-y-5">
+          {/* One subconcept at a time. "Explain Rivers" is a blank page, and a
+              blank page is why a real transcript came back naming three
+              subconcepts and explaining none of them. */}
+          {isRecording && (
+            <Card className="rounded-[1.5rem] border-0 bg-primary text-primary-foreground floaty-card">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <MessagesSquare className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide opacity-80">
+                        Step {Math.min(stageIndex + 1, subconcepts.length)} of {subconcepts.length}
+                      </p>
+                      <p className="mt-1 text-lg font-black leading-tight">
+                        {stagePrompt(currentStage)}
+                      </p>
+                      {cue && (
+                        <p className="mt-2 text-sm font-semibold opacity-95">{cue.text}</p>
+                      )}
+                    </div>
+                  </div>
+                  {currentStage && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={skipStage}
+                      className="shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15"
+                    >
+                      Skip <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-primary-foreground/25">
+                  <div
+                    className="h-full rounded-full bg-primary-foreground transition-[width] duration-500"
+                    style={{ width: `${Math.min(100, (stageElapsed / STAGE_SECONDS) * 100)}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Coverage updates while you speak rather than only at the end, so a
               subconcept you have not reached yet is visible in time to still
               reach it. */}
