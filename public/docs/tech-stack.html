@@ -339,8 +339,8 @@ footer{border-top:2px solid var(--border);margin-top:20px;padding:34px 0 60px;di
         <h3>Study Squad &amp; Rescue Room</h3>
         <p>Squads make forgetting social. Members see each other's overall scores, keep a <strong>group streak</strong>, and send <strong>rescue nudges</strong> when a friend's topic drops.</p>
         <ul>
-          <li>Rescues open a multiplayer quiz room (<code>QuizRoomDraft</code>) with rounds, live scores, avatar colours and final ranks</li>
-          <li>Completed rescues log a <code>RescueActivityCompletion</code> and can restore the streak</li>
+          <li>Rescues open a database-backed multiplayer room with server-graded rounds, live scores, presence, avatar colours and final ranks</li>
+          <li>Completed room runs are immutable qualifying Group Streak activity; restores are stored separately with a five-per-month squad limit</li>
           <li>Referral codes (e.g. <code>EDUNETS-5DAY</code>) and an "EduNets Wrapped" weekly recap drive retention</li>
         </ul>
       </article>
@@ -381,7 +381,7 @@ footer{border-top:2px solid var(--border);margin-top:20px;padding:34px 0 60px;di
         </dl>
       </article>
       <article class="iface floaty">
-        <h4>QuizRoomDraft</h4>
+        <h4>SquadQuizRoom</h4>
         <dl>
           <dt>roomId / hostUserId</dt><dd>identity</dd>
           <dt>subject / topic</dt><dd>what's being rescued</dd>
@@ -400,12 +400,13 @@ footer{border-top:2px solid var(--border);margin-top:20px;padding:34px 0 60px;di
         </dl>
       </article>
       <article class="iface floaty">
-        <h4>QuizRoomParticipantDraft</h4>
+        <h4>SquadQuizRoomParticipant</h4>
         <dl>
           <dt>displayName</dt><dd>player identity</dd>
           <dt>avatarColor</dt><dd>Yellow | LightBlue | White</dd>
           <dt>score</dt><dd>live points</dd>
           <dt>lastAnswerCorrect</dt><dd>round feedback</dd>
+          <dt>status / lastSeenAt</dt><dd>invited, online, answered, away or finished</dd>
         </dl>
       </article>
       <article class="iface floaty">

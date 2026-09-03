@@ -41,43 +41,6 @@ export interface RescueNudgeLog {
   resolvedAt?: number;
 }
 
-export interface RescueActivityCompletion {
-  roomId: string;
-  participantIds: string[];
-  completedAt: number;
-  countedForStreak: boolean;
-}
-
-export type QuizRoomStatus = 'active' | 'finished';
-export type AvatarColor = 'Yellow' | 'LightBlue' | 'White';
-
-export interface QuizRoomDraft {
-  roomId: string;
-  hostUserId: string;
-  hostName: string;
-  invitedName: string;
-  subject: string;
-  topic: string;
-  questionSetId: string;
-  status: QuizRoomStatus;
-  currentQuestionIndex: number;
-  roundNumber: number;
-  totalRounds: number;
-  questionStartedAt: number;
-  createdAt: number;
-}
-
-export interface QuizRoomParticipantDraft {
-  participantId: string;
-  roomId: string;
-  userId: string;
-  displayName: string;
-  avatarColor: AvatarColor;
-  score: number;
-  lastAnswerCorrect: boolean;
-  joinedAt: number;
-}
-
 // Memory Score is already calculated by the backend at read time.
 export function getEffectiveScore(topic: TopicData): number | null {
   return topic.memoryScore;
@@ -242,48 +205,12 @@ export function createEmptySubjectData(): SubjectData[] {
 }
 
 // Jotai atoms for global state
-export const rescueActivityCompletionsAtom = atomWithStorage<RescueActivityCompletion[]>(
-  'edunets-rescue-activity-completions',
-  []
-);
-
 // Authenticated learning state is hydrated from the EduNets API. Keep only an in-memory
 // mirror for the existing feature components so one user's data can never be
 // restored for another user from localStorage.
 export const subjectsAtom = atom<SubjectData[]>(createEmptySubjectData());
 
 export const rescueNudgeLogsAtom = atomWithStorage<RescueNudgeLog[]>('edunets-rescue-nudge-logs', []);
-
-export const quizRoomsAtom = atomWithStorage<QuizRoomDraft[]>('edunets-quiz-rooms', [
-  {
-    roomId: 'demo-room-chemical-bonding',
-    hostUserId: 'maya',
-    hostName: 'Maya',
-    invitedName: 'Ben Lee',
-    subject: 'Chemistry',
-    topic: 'Chemical Bonding',
-    questionSetId: 'chem-bonding-rescue',
-    status: 'active',
-    currentQuestionIndex: 0,
-    roundNumber: 1,
-    totalRounds: 3,
-    questionStartedAt: Date.now(),
-    createdAt: Date.now(),
-  },
-]);
-
-export const quizRoomParticipantsAtom = atomWithStorage<QuizRoomParticipantDraft[]>('edunets-quiz-room-participants', [
-  {
-    participantId: 'maya-demo-room-chemical-bonding',
-    roomId: 'demo-room-chemical-bonding',
-    userId: 'maya',
-    displayName: 'Maya',
-    avatarColor: 'Yellow',
-    score: 0,
-    lastAnswerCorrect: false,
-    joinedAt: Date.now(),
-  },
-]);
 
 // Derived atoms
 export const allTopicsAtom = atom((get) => {

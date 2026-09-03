@@ -12,17 +12,21 @@ type GoogleAuthButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function browserUrl(path: string): string {
-  return new URL(path, window.location.origin).toString();
+  const url = new URL(path, window.location.origin);
+  if (url.origin !== window.location.origin) throw new Error('Authentication redirects must stay on EduNets.');
+  return url.toString();
 }
 
 export async function startGoogleAuth(options: {
-  errorPath: '/login' | '/signup';
+  errorPath: string;
+  callbackPath?: string;
   signupReferralCode?: string;
 }) {
+  const callbackPath = options.callbackPath ?? '/onboarding';
   return authClient.signIn.social({
     provider: 'google',
-    callbackURL: browserUrl('/onboarding'),
-    newUserCallbackURL: browserUrl('/onboarding'),
+    callbackURL: browserUrl(callbackPath),
+    newUserCallbackURL: browserUrl(callbackPath),
     errorCallbackURL: browserUrl(options.errorPath),
     ...(options.signupReferralCode
       ? { additionalData: { signupReferralCode: options.signupReferralCode } }

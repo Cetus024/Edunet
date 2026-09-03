@@ -48,9 +48,11 @@ function sortThreads(threads: EnquiryThread[]) {
 export function TeacherEnquiriesWorkspace({
   userId,
   role,
+  initialThreadId,
 }: {
   userId: string;
   role: Extract<EnquiryRole, 'teacher'>;
+  initialThreadId?: string;
 }) {
   const queryClient = useQueryClient();
   const enquiriesQuery = useEnquiries({ userId });
@@ -107,8 +109,11 @@ export function TeacherEnquiriesWorkspace({
 
   useEffect(() => {
     if (activeThreadId || sortedThreads.length === 0) return;
-    setActiveThreadId(sortedThreads[0].id);
-  }, [activeThreadId, sortedThreads]);
+    const linkedThread = initialThreadId
+      ? sortedThreads.find((thread) => thread.id === initialThreadId)
+      : null;
+    setActiveThreadId(linkedThread?.id ?? sortedThreads[0].id);
+  }, [activeThreadId, initialThreadId, sortedThreads]);
 
   useEffect(() => {
     if (!activeThread || activeThread.unreadCount === 0) return;

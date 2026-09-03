@@ -27,6 +27,7 @@ export interface SquadMemberTopicScore {
 
 export interface WeakTopic {
   id: string;
+  topicId: string;
   topic: string;
   subject: string;
   memberId: string;
@@ -251,10 +252,10 @@ export const squadMemberTopicScores: SquadMemberTopicScore[] = [
 // (was previously 4 fixed picks that didn't track the real data - now the
 // actual weakest topics for whichever member is weakest at them).
 export const weakTopics: WeakTopic[] = [
-  { id: 'genetics', topic: 'Genetics', subject: 'Biology', memberId: 'nora', score: 37 },
-  { id: 'rate-of-reaction', topic: 'Rate of Reaction', subject: 'Chemistry', memberId: 'leo', score: 39 },
-  { id: 'visual-text', topic: 'Visual Text', subject: 'English', memberId: 'nora', score: 40 },
-  { id: 'rivers', topic: 'Rivers', subject: 'Geography', memberId: 'nora', score: 42 },
+  { id: 'genetics', topicId: 'biology-genetics', topic: 'Genetics', subject: 'Biology', memberId: 'nora', score: 37 },
+  { id: 'rate-of-reaction', topicId: 'chemistry-rate-of-reaction', topic: 'Rate of Reaction', subject: 'Chemistry', memberId: 'leo', score: 39 },
+  { id: 'visual-text', topicId: 'english-visual-text', topic: 'Visual Text', subject: 'English', memberId: 'nora', score: 40 },
+  { id: 'rivers', topicId: 'geography-rivers', topic: 'Rivers', subject: 'Geography', memberId: 'nora', score: 42 },
 ];
 
 export function getInitials(name: string): string {

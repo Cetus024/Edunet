@@ -14,6 +14,9 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `BETTER_AUTH_URL` | Public API origin, for example `http://localhost:8787`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials. |
 | `CORS_ORIGINS` | Comma-separated exact frontend origins. Wildcards are rejected. |
+| `WEB_APP_URL` | Public frontend origin used in Study Squad invitation links. |
+| `RESEND_API_KEY` | Server-only Resend API key used to deliver squad invitations. |
+| `SQUAD_INVITE_FROM_EMAIL` | Sender using a domain verified in Resend. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
 Initialize and harden a new Supabase database from the repository root before starting the API:
@@ -61,6 +64,26 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `POST /api/v1/me/enquiries/:threadId/messages`
 - `PUT /api/v1/me/enquiries/:threadId/read`
 - `POST /api/v1/me/onboarding/placement-set`
+- `GET|POST /api/v1/me/study-squad`
+- `GET /api/v1/me/school-directory`
+- `POST /api/v1/me/study-squad/invitations/in-app`
+- `POST /api/v1/me/study-squad/invitations/:invitationId/accept`
+- `POST /api/v1/me/study-squad/invitations/:invitationId/decline`
+- `POST /api/v1/me/study-squad/streak/restore`
+- `POST /api/v1/me/squad-quiz-rooms`
+- `GET /api/v1/me/squad-quiz-rooms/:roomId`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/join`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/heartbeat`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/answers`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/advance`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/restart`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/invitations`
+- `POST /api/v1/me/study-squad/invitations` — optional email invitation flow.
+- `GET /api/v1/study-squad-invitations/:token`
+- `POST /api/v1/study-squad-invitations/:token/accept`
+- `GET /api/v1/me/notifications`
+- `PUT /api/v1/me/notifications/:notificationId/read`
+- `PUT /api/v1/me/notifications/read-all`
 
 Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; the server validates it again before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
 
@@ -99,6 +122,10 @@ A Phase 1 assessment starts with:
 `mcq` sessions contain 10 questions and `essay` sessions contain five 10-mark questions. Answers are posted one at a time for immediate feedback; Essay answers include a student-entered `marksObtained` value from 0–10 with at most two decimal places. Finishing publishes the assessment-only posterior with `P(T)=0`. The idempotent `feedback-complete` endpoint applies `P(T)=0.20` once, recomputes the separate mode Memory and the averaged Concept Memory, and saves one combined reminder. Starting a newer assessment for the same topic closes any older pending correction opportunity.
 
 Students can create and read only their own real enquiry threads. Teachers can read and reply only to threads assigned to them. The recipient directory returns completed Teacher profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
+
+Study Squad membership, invitations, school-directory results, member Memory Scores, daily streaks, and monthly streak restores are database-backed. A squad day qualifies when at least one current member completes an MCQ or Essay after joining. Dates use Singapore time; the current day remains open until midnight. A shared pool of five restores per calendar month can repair the most recent break, with concurrent requests serialized and every restore attributed to a member. The directory is limited to completed Student and Teacher profiles at the signed-in user's school and never exposes email addresses. Only Students can create or join squads; only a squad owner can invite an available Student. In-app invitations do not depend on an email provider or custom domain. Enquiry activity, Study Squad invitation outcomes, and restores create persisted, recipient-specific notifications with safe internal links.
+
+Live Squad Rescue quizzes persist their room, selected question keys, participants, presence heartbeat, one answer per participant per round, server-graded scores, round transitions, restarts, and immutable completion records. Only members of the room's Study Squad can read or join it, and only the host can invite more members or restart a finished room. Clients poll the authoritative room projection every two seconds and send a heartbeat every ten seconds; the API derives online/away presence without exposing correct answers before the signed-in participant submits. A completed run counts as qualifying Group Streak activity.
 
 The first Teacher inbox request lazily creates three recipient-specific, clearly marked demo threads without creating fake auth users. Demo replies are normal persisted messages. Thread requesters include nullable `className`; it is `null` for real users until a future profile field captures class information.
 

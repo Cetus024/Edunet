@@ -5,10 +5,11 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { motion } from 'motion/react';
 import Image from 'next/image';
-import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, Bell, type LucideIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
+import { useNotifications } from '@/lib/api/notifications';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ const learnerNavItems: NavItem[] = [
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
+  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
   { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/study-squad', labelKey: 'nav.studySquad', shortKey: 'nav.studySquad.short', icon: Users },
   { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
@@ -39,6 +41,7 @@ const teachingNavItems: NavItem[] = [
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
+  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
   { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 
@@ -61,6 +64,11 @@ export function AppSidebar() {
     userId: user?.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
   });
+  const { data: notificationData } = useNotifications(
+    user?.id ?? null,
+    Boolean(account?.onboardingCompleted),
+  );
+  const unreadNotifications = notificationData?.unreadCount ?? 0;
 
   const activeNavItems = usesTeachingWorkspace ? teachingNavItems : learnerNavItems;
   return (
@@ -75,6 +83,7 @@ export function AppSidebar() {
             role={role}
             location={location}
             unreadMessages={unreadMessages}
+            unreadNotifications={unreadNotifications}
             navItems={activeNavItems}
             teachingScopes={scopes}
             activeTeachingScopeId={activeScopeId}
@@ -95,8 +104,8 @@ export function AppSidebar() {
           />
         </div>
       )}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-hidden">
-        <div className="flex items-center justify-around h-16 px-2">
+      <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-x-auto">
+        <div className="flex min-w-max items-center h-16 px-2">
           {activeNavItems.map((item) => {
             const isActive = item.path === '/' 
               ? location.pathname === '/'
@@ -107,7 +116,7 @@ export function AppSidebar() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'relative flex flex-col items-center justify-center px-3 py-2 rounded-2xl transition-all',
+                  'relative flex min-w-16 flex-col items-center justify-center px-2 py-2 rounded-2xl transition-all',
                   isActive 
                     ? 'bg-primary text-primary-foreground shadow-lg' 
                     : 'text-foreground hover:bg-secondary hover:text-secondary-foreground'
@@ -117,6 +126,9 @@ export function AppSidebar() {
                 <span className="text-[10px] mt-1 font-medium">{t(item.shortKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadMessages}</span>
+                )}
+                {item.path === '/notifications' && unreadNotifications > 0 && (
+                  <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadNotifications}</span>
                 )}
               </NavLink>
             );
@@ -132,6 +144,7 @@ function SidebarContent({
   role,
   location,
   unreadMessages,
+  unreadNotifications,
   navItems,
   teachingScopes,
   activeTeachingScopeId,
@@ -142,6 +155,7 @@ function SidebarContent({
   role: EduNetsRole | null;
   location: { pathname: string };
   unreadMessages: number;
+  unreadNotifications: number;
   navItems: NavItem[];
   teachingScopes: TeachingScope[];
   activeTeachingScopeId: string | null;
@@ -243,6 +257,9 @@ function SidebarContent({
                 <span>{t(item.labelKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadMessages}</span>
+                )}
+                {item.path === '/notifications' && unreadNotifications > 0 && (
+                  <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadNotifications}</span>
                 )}
               </NavLink>
             </motion.div>

@@ -1,0 +1,7 @@
+ALTER TABLE "edunets"."notifications" DROP CONSTRAINT "notifications_type_check";--> statement-breakpoint
+ALTER TABLE "discussion_participant" ADD COLUMN "status" text DEFAULT 'joined' NOT NULL;--> statement-breakpoint
+ALTER TABLE "discussion_room" ADD COLUMN "squad_id" text;--> statement-breakpoint
+ALTER TABLE "discussion_room" ADD CONSTRAINT "discussion_room_squad_id_study_squads_id_fk" FOREIGN KEY ("squad_id") REFERENCES "edunets"."study_squads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "discussion_participant_room_status_idx" ON "discussion_participant" USING btree ("room_id","status");--> statement-breakpoint
+ALTER TABLE "discussion_participant" ADD CONSTRAINT "discussion_participant_status_check" CHECK ("discussion_participant"."status" in ('invited', 'joined', 'left'));--> statement-breakpoint
+ALTER TABLE "edunets"."notifications" ADD CONSTRAINT "notifications_type_check" CHECK ("edunets"."notifications"."type" in ('teacher_enquiry', 'teacher_reply', 'squad_invitation', 'squad_invitation_accepted', 'squad_invitation_declined', 'squad_streak_restored', 'squad_quiz_invitation', 'squad_quiz_finished', 'revision_room_invitation', 'revision_room_started'));

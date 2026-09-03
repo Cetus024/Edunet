@@ -114,7 +114,7 @@ export function AppGate({ children }: AuthGateProps) {
   const { account, error, isPending, retry } = useAccountGate();
   const currentUserId = account?.user.id ?? null;
   const usesTeachingWorkspace = isTeachingRole(account?.profile?.role);
-  const teachingRouteAllowed = ['/dashboard', '/quiz', '/concept-web', '/ask-teacher', '/profile'].some(
+  const teachingRouteAllowed = ['/dashboard', '/quiz', '/concept-web', '/ask-teacher', '/notifications', '/profile'].some(
     (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
   );
   const redirectTo = !isPending && !error

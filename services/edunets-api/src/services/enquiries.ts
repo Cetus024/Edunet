@@ -8,6 +8,7 @@ import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { enquiryMessages, enquiryThreads } from '../../../../database/schema/enquiries.js';
 import { onboardingProfiles, profiles, teachingScopes } from '../../../../database/schema/learning.js';
+import { notifications } from '../../../../database/schema/notifications.js';
 import { ApiError } from '../errors.js';
 import {
   canAccessThread,
@@ -31,6 +32,7 @@ import type {
   CreateEnquiryRequest,
   SendEnquiryMessageRequest,
 } from '../validation.js';
+import { buildNotificationValues } from './notifications.js';
 
 type EnquiryActorWithEmail = EnquiryActor & { email: string };
 
@@ -365,8 +367,9 @@ export async function createEnquiry(
 
     if (!createdThread) throw new Error('Enquiry thread insert returned no row.');
 
+    const initialMessageId = randomUUID();
     await transaction.insert(enquiryMessages).values({
-      id: randomUUID(),
+      id: initialMessageId,
       threadId: createdThread.id,
       senderUserId: actor.userId,
       senderRole: requesterRole,
@@ -379,6 +382,19 @@ export async function createEnquiry(
       createdAt: now,
       updatedAt: now,
     });
+
+    await transaction.insert(notifications).values(buildNotificationValues({
+      recipientUserId: selectedRecipient.userId,
+      actorUserId: actor.userId,
+      channel: 'teacher',
+      type: 'teacher_enquiry',
+      title: `${actor.name} asked a question`,
+      body: input.body,
+      href: `/ask-teacher?threadId=${createdThread.id}`,
+      resourceId: createdThread.id,
+      dedupeKey: `teacher-enquiry:${initialMessageId}`,
+      createdAt: now,
+    })).onConflictDoNothing();
 
     return { threadId: createdThread.id, idempotentReplay: false };
   });
@@ -394,7 +410,7 @@ export async function sendEnquiryMessage(
   threadId: string,
   input: SendEnquiryMessageRequest,
 ): Promise<{ message: EnquiryMessageResponse; idempotentReplay: boolean }> {
-  await loadAuthorizedThread(actor, threadId);
+  const visibleThread = await loadAuthorizedThread(actor, threadId);
 
   const result = await db.transaction(async (transaction) => {
     await transaction.execute(
@@ -450,6 +466,26 @@ export async function sendEnquiryMessage(
     await transaction.update(enquiryThreads)
       .set({ updatedAt: now })
       .where(eq(enquiryThreads.id, threadId));
+
+    const recipientUserId = actor.userId === visibleThread.requesterUserId
+      ? visibleThread.recipientUserId
+      : visibleThread.requesterUserId;
+    if (recipientUserId) {
+      await transaction.insert(notifications).values(buildNotificationValues({
+        recipientUserId,
+        actorUserId: actor.userId,
+        channel: 'teacher',
+        type: actor.role === 'teacher' ? 'teacher_reply' : 'teacher_enquiry',
+        title: actor.role === 'teacher'
+          ? `${actor.name} replied to your question`
+          : `${actor.name} sent another message`,
+        body: input.body,
+        href: `/ask-teacher?threadId=${threadId}`,
+        resourceId: threadId,
+        dedupeKey: `teacher-message:${message.id}`,
+        createdAt: now,
+      })).onConflictDoNothing();
+    }
 
     return { message, idempotentReplay: false };
   });

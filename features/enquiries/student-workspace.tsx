@@ -59,11 +59,13 @@ export function StudentEnquiriesWorkspace({
   role,
   initialSubjectId,
   initialTopicId,
+  initialThreadId,
 }: {
   userId: string;
   role: Extract<EnquiryRole, 'student'>;
   initialSubjectId?: string;
   initialTopicId?: string;
+  initialThreadId?: string;
 }) {
   const queryClient = useQueryClient();
   const catalogQuery = useCatalog();
@@ -197,8 +199,11 @@ export function StudentEnquiriesWorkspace({
 
   useEffect(() => {
     if (composing || activeThreadId || sortedThreads.length === 0) return;
-    setActiveThreadId(sortedThreads[0].id);
-  }, [activeThreadId, composing, sortedThreads]);
+    const linkedThread = initialThreadId
+      ? sortedThreads.find((thread) => thread.id === initialThreadId)
+      : null;
+    setActiveThreadId(linkedThread?.id ?? sortedThreads[0].id);
+  }, [activeThreadId, composing, initialThreadId, sortedThreads]);
 
   useEffect(() => {
     if (!activeThread || activeThread.unreadCount === 0) return;

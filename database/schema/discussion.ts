@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { users } from './auth.js';
 import { subjects, topics } from './catalog.js';
+import { studySquads } from './study-squads.js';
 
 /**
  * Study Squad discussion rooms: a small group joins a voice call about one
@@ -36,6 +37,7 @@ export const discussionRooms = pgTable('discussion_room', {
   subjectId: text('subject_id').notNull().references(() => subjects.id),
   topicId: text('topic_id').notNull().references(() => topics.id),
   hostUserId: text('host_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  squadId: text('squad_id').references(() => studySquads.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('lobby'),
   // The explanation window, in seconds. Held as data rather than a constant so
   // the 3-minute default can be tuned per room without a deploy.
@@ -66,9 +68,12 @@ export const discussionParticipants = pgTable('discussion_participant', {
   // Accumulated voice-activity time, used by the review to tell "explained
   // little" apart from "never unmuted".
   speakingMs: integer('speaking_ms').notNull().default(0),
+  status: text('status').notNull().default('joined'),
 }, (table) => [
   primaryKey({ columns: [table.roomId, table.userId] }),
   index('discussion_participant_room_idx').on(table.roomId),
+  index('discussion_participant_room_status_idx').on(table.roomId, table.status),
+  check('discussion_participant_status_check', sql`${table.status} in ('invited', 'joined', 'left')`),
 ]);
 
 export const discussionUtterances = pgTable('discussion_utterance', {

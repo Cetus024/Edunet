@@ -9,6 +9,22 @@ import {
   assessmentAnswerSchema,
   sendEnquiryMessageSchema,
   signupReferralCodeSchema,
+  createStudySquadSchema,
+  createSquadQuizRoomSchema,
+  createRevisionRoomSchema,
+  inviteSquadQuizParticipantsSchema,
+  inviteToStudySquadSchema,
+  inviteSchoolUserToStudySquadSchema,
+  notificationIdSchema,
+  notificationsQuerySchema,
+  revisionRoomIdSchema,
+  revisionRoomInviteSchema,
+  revisionUtteranceSchema,
+  joinSquadQuizRoomSchema,
+  squadQuizRoomIdSchema,
+  studySquadInvitationIdSchema,
+  studySquadInvitationTokenSchema,
+  submitSquadQuizAnswerSchema,
   updateTeachingScopesSchema,
 } from '../src/validation.js';
 
@@ -170,5 +186,90 @@ describe('enquiry validation', () => {
       body: 'Question',
       userId: 'someone-else',
     }).success).toBe(false);
+  });
+});
+
+describe('study squad validation', () => {
+  it('normalizes squad names and invited email addresses', () => {
+    expect(createStudySquadSchema.parse({ name: '  Memory Makers  ' })).toEqual({
+      name: 'Memory Makers',
+    });
+    expect(inviteToStudySquadSchema.parse({ email: '  FRIEND@Example.COM  ' })).toEqual({
+      email: 'friend@example.com',
+    });
+  });
+
+  it('rejects extra identity fields and malformed invitation tokens', () => {
+    expect(createStudySquadSchema.safeParse({ name: 'Squad', ownerUserId: 'other-user' }).success)
+      .toBe(false);
+    expect(inviteToStudySquadSchema.safeParse({ email: 'not-an-email' }).success).toBe(false);
+    expect(studySquadInvitationTokenSchema.safeParse('short-token').success).toBe(false);
+    expect(studySquadInvitationTokenSchema.safeParse('a'.repeat(43)).success).toBe(true);
+    expect(inviteSchoolUserToStudySquadSchema.parse({ userId: 'student-2' }))
+      .toEqual({ userId: 'student-2' });
+    expect(studySquadInvitationIdSchema.safeParse('not-a-uuid').success).toBe(false);
+  });
+});
+
+describe('notification validation', () => {
+  it('defaults and bounds the list size while requiring UUID notification ids', () => {
+    expect(notificationsQuerySchema.parse({})).toEqual({ limit: 50 });
+    expect(notificationsQuerySchema.parse({ limit: '100' })).toEqual({ limit: 100 });
+    expect(notificationsQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+    expect(notificationIdSchema.safeParse('4b375843-c273-4e7d-bfe7-ac20dbdaf47d').success).toBe(true);
+  });
+});
+
+describe('live Squad quiz validation', () => {
+  const roomId = '4b375843-c273-4e7d-bfe7-ac20dbdaf47d';
+
+  it('accepts bounded room creation, join, answer, and invitation payloads', () => {
+    expect(createSquadQuizRoomSchema.parse({
+      topicId: 'chemistry-covalent-bonding',
+      invitedUserIds: ['student-2'],
+      message: 'Quick rescue?',
+    }).invitedUserIds).toEqual(['student-2']);
+    expect(joinSquadQuizRoomSchema.safeParse({ avatarColor: 'LightBlue' }).success).toBe(true);
+    expect(submitSquadQuizAnswerSchema.safeParse({ questionIndex: 2, answer: 1 }).success).toBe(true);
+    expect(inviteSquadQuizParticipantsSchema.safeParse({ userIds: ['student-2'] }).success).toBe(true);
+    expect(squadQuizRoomIdSchema.safeParse(roomId).success).toBe(true);
+  });
+
+  it('rejects spoofed identity fields and out-of-range answers', () => {
+    expect(createSquadQuizRoomSchema.safeParse({
+      topicId: 'chemistry-covalent-bonding',
+      invitedUserIds: [],
+      hostUserId: 'someone-else',
+    }).success).toBe(false);
+    expect(joinSquadQuizRoomSchema.safeParse({ avatarColor: 'Red' }).success).toBe(false);
+    expect(submitSquadQuizAnswerSchema.safeParse({ questionIndex: 10, answer: 1 }).success).toBe(false);
+    expect(inviteSquadQuizParticipantsSchema.safeParse({ userIds: [] }).success).toBe(false);
+  });
+});
+
+describe('multiplayer Revision Room validation', () => {
+  const roomId = '4b375843-c273-4e7d-bfe7-ac20dbdaf47d';
+
+  it('accepts bounded room, invitation, and attributed transcript payloads', () => {
+    expect(createRevisionRoomSchema.parse({
+      topicId: 'biology-cell-division',
+      invitedUserIds: ['student-2'],
+    }).invitedUserIds).toEqual(['student-2']);
+    expect(revisionRoomInviteSchema.safeParse({ userIds: ['student-2'] }).success).toBe(true);
+    expect(revisionUtteranceSchema.parse({
+      submissionId: roomId,
+      text: 'Mitosis creates two genetically identical daughter cells.',
+    })).toMatchObject({ locale: 'en', provider: 'browser', speakingMs: 0 });
+    expect(revisionRoomIdSchema.safeParse(roomId).success).toBe(true);
+  });
+
+  it('rejects spoofed identity fields and empty transcripts', () => {
+    expect(createRevisionRoomSchema.safeParse({
+      topicId: 'biology-cell-division',
+      invitedUserIds: [],
+      hostUserId: 'someone-else',
+    }).success).toBe(false);
+    expect(revisionUtteranceSchema.safeParse({ submissionId: roomId, text: '   ' }).success).toBe(false);
+    expect(revisionRoomInviteSchema.safeParse({ userIds: [] }).success).toBe(false);
   });
 });

@@ -136,3 +136,65 @@ export const discussionAnalysisSchema = z.strictObject({
   topicId: z.string().trim().min(1).max(128),
   transcript: z.string().trim().min(1).max(20_000),
 });
+
+export const createStudySquadSchema = z.strictObject({
+  name: z.string().trim().min(1).max(80),
+});
+
+export const inviteToStudySquadSchema = z.strictObject({
+  email: z.string().trim().toLowerCase().pipe(z.email().max(320)),
+});
+
+export const studySquadInvitationTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const inviteSchoolUserToStudySquadSchema = z.strictObject({
+  userId: z.string().trim().min(1).max(255),
+});
+
+export const studySquadInvitationIdSchema = z.uuid();
+
+export const notificationIdSchema = z.uuid();
+
+export const notificationsQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const squadQuizRoomIdSchema = z.uuid();
+
+export const createSquadQuizRoomSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  invitedUserIds: z.array(z.string().trim().min(1).max(255)).max(4).default([]),
+  message: z.string().trim().max(500).optional(),
+});
+
+export const joinSquadQuizRoomSchema = z.strictObject({
+  avatarColor: z.enum(['Yellow', 'LightBlue', 'White']),
+});
+
+export const submitSquadQuizAnswerSchema = z.strictObject({
+  questionIndex: z.number().int().min(0).max(9),
+  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(5)]),
+});
+
+export const inviteSquadQuizParticipantsSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1).max(255)).min(1).max(4),
+});
+
+export const revisionRoomIdSchema = z.uuid();
+
+export const createRevisionRoomSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  invitedUserIds: z.array(z.string().trim().min(1).max(255)).max(4).default([]),
+});
+
+export const revisionRoomInviteSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1).max(255)).min(1).max(4),
+});
+
+export const revisionUtteranceSchema = z.strictObject({
+  submissionId: z.uuid(),
+  text: z.string().trim().min(1).max(20_000),
+  locale: z.string().trim().min(2).max(20).default('en'),
+  provider: z.enum(['browser', 'huawei']).default('browser'),
+  speakingMs: z.number().int().min(0).max(1_800_000).default(0),
+});

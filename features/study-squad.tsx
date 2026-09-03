@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Copy, Crown, Flame, Flag, Instagram, Loader2, Mail, Medal, Mic, Send, Sparkles, Timer, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Mic, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -13,16 +14,23 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { getEffectiveScore, quizRoomParticipantsAtom, quizRoomsAtom, rescueNudgeLogsAtom, subjectSummariesAtom, type AvatarColor, type QuizRoomDraft, type QuizRoomParticipantDraft, type RescueNudgeLog } from '@/lib/study-data';
+import { getEffectiveScore, rescueNudgeLogsAtom, subjectSummariesAtom, type RescueNudgeLog } from '@/lib/study-data';
 import { Textarea } from '@/components/ui/textarea';
-import { useUser } from '@/hooks/use-user';
 import { useCurrentAccount } from '@/lib/api/me';
+import { createSquadQuizRoom } from '@/lib/api/squad-quiz';
+import {
+  createStudySquad,
+  inviteSchoolUserToStudySquad,
+  restoreStudySquadStreak,
+  schoolDirectoryQueryKey,
+  studySquadQueryKey,
+  useSchoolDirectory,
+  useStudySquad,
+} from '@/lib/api/study-squads';
 import {
   getAvatarClass,
   getInitials,
   normalizeTopic,
-  squadMembers,
-  weakTopics,
   type SquadMember,
   type SubjectScore,
   type WeakTopic,
@@ -31,19 +39,24 @@ import {
 type RescueTarget = { member: SquadMember; topic: WeakTopic };
 
 const presetMessages = ['Wanna review this together?', "You've got this — need a hand?", "Let's team up on this one"];
-
-function createRoomId(target: RescueTarget, now: number): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  return `${target.member.id}-${target.topic.id}-${now}`;
-}
+const fallbackMember: SquadMember = {
+  id: 'current-user',
+  name: 'You',
+  fullName: 'You',
+  initials: 'YU',
+  score: 0,
+  overallMemoryScore: 0,
+  streak: 0,
+  color: 'white',
+  subjects: [],
+};
 
 export default function StudySquadPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedMemberId, setSelectedMemberId] = useState('maya');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [expanded, setExpanded] = useState<string>('maya');
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [squadName, setSquadName] = useState('');
+  const [expanded, setExpanded] = useState<string>('');
   const [highlightedMemberId, setHighlightedMemberId] = useState<string | null>(null);
   const [highlightedSubject, setHighlightedSubject] = useState<string | null>(null);
   const [highlightedTopic, setHighlightedTopic] = useState<string | null>(null);
@@ -52,24 +65,77 @@ export default function StudySquadPage() {
   const [selectedMessage, setSelectedMessage] = useState(presetMessages[0]);
   const [customMessage, setCustomMessage] = useState('');
   const [rescueLogs, setRescueLogs] = useAtom(rescueNudgeLogsAtom);
-  const [, setQuizRooms] = useAtom(quizRoomsAtom);
-  const [, setQuizRoomParticipants] = useAtom(quizRoomParticipantsAtom);
-
   const [notifiedLogIds, setNotifiedLogIds] = useState<string[]>([]);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: user } = useUser();
-  const currentUserId = user?.userPrincipalName ?? user?.objectId ?? 'maya';
-  const currentUserName = user?.fullName?.trim() || 'Maya';
-  const hostAvatarColor: AvatarColor = 'Yellow';
   const [sendState, setSendState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
-  // The 5 squad members above are display-only demo data (no backend table
-  // for squads yet). This puts the actual signed-in account into the same
-  // leaderboard/weak-topics views, built from their real subjectsAtom
-  // progress, so "your squad" genuinely includes you alongside the demo
-  // roster rather than just showing 5 strangers.
+  // The signed-in learner's local study-state cache keeps their own scores
+  // immediately fresh after a quiz. Other squad members come from the
+  // authenticated squad API, which calculates their decayed Memory Scores
+  // from database progress without exposing email addresses.
   const { data: account } = useCurrentAccount();
+  const squadQuery = useStudySquad(account?.user.id ?? null);
+  const squad = squadQuery.data?.squad ?? null;
+  const directoryQuery = useSchoolDirectory(
+    account?.user.id ?? null,
+    Boolean(squad && squad.role === 'owner'),
+  );
+  const createSquadMutation = useMutation({
+    mutationFn: () => createStudySquad(squadName),
+    onSuccess: async (result) => {
+      setSquadName('');
+      if (account) queryClient.setQueryData([...studySquadQueryKey, account.user.id], result);
+      await queryClient.invalidateQueries({ queryKey: studySquadQueryKey });
+      toast.success(`Created ${result.squad?.name ?? 'your study squad'}.`);
+    },
+    onError: (error) => {
+      toast.error('Squad not created', {
+        description: error instanceof Error ? error.message : 'Try again in a moment.',
+      });
+    },
+  });
+  const inviteMutation = useMutation({
+    mutationFn: (targetUserId: string) => inviteSchoolUserToStudySquad(targetUserId),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: studySquadQueryKey }),
+        queryClient.invalidateQueries({ queryKey: schoolDirectoryQueryKey }),
+      ]);
+      toast.success(`Invitation sent to ${result.invitation.name ?? 'your schoolmate'}.`);
+    },
+    onError: (error) => {
+      toast.error('Invitation not sent', {
+        description: error instanceof Error ? error.message : 'Try again in a moment.',
+      });
+    },
+  });
+  const restoreStreakMutation = useMutation({
+    mutationFn: restoreStudySquadStreak,
+    onSuccess: async (result) => {
+      if (account) queryClient.setQueryData([...studySquadQueryKey, account.user.id], result);
+      await queryClient.invalidateQueries({ queryKey: studySquadQueryKey });
+      toast.success('Group streak restored', {
+        description: 'The restored date is now saved for every squad member.',
+      });
+    },
+    onError: (error) => {
+      toast.error('Streak not restored', {
+        description: error instanceof Error ? error.message : 'Try again in a moment.',
+      });
+    },
+  });
+  const filteredSchoolPeople = useMemo(() => {
+    const people = directoryQuery.data?.people ?? [];
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) return people;
+    return people.filter((person) => (
+      person.name.toLowerCase().includes(query)
+      || person.role.toLowerCase().includes(query)
+    ));
+  }, [directoryQuery.data?.people, memberSearch]);
   const subjectSummaries = useAtomValue(subjectSummariesAtom);
+  const currentSquadMember = squad?.members.find((member) => member.id === account?.user.id);
   const realMember = useMemo<SquadMember | null>(() => {
     if (!account) return null;
     const subjects: SubjectScore[] = subjectSummaries
@@ -90,15 +156,34 @@ export default function StudySquadPage() {
       initials: getInitials(fullName),
       score: overall,
       overallMemoryScore: overall,
-      streak: 0,
+      streak: currentSquadMember?.streakDays ?? 0,
       color: 'white',
       subjects,
     };
-  }, [account, subjectSummaries]);
-  const allMembers = useMemo<SquadMember[]>(
-    () => (realMember ? [...squadMembers, realMember] : squadMembers),
-    [realMember],
-  );
+  }, [account, currentSquadMember?.streakDays, subjectSummaries]);
+  const allMembers = useMemo<SquadMember[]>(() => {
+    if (!squad) return realMember ? [realMember] : [fallbackMember];
+    const colors = ['yellow', 'blue', 'white'] as const;
+    return squad.members.map((member, index) => {
+      if (member.id === realMember?.id) return realMember;
+      const score = member.overallMemoryScore ?? 0;
+      return {
+        id: member.id,
+        name: member.name.trim().split(/\s+/)[0] || member.name,
+        fullName: member.name,
+        initials: getInitials(member.name),
+        score,
+        overallMemoryScore: score,
+        streak: member.streakDays,
+        color: colors[index % colors.length] ?? 'white',
+        subjects: member.subjects.map((subject) => ({
+          subject: subject.name,
+          score: subject.score,
+          topics: subject.topics.map((topic) => topic.name),
+        })),
+      };
+    });
+  }, [realMember, squad]);
   const realWeakTopics = useMemo<WeakTopic[]>(() => {
     if (!account) return [];
     return subjectSummaries.flatMap((summary) => summary.topics
@@ -108,15 +193,32 @@ export default function StudySquadPage() {
       })
       .map((topic) => ({
         id: `${account.user.id}-${topic.id}`,
+        topicId: topic.id,
         topic: topic.name,
         subject: summary.name,
         memberId: account.user.id,
         score: getEffectiveScore(topic) as number,
       })));
   }, [account, subjectSummaries]);
-  const allWeakTopics = useMemo(() => [...weakTopics, ...realWeakTopics], [realWeakTopics]);
+  const allWeakTopics = useMemo(() => {
+    const storedWeakTopics: WeakTopic[] = squad?.members.flatMap((member) => (
+      member.id === account?.user.id ? [] : member.subjects.flatMap((subject) => (
+        subject.topics
+          .filter((topic) => topic.score < 40)
+          .map((topic) => ({
+            id: `${member.id}-${topic.id}`,
+            topicId: topic.id,
+            topic: topic.name,
+            subject: subject.name,
+            memberId: member.id,
+            score: topic.score,
+          }))
+      ))
+    )) ?? [];
+    return [...storedWeakTopics, ...realWeakTopics];
+  }, [account?.user.id, realWeakTopics, squad?.members]);
   const getMemberById = useCallback(
-    (id: string) => allMembers.find((member) => member.id === id) ?? allMembers[0],
+    (id: string) => allMembers.find((member) => member.id === id) ?? allMembers[0] ?? fallbackMember,
     [allMembers],
   );
 
@@ -135,15 +237,14 @@ export default function StudySquadPage() {
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const rankedMembers = useMemo(() => [...allMembers].sort((a: SquadMember, b: SquadMember) => b.score - a.score), [allMembers]);
-  const selectedMember = rankedMembers.find((member: SquadMember) => member.id === selectedMemberId) ?? rankedMembers[0];
+  const selectedMember = rankedMembers.find((member: SquadMember) => member.id === selectedMemberId) ?? rankedMembers[0] ?? fallbackMember;
 
-  const sendInvite = () => {
-    toast.success(inviteEmail ? `Invite sent to ${inviteEmail}` : 'Invite ready to send');
-    setInviteEmail('');
-  };
-
-  const copyReferral = () => {
-    toast.success('Referral code copied');
+  const submitCreateSquad = () => {
+    if (!squadName.trim()) {
+      toast.error('Give your squad a name first.');
+      return;
+    }
+    createSquadMutation.mutate();
   };
 
   useEffect(() => {
@@ -193,13 +294,14 @@ export default function StudySquadPage() {
   useEffect(() => {
     const nextLog = rescueLogs.find((log: RescueNudgeLog) => log.rescueStatus === 'pending' && !notifiedLogIds.includes(log.id));
     if (!nextLog) return;
+    const roomId = nextLog.roomId;
 
     toast.info(`${nextLog.senderName} sent you a 10-Minute Rescue — ${nextLog.topic}`, {
       description: 'Start 10-Min Rescue →',
-      action: {
+      ...(roomId ? { action: {
         label: 'Start',
-        onClick: () => navigate(`/rescue-join?roomId=${encodeURIComponent(nextLog.roomId ?? 'demo-room-chemical-bonding')}`),
-      },
+        onClick: () => navigate(`/rescue-join?roomId=${encodeURIComponent(roomId)}`),
+      } } : {}),
     });
     setNotifiedLogIds((currentIds: string[]) => [...currentIds, nextLog.id]);
   }, [navigate, notifiedLogIds, rescueLogs]);
@@ -226,7 +328,7 @@ export default function StudySquadPage() {
     if (!rubricTopicId) return;
     const query = new URLSearchParams({ topicId: rubricTopicId, topic: topicName, subject });
     setRescueTarget(null);
-    navigate(`/discussion-room?${query.toString()}`);
+    navigate(`/revision-room?${query.toString()}`);
   }, [navigate]);
 
   const openDiscussionRoom = useCallback(() => {
@@ -239,39 +341,19 @@ export default function StudySquadPage() {
     setRescueTarget(null);
   };
 
-  const startRescueRoom = (target: RescueTarget, message: string) => {
+  const startRescueRoom = async (target: RescueTarget, message: string) => {
+    const result = await createSquadQuizRoom({
+      topicId: target.topic.topicId,
+      invitedUserIds: [target.member.id],
+      message,
+    });
+    const roomId = result.room.id;
     const now = Date.now();
-    const roomId = createRoomId(target, now);
-    const nextRoom: QuizRoomDraft = {
-      roomId,
-      hostUserId: currentUserId,
-      hostName: currentUserName,
-      invitedName: target.member.name,
-      subject: target.topic.subject,
-      topic: target.topic.topic,
-      questionSetId: `${target.topic.id}-rescue`,
-      status: 'active',
-      currentQuestionIndex: 0,
-      roundNumber: 1,
-      totalRounds: 3,
-      questionStartedAt: now,
-      createdAt: now,
-    };
-    const hostParticipant: QuizRoomParticipantDraft = {
-      participantId: `${currentUserId}-${roomId}`,
-      roomId,
-      userId: currentUserId,
-      displayName: currentUserName,
-      avatarColor: hostAvatarColor,
-      score: 0,
-      lastAnswerCorrect: false,
-      joinedAt: now,
-    };
     const nextLog: RescueNudgeLog = {
       id: `${target.member.id}-${target.topic.id}-${now}`,
       memberId: target.member.id,
       memberName: target.member.name,
-      senderName: currentUserName,
+      senderName: account?.user.name ?? 'You',
       subject: target.topic.subject,
       topic: target.topic.topic,
       message,
@@ -281,16 +363,6 @@ export default function StudySquadPage() {
       createdAt: now,
     };
 
-    setQuizRooms((currentRooms: QuizRoomDraft[]) => [
-      nextRoom,
-      ...currentRooms.filter((room: QuizRoomDraft) => room.roomId !== roomId),
-    ]);
-    setQuizRoomParticipants((currentParticipants: QuizRoomParticipantDraft[]) => [
-      hostParticipant,
-      ...currentParticipants.filter((participant: QuizRoomParticipantDraft) => !(
-        participant.roomId === roomId && participant.userId === currentUserId
-      )),
-    ]);
     setRescueLogs((currentLogs: RescueNudgeLog[]) => [nextLog, ...currentLogs]);
     toast.success('Rescue room started', {
       description: `${target.member.name} gets a join screen before entering question 1.`,
@@ -300,13 +372,20 @@ export default function StudySquadPage() {
     navigate(`/rescue-room?roomId=${encodeURIComponent(roomId)}&role=host`);
   };
 
-  const sendRescueNudge = () => {
+  const sendRescueNudge = async () => {
     if (!rescueTarget) return;
 
     setSendState('sending');
     const message = customMessage.trim() || selectedMessage;
     if (rescueSprintEnabled) {
-      startRescueRoom(rescueTarget, message);
+      try {
+        await startRescueRoom(rescueTarget, message);
+      } catch (error) {
+        setSendState('error');
+        toast.error('Rescue room not started', {
+          description: error instanceof Error ? error.message : 'Try again in a moment.',
+        });
+      }
       return;
     }
 
@@ -315,7 +394,7 @@ export default function StudySquadPage() {
       id: `${rescueTarget.member.id}-${rescueTarget.topic.id}-${now}`,
       memberId: rescueTarget.member.id,
       memberName: rescueTarget.member.name,
-      senderName: currentUserName,
+      senderName: account?.user.name ?? 'You',
       subject: rescueTarget.topic.subject,
       topic: rescueTarget.topic.topic,
       message,
@@ -352,10 +431,10 @@ export default function StudySquadPage() {
                   {/* The general entry: any topic, not only the ones the squad
                       is currently weak at. Goes to the room's own picker. */}
                   <Button
-                    onClick={() => navigate('/discussion-room')}
+                    onClick={() => navigate('/revision-room')}
                     className="mt-4 rounded-full bg-primary text-primary-foreground hover:bg-accent"
                   >
-                    <Mic className="mr-2 h-4 w-4" /> Start a discussion room
+                    <Mic className="mr-2 h-4 w-4" /> Start a Revision Room
                   </Button>
                 </div>
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] bg-primary text-primary-foreground shadow-lg">
@@ -367,20 +446,131 @@ export default function StudySquadPage() {
 
           <Card className="card-shadow border-border bg-card text-card-foreground">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl"><Mail className="h-5 w-5" /> Invite + referral</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-xl"><Users className="h-5 w-5" /> Your real squad</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input value={inviteEmail} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setInviteEmail(event.target.value)} placeholder="friend@gmail.com" className="rounded-full" />
-                <Button onClick={sendInvite} size="icon" className="rounded-full bg-primary text-primary-foreground"><Send className="h-4 w-4" /></Button>
-              </div>
-              <div className="rounded-[18px] bg-secondary p-4 text-secondary-foreground">
-                <p className="text-sm font-semibold">Referral code</p>
-                <div className="mt-2 flex items-center justify-between gap-3 rounded-full bg-card px-4 py-3 text-card-foreground">
-                  <span className="font-bold tracking-wide">EDUNETS-5DAY</span>
-                  <Button onClick={copyReferral} variant="ghost" size="icon-sm" className="rounded-full"><Copy className="h-4 w-4" /></Button>
+              {squadQuery.isPending ? (
+                <div className="flex items-center gap-2 rounded-[18px] bg-secondary p-4 text-sm font-bold text-secondary-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading your squad…
                 </div>
-              </div>
+              ) : squadQuery.error ? (
+                <div className="rounded-[18px] border border-destructive/30 bg-destructive/10 p-4">
+                  <p className="text-sm font-bold">Couldn’t load your squad.</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void squadQuery.refetch()} className="mt-3 rounded-full">Try again</Button>
+                </div>
+              ) : !squad ? (
+                <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); submitCreateSquad(); }}>
+                  <div>
+                    <label htmlFor="squad-name" className="mb-2 block text-sm font-bold">Create your first squad</label>
+                    <Input
+                      id="squad-name"
+                      value={squadName}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSquadName(event.target.value)}
+                      placeholder="The Memory Makers"
+                      maxLength={80}
+                      className="rounded-full"
+                    />
+                  </div>
+                  <Button type="submit" disabled={createSquadMutation.isPending} className="w-full rounded-full bg-primary text-primary-foreground">
+                    {createSquadMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create squad
+                  </Button>
+                </form>
+              ) : (
+                <>
+                  <div className="rounded-[18px] bg-secondary p-4 text-secondary-foreground">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-black">{squad.name}</p>
+                        <p className="text-sm font-semibold">{squad.members.length} of 5 members</p>
+                      </div>
+                      <Badge className="rounded-full border-0 bg-card text-card-foreground">{squad.role}</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {squad.members.map((member) => (
+                        <span key={member.id} className="rounded-full bg-card px-3 py-1 text-xs font-bold text-card-foreground">
+                          {member.name}{member.role === 'owner' ? ' · owner' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {squad.role === 'owner' && (
+                    <div className="space-y-3">
+                      <div>
+                        <label htmlFor="school-member-search" className="block text-sm font-bold">Find people at your school</label>
+                        <p className="mt-1 text-xs text-muted-foreground">{directoryQuery.data?.school.name ?? 'Your school'} · emails stay private</p>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="school-member-search"
+                          type="search"
+                          value={memberSearch}
+                          onChange={(event: React.ChangeEvent<HTMLInputElement>) => setMemberSearch(event.target.value)}
+                          placeholder="Search by name or role"
+                          className="rounded-full pl-9"
+                        />
+                      </div>
+
+                      {directoryQuery.isPending ? (
+                        <div className="flex items-center gap-2 py-4 text-sm font-bold text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading school directory…</div>
+                      ) : directoryQuery.error ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => void directoryQuery.refetch()} className="rounded-full">Retry directory</Button>
+                      ) : (
+                        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                          {filteredSchoolPeople.length === 0 ? (
+                            <p className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No matching school accounts.</p>
+                          ) : filteredSchoolPeople.map((person) => (
+                            <div key={person.id} className="flex items-center gap-3 rounded-2xl border border-border bg-background p-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+                                {person.role === 'teacher' ? <GraduationCap className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-black">{person.name}</p>
+                                <p className="text-xs capitalize text-muted-foreground">{person.role.replace('_', ' ')}</p>
+                              </div>
+                              {person.canInvite ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={inviteMutation.isPending}
+                                  onClick={() => inviteMutation.mutate(person.id)}
+                                  className="rounded-full"
+                                >
+                                  {inviteMutation.isPending && inviteMutation.variables === person.id
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <UserPlus className="mr-2 h-4 w-4" />}
+                                  Invite
+                                </Button>
+                              ) : (
+                                <Badge variant="outline" className="rounded-full">
+                                  {person.status === 'teacher' ? 'Ask Teacher'
+                                    : person.status === 'member' ? 'Member'
+                                      : person.status === 'invited' ? 'Invited'
+                                        : 'In another squad'}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {squad.pendingInvitations.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Pending invitations</p>
+                      {squad.pendingInvitations.map((invitation) => (
+                        <div key={invitation.id} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate font-semibold">{invitation.name ?? invitation.email}</span>
+                          <Badge variant="outline" className="rounded-full">Pending</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -447,6 +637,11 @@ export default function StudySquadPage() {
                 <CardTitle className="flex items-center gap-2 text-xl"><Bell className="h-5 w-5" /> Where your squad struggles</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {allWeakTopics.length === 0 && (
+                  <div className="rounded-[18px] border border-dashed border-border bg-background p-5 text-sm font-semibold text-muted-foreground">
+                    No at-risk topics yet. Scores below 40% will appear here for squad rescue.
+                  </div>
+                )}
                 {allWeakTopics.map((topic: WeakTopic) => {
                   const member = getMemberById(topic.memberId);
                   return (
@@ -468,7 +663,15 @@ export default function StudySquadPage() {
                         {activeRescueByMember[member.id] ? (
                           <>
                             <Badge className="rounded-full border-0 bg-secondary text-secondary-foreground">Rescue sent ⏳</Badge>
-                            <Button onClick={() => navigate(`/rescue-join?roomId=${encodeURIComponent(activeRescueByMember[member.id]?.roomId ?? 'demo-room-chemical-bonding')}`)} size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-accent">
+                            <Button
+                              disabled={!activeRescueByMember[member.id]?.roomId}
+                              onClick={() => {
+                                const roomId = activeRescueByMember[member.id]?.roomId;
+                                if (roomId) navigate(`/rescue-join?roomId=${encodeURIComponent(roomId)}`);
+                              }}
+                              size="sm"
+                              className="rounded-full bg-primary text-primary-foreground hover:bg-accent"
+                            >
                               Open Rescue Room
                             </Button>
                           </>
@@ -499,14 +702,30 @@ export default function StudySquadPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Group streak</p>
-                    <p className="text-4xl font-bold tracking-tight">18 days</p>
-                    <p className="text-sm text-muted-foreground">2 of 5 restores used this month</p>
+                    <p className="text-4xl font-bold tracking-tight">{squad?.streak.currentDays ?? 0} days</p>
+                    <p className="text-sm text-muted-foreground">
+                      {squad?.streak.restoresUsedThisMonth ?? 0} of {squad?.streak.restoresLimit ?? 5} restores used this month
+                    </p>
+                    {squad && !squad.streak.activeToday && (
+                      <p className="mt-1 text-xs font-semibold text-muted-foreground">Complete a quiz today to keep it going.</p>
+                    )}
                   </div>
                   <div className="flex h-20 w-20 items-center justify-center rounded-[18px] bg-primary text-primary-foreground">
                     <Flame className="h-10 w-10" />
                   </div>
                 </div>
-                <Button onClick={() => toast.success('Streak restored')} className="mt-5 w-full rounded-full bg-primary text-primary-foreground hover:bg-accent">Restore Streak</Button>
+                <Button
+                  onClick={() => restoreStreakMutation.mutate()}
+                  disabled={!squad?.streak.canRestore || restoreStreakMutation.isPending}
+                  className="mt-5 w-full rounded-full bg-primary text-primary-foreground hover:bg-accent"
+                >
+                  {restoreStreakMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {squad?.streak.canRestore && squad.streak.restoreDate
+                    ? `Restore ${squad.streak.restoreDate}`
+                    : squad && squad.streak.restoresUsedThisMonth >= squad.streak.restoresLimit
+                      ? 'Monthly limit reached'
+                      : 'No restore needed'}
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -606,12 +825,12 @@ export default function StudySquadPage() {
                         <Flame className="h-9 w-9" />
                         <div>
                           <p className="text-sm font-bold">Group streak</p>
-                          <p className="text-3xl font-black">18 days <span className="text-primary-foreground">+1</span></p>
+                          <p className="text-3xl font-black">{squad?.streak.currentDays ?? 0} days</p>
                         </div>
                       </div>
-                      <div className="rounded-full bg-secondary px-3 py-2 text-sm font-black text-secondary-foreground">Day 19</div>
+                      <div className="rounded-full bg-secondary px-3 py-2 text-sm font-black text-secondary-foreground">Day {(squad?.streak.currentDays ?? 0) + 1}</div>
                     </div>
-                    <p className="mt-3 text-sm font-bold text-primary-foreground">1 rescue away from Day 19</p>
+                    <p className="mt-3 text-sm font-bold text-primary-foreground">Complete this Rescue quiz to protect today&apos;s streak.</p>
                   </div>
 
                   <div className="rounded-[1.25rem] border border-border bg-background p-4 text-foreground">
@@ -672,7 +891,7 @@ export default function StudySquadPage() {
                         className="w-full rounded-full border-primary text-foreground hover:bg-secondary"
                       >
                         <Mic className="mr-2 h-4 w-4" />
-                        Start a {rescueTarget.topic.topic} discussion room
+                        Start a {rescueTarget.topic.topic} Revision Room
                       </Button>
                     )}
                     <p className="text-center text-xs font-semibold text-muted-foreground">

@@ -18,6 +18,8 @@ export const navDict = {
   'nav.askTeacher.short': { en: 'Ask', zh: '请教' },
   'nav.messages': { en: 'Messages', zh: '消息' },
   'nav.messages.short': { en: 'Messages', zh: '消息' },
+  'nav.notifications': { en: 'Notifications', zh: '通知中心' },
+  'nav.notifications.short': { en: 'Alerts', zh: '通知' },
   'nav.captureHub': { en: 'Capture Hub', zh: '随手记' },
   'nav.captureHub.short': { en: 'Capture', zh: '随手记' },
   'nav.studySquad': { en: 'Study Squad', zh: '学习小队' },

@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { StudentEnquiriesWorkspace } from '@/features/enquiries/student-workspace';
 import { TeacherEnquiriesWorkspace } from '@/features/enquiries/teacher-workspace';
 import { useCurrentAccount } from '@/lib/api/me';
+import { useSearchParams } from '@/lib/navigation';
 
 export default function AskTeacherPage() {
   const accountQuery = useCurrentAccount();
+  const [searchParams] = useSearchParams();
+  const initialThreadId = searchParams.get('threadId') ?? undefined;
 
   if (accountQuery.isPending) {
     return (
@@ -50,6 +53,7 @@ export default function AskTeacherPage() {
       <TeacherEnquiriesWorkspace
         userId={user.id}
         role={profile.role}
+        initialThreadId={initialThreadId}
       />
     );
   }
@@ -60,6 +64,7 @@ export default function AskTeacherPage() {
       role={profile.role}
       initialSubjectId={profile.subjectId}
       initialTopicId={profile.topicId}
+      initialThreadId={initialThreadId}
     />
   );
 }

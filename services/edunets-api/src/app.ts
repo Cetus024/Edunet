@@ -14,6 +14,10 @@ import {
 import type { AppEnv } from './types.js';
 import { apiV1 } from './routes/api-v1.js';
 import { enquiriesApi } from './routes/enquiries.js';
+import { studySquadsApi } from './routes/study-squads.js';
+import { squadQuizApi } from './routes/squad-quiz.js';
+import { notificationsApi } from './routes/notifications.js';
+import { revisionRoomsApi } from './routes/revision-rooms.js';
 
 const app = new Hono<AppEnv>({ strict: false });
 
@@ -79,6 +83,10 @@ app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
 
 app.route('/api/v1', apiV1);
 app.route('/api/v1', enquiriesApi);
+  app.route('/api/v1', studySquadsApi);
+  app.route('/api/v1', squadQuizApi);
+app.route('/api/v1', notificationsApi);
+app.route('/api/v1', revisionRoomsApi);
 
 app.notFound((context) => errorResponse(context, 404, 'NOT_FOUND', 'Route not found.'));
 app.onError(handleError);
