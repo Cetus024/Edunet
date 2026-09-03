@@ -40,7 +40,9 @@ import {
   type SquadQuizRoom,
 } from '@/lib/api/squad-quiz';
 import { useStudySquad } from '@/lib/api/study-squads';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
+import type { SquadQuizParticipantPresence } from '@/lib/api/squad-quiz';
 
 const QUESTION_SECONDS = 45;
 
@@ -58,6 +60,14 @@ function avatarClass(color: SquadQuizAvatarColor): string {
 function formatSeconds(value: number): string {
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
 }
+
+const PRESENCE_KEYS: Record<SquadQuizParticipantPresence, TranslationKey> = {
+  invited: 'revision.presence.invited',
+  online: 'revision.presence.online',
+  away: 'revision.presence.away',
+  finished: 'revision.presence.finished',
+  left: 'revision.presence.left',
+};
 
 function setRoomCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -85,6 +95,7 @@ export default function RescueRoomPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedInviteIds, setSelectedInviteIds] = useState<string[]>([]);
   const [completionCelebrated, setCompletionCelebrated] = useState(false);
+  const { t } = useTranslation();
 
   const answerMutation = useMutation({
     mutationFn: (submittedAnswer: string | number) => submitSquadQuizAnswer(
@@ -95,11 +106,11 @@ export default function RescueRoomPage() {
     onSuccess: (result) => {
       if (roomId && userId) setRoomCache(queryClient, roomId, userId, result);
       const outcome = result.room.currentUserAnswer;
-      if (outcome?.isCorrect) toast.success(`+${outcome.points} points`);
-      else toast.error('Not quite');
+      if (outcome?.isCorrect) toast.success(t('rescue.toast.points', { points: outcome.points }));
+      else toast.error(t('rescue.toast.notQuite'));
     },
-    onError: (error) => toast.error('Answer not submitted', {
-      description: error instanceof Error ? error.message : 'Try again.',
+    onError: (error) => toast.error(t('rescue.toast.answerNotSubmitted'), {
+      description: error instanceof Error ? error.message : t('rescue.tryAgain'),
     }),
   });
   const advanceMutation = useMutation({
@@ -113,22 +124,25 @@ export default function RescueRoomPage() {
     onSuccess: (result) => {
       if (roomId && userId) setRoomCache(queryClient, roomId, userId, result);
       setCompletionCelebrated(false);
-      toast.success('Room restarted');
+      toast.success(t('rescue.toast.roomRestarted'));
     },
-    onError: (error) => toast.error('Room not restarted', {
-      description: error instanceof Error ? error.message : 'Try again.',
+    onError: (error) => toast.error(t('rescue.toast.roomNotRestarted'), {
+      description: error instanceof Error ? error.message : t('rescue.tryAgain'),
     }),
   });
   const inviteMutation = useMutation({
     mutationFn: () => inviteSquadQuizParticipants(roomId ?? '', selectedInviteIds),
     onSuccess: (result) => {
       if (roomId && userId) setRoomCache(queryClient, roomId, userId, result);
-      toast.success(`Invited ${selectedInviteIds.length} squad member${selectedInviteIds.length === 1 ? '' : 's'}`);
+      toast.success(t('rescue.toast.invited', {
+        count: selectedInviteIds.length,
+        suffix: selectedInviteIds.length === 1 ? '' : 's',
+      }));
       setSelectedInviteIds([]);
       setInviteOpen(false);
     },
-    onError: (error) => toast.error('Invitations not sent', {
-      description: error instanceof Error ? error.message : 'Try again.',
+    onError: (error) => toast.error(t('rescue.toast.invitationsNotSent'), {
+      description: error instanceof Error ? error.message : t('rescue.tryAgain'),
     }),
   });
 
@@ -153,9 +167,9 @@ export default function RescueRoomPage() {
   useEffect(() => {
     if (room?.status !== 'finished' || completionCelebrated) return;
     setCompletionCelebrated(true);
-    toast.success('+1 group streak day', { description: 'This completed Rescue quiz is saved as squad activity.' });
+    toast.success(t('rescue.toast.streakDay'), { description: t('rescue.toast.savedAsActivity') });
     notify({ type: 'rescueCompleted' });
-  }, [completionCelebrated, notify, room?.status]);
+  }, [completionCelebrated, notify, room?.status, t]);
 
   const timeLeft = useMemo(() => {
     if (!room) return QUESTION_SECONDS;
@@ -197,13 +211,13 @@ export default function RescueRoomPage() {
       : current.filter((candidate) => candidate !== memberId));
   };
 
-  if (!roomId) return <RoomMessage title="Missing room link" body="Open a Rescue invitation from Notifications." />;
-  if (!account || roomQuery.isPending) return <RoomMessage title="Loading live room…" body="Syncing the quiz and participants." loading />;
+  if (!roomId) return <RoomMessage title={t('rescue.missingLink')} body={t('rescue.openFromNotifications')} />;
+  if (!account || roomQuery.isPending) return <RoomMessage title={t('rescue.loadingRoom')} body={t('rescue.syncing')} loading />;
   if (roomQuery.isError || !room) {
-    return <RoomMessage title="Room unavailable" body={roomQuery.error instanceof Error ? roomQuery.error.message : 'This room could not be opened.'} />;
+    return <RoomMessage title={t('rescue.unavailable')} body={roomQuery.error instanceof Error ? roomQuery.error.message : t('rescue.couldNotOpen')} />;
   }
   if (!room.hasJoined && room.status === 'active') {
-    return <RoomMessage title="Join before answering" body="Choose your avatar on the Rescue join screen." actionLabel="Go to join screen" action={() => navigate(`/rescue-join?roomId=${encodeURIComponent(room.id)}`)} />;
+    return <RoomMessage title={t('rescue.joinBeforeAnswering')} body={t('rescue.chooseAvatar')} actionLabel={t('rescue.goToJoinScreen')} action={() => navigate(`/rescue-join?roomId=${encodeURIComponent(room.id)}`)} />;
   }
 
   if (room.status === 'finished') {
@@ -213,16 +227,16 @@ export default function RescueRoomPage() {
           <Card className="card-shadow rounded-[20px] border-border bg-card text-card-foreground">
             <CardContent className="space-y-6 p-6 sm:p-8">
               <div className="text-center">
-                <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground"><Trophy className="mr-2 h-4 w-4" /> Rescue complete</Badge>
-                <h1 className="text-3xl font-black">Final ranks</h1>
-                <p className="mt-2 text-muted-foreground">The database saved this result as qualifying Group Streak activity.</p>
+                <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground"><Trophy className="mr-2 h-4 w-4" /> {t('rescue.complete')}</Badge>
+                <h1 className="text-3xl font-black">{t('rescue.finalRanks')}</h1>
+                <p className="mt-2 text-muted-foreground">{t('rescue.savedAsStreak')}</p>
               </div>
               <ParticipantList participants={sortedParticipants} finished />
               <div className={`grid gap-3 ${room.canManage ? 'sm:grid-cols-2' : ''}`}>
-                <Button onClick={() => navigate('/study-squad')} className="rounded-full bg-primary text-primary-foreground hover:bg-accent"><Flame className="mr-2 h-4 w-4" /> Back to squad</Button>
+                <Button onClick={() => navigate('/study-squad')} className="rounded-full bg-primary text-primary-foreground hover:bg-accent"><Flame className="mr-2 h-4 w-4" /> {t('rescue.backToSquad')}</Button>
                 {room.canManage && (
                   <Button disabled={restartMutation.isPending} onClick={() => restartMutation.mutate()} variant="outline" className="rounded-full">
-                    {restartMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />} Reset room
+                    {restartMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />} {t('rescue.resetRoom')}
                   </Button>
                 )}
               </div>
@@ -238,20 +252,20 @@ export default function RescueRoomPage() {
     <div className="edunets-gradient p-4 text-foreground sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="grid items-center gap-3 rounded-[20px] bg-card p-4 text-card-foreground shadow-lg md:grid-cols-[1fr_auto_1fr]">
-          <div className="flex items-center gap-3 font-black text-primary">Round {room.currentQuestionIndex + 1} of {room.totalRounds}</div>
+          <div className="flex items-center gap-3 font-black text-primary">{t('rescue.round', { current: room.currentQuestionIndex + 1, total: room.totalRounds })}</div>
           <div className="flex items-center justify-center gap-3 rounded-full bg-secondary px-5 py-3 text-secondary-foreground"><Timer className="h-5 w-5" /><span className="font-mono text-xl font-black">{formatSeconds(timeLeft)}</span></div>
           <div className="flex justify-end gap-2">
-            {room.canManage && <Button variant="outline" className="rounded-full" onClick={() => setInviteOpen(true)}><Users className="mr-2 h-4 w-4" /> Invite Squad</Button>}
-            <Button variant="outline" size="icon" className="rounded-full" onClick={() => navigate('/study-squad')} aria-label="Exit room"><LogOut className="h-4 w-4" /></Button>
+            {room.canManage && <Button variant="outline" className="rounded-full" onClick={() => setInviteOpen(true)}><Users className="mr-2 h-4 w-4" /> {t('rescue.inviteSquad')}</Button>}
+            <Button variant="outline" size="icon" className="rounded-full" onClick={() => navigate('/study-squad')} aria-label={t('rescue.exitRoom')}><LogOut className="h-4 w-4" /></Button>
           </div>
-          <p className="md:col-span-3 text-center text-sm font-bold text-muted-foreground">Database state refreshes every 2 seconds; presence updates every 10 seconds.</p>
+          <p className="md:col-span-3 text-center text-sm font-bold text-muted-foreground">{t('rescue.syncNote')}</p>
           <div className="md:col-span-3"><Progress value={(timeLeft / QUESTION_SECONDS) * 100} className="h-2" /></div>
         </header>
 
         <div className="grid gap-5 xl:grid-cols-[22%_1fr_30%]">
           <Card className="card-shadow rounded-[20px] border-border bg-card text-card-foreground">
             <CardContent className="space-y-4 p-5">
-              <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-xl font-black"><Trophy className="h-5 w-5" /> Rank</h2><Badge variant="outline">Live</Badge></div>
+              <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-xl font-black"><Trophy className="h-5 w-5" /> {t('rescue.rank')}</h2><Badge variant="outline">{t('rescue.live')}</Badge></div>
               <ParticipantList participants={sortedParticipants} />
             </CardContent>
           </Card>
@@ -260,13 +274,13 @@ export default function RescueRoomPage() {
             <CardContent className="flex min-h-[440px] flex-col justify-center space-y-6 p-6 sm:p-8">
               <Badge className="w-fit rounded-full border-0 bg-accent text-accent-foreground">{room.subjectName} · {room.topicName}</Badge>
               <h1 className="text-3xl font-black leading-tight text-foreground md:text-5xl">{question.text}</h1>
-              <p className="max-w-2xl text-lg text-muted-foreground">Lock your answer. The room advances together when everyone answers or the timer ends.</p>
+              <p className="max-w-2xl text-lg text-muted-foreground">{t('rescue.lockYourAnswerHint')}</p>
             </CardContent>
           </Card>
 
           <Card className="card-shadow rounded-[20px] border-border bg-card text-card-foreground">
             <CardContent className="space-y-5 p-5 sm:p-6">
-              <div><Badge className="mb-3 rounded-full border-0 bg-primary text-primary-foreground">Answer panel</Badge><h2 className="text-2xl font-black">Lock your answer</h2></div>
+              <div><Badge className="mb-3 rounded-full border-0 bg-primary text-primary-foreground">{t('rescue.answerPanel')}</Badge><h2 className="text-2xl font-black">{t('rescue.lockYourAnswer')}</h2></div>
               {question.type === 'mcq' && question.options && (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                   {question.options.map((option, index) => (
@@ -284,15 +298,15 @@ export default function RescueRoomPage() {
               )}
               {question.type !== 'mcq' && (
                 <div className="space-y-3">
-                  <Input value={typeof answer === 'string' ? answer : ''} onChange={(event) => setAnswer(event.target.value)} disabled={answerDisabled} placeholder="Type your answer" className="h-12 rounded-[16px]" />
-                  <Button disabled={answerDisabled || !String(answer).trim()} onClick={() => submitAnswer(answer)} className="w-full rounded-full">Submit</Button>
+                  <Input value={typeof answer === 'string' ? answer : ''} onChange={(event) => setAnswer(event.target.value)} disabled={answerDisabled} placeholder={t('rescue.typeYourAnswer')} className="h-12 rounded-[16px]" />
+                  <Button disabled={answerDisabled || !String(answer).trim()} onClick={() => submitAnswer(answer)} className="w-full rounded-full">{t('rescue.submit')}</Button>
                 </div>
               )}
-              {answerMutation.isPending && <p className="flex items-center gap-2 text-sm font-bold text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Server is grading…</p>}
+              {answerMutation.isPending && <p className="flex items-center gap-2 text-sm font-bold text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t('rescue.grading')}</p>}
               <AnimatePresence>
                 {currentAnswer && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`rounded-[16px] p-4 ${currentAnswer.isCorrect ? 'bg-primary text-primary-foreground' : 'bg-destructive text-primary-foreground'}`}>
-                    <p className="flex items-center gap-2 font-black">{currentAnswer.isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}{currentAnswer.isCorrect ? 'Correct — answer locked' : 'Incorrect — answer locked'}</p>
+                    <p className="flex items-center gap-2 font-black">{currentAnswer.isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}{currentAnswer.isCorrect ? t('rescue.correctLocked') : t('rescue.incorrectLocked')}</p>
                     <p className="mt-1 text-sm font-semibold">{currentAnswer.explanation}</p>
                   </motion.div>
                 )}
@@ -303,9 +317,9 @@ export default function RescueRoomPage() {
 
         <Dialog open={inviteOpen} onOpenChange={(open) => { setInviteOpen(open); if (!open) setSelectedInviteIds([]); }}>
           <DialogContent className="max-w-[430px] border-border bg-card text-card-foreground">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Invite Squad</DialogTitle><DialogDescription>Select members who are not already in this room.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> {t('rescue.inviteSquadTitle')}</DialogTitle><DialogDescription>{t('rescue.inviteSquadDescription')}</DialogDescription></DialogHeader>
             <div className="space-y-3">
-              {remainingMembers.length === 0 ? <p className="rounded-[16px] bg-secondary p-4">Everyone is already invited or participating.</p> : remainingMembers.map((member) => (
+              {remainingMembers.length === 0 ? <p className="rounded-[16px] bg-secondary p-4">{t('rescue.everyoneInvited')}</p> : remainingMembers.map((member) => (
                 <label key={member.id} className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-border bg-background p-3">
                   <Checkbox checked={selectedInviteIds.includes(member.id)} onCheckedChange={(checked) => toggleInvite(member.id, checked === true)} />
                   <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-secondary font-bold">{initialsFor(member.name)}</div>
@@ -314,7 +328,7 @@ export default function RescueRoomPage() {
               ))}
             </div>
             <Button disabled={selectedInviteIds.length === 0 || inviteMutation.isPending} onClick={() => inviteMutation.mutate()} className="w-full rounded-full">
-              {inviteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Send invitations
+              {inviteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} {t('rescue.sendInvitations')}
             </Button>
           </DialogContent>
         </Dialog>
@@ -327,6 +341,7 @@ function ParticipantList({ participants, finished = false }: {
   participants: SquadQuizRoom['participants'];
   finished?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
       {participants.map((participant, index) => {
@@ -343,7 +358,7 @@ function ParticipantList({ participants, finished = false }: {
               <p className="truncate font-bold">{participant.displayName}</p>
               <p className="flex items-center gap-1 text-xs font-semibold opacity-80">
                 {active ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                {finished ? 'Finished' : participant.answeredCurrent ? 'Answer locked' : participant.presence}
+                {finished ? t('rescue.status.finished') : participant.answeredCurrent ? t('rescue.status.answerLocked') : t(PRESENCE_KEYS[participant.presence])}
               </p>
             </div>
             <p className="font-black">{participant.score}</p>
@@ -354,13 +369,14 @@ function ParticipantList({ participants, finished = false }: {
   );
 }
 
-function RoomMessage({ title, body, loading = false, action, actionLabel = 'Continue' }: {
+function RoomMessage({ title, body, loading = false, action, actionLabel }: {
   title: string;
   body: string;
   loading?: boolean;
   action?: () => void;
   actionLabel?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="edunets-gradient flex items-center justify-center p-4 text-foreground sm:p-6 lg:p-8">
       <Card className="card-shadow w-full max-w-[480px] rounded-[20px] border-border bg-card text-card-foreground">
@@ -368,7 +384,7 @@ function RoomMessage({ title, body, loading = false, action, actionLabel = 'Cont
           {loading && <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />}
           <h1 className="text-2xl font-black">{title}</h1>
           <p className="text-muted-foreground">{body}</p>
-          {action && <Button onClick={action} className="rounded-full">{actionLabel}</Button>}
+          {action && <Button onClick={action} className="rounded-full">{actionLabel ?? t('common.continue')}</Button>}
         </CardContent>
       </Card>
     </div>
