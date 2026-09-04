@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { motion, useReducedMotion } from 'motion/react';
-import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Orbit, Plus, RotateCcw, Users, X } from 'lucide-react';
+import { Brain, ChevronRight, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
 import { ConceptNodeFriendMarkers } from '@/features/concept-web/friend-markers';
 import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
-import { useGraphPhysics, type GraphPosition } from '@/features/concept-web/use-graph-physics';
 import {
   getStrugglingFriendsForTopic,
   getWeakestTopicForMember,
@@ -33,37 +32,6 @@ type GraphNode = SubConcept & { kind: NodeKind; subject: string; parentId?: stri
 type GraphLink = { from: GraphNode; to: GraphNode; dashed?: boolean };
 type PopupState = { node: GraphNode; x: number; y: number };
 type PanState = { x: number; y: number; zoom: number };
-type ProjectedNodePosition = GraphPosition & {
-  screenX: number;
-  screenY: number;
-  depthScale: number;
-  depthOpacity: number;
-  depthRatio: number;
-};
-
-const DEPTH_MIN = -120;
-const DEPTH_MAX = 120;
-
-function projectDepth(position: GraphPosition): ProjectedNodePosition {
-  const depthRatio = clamp((position.z - DEPTH_MIN) / (DEPTH_MAX - DEPTH_MIN), 0, 1);
-  const perspective = 1 + position.z / 900;
-  return {
-    ...position,
-    screenX: 500 + (position.x - 500) * perspective,
-    screenY: 400 + (position.y - 400) * perspective - position.z * 0.035,
-    depthScale: 0.82 + depthRatio * 0.36,
-    depthOpacity: 0.42 + depthRatio * 0.58,
-    depthRatio,
-  };
-}
-
-function unprojectDepth(screenX: number, screenY: number, z: number) {
-  const perspective = 1 + z / 900;
-  return {
-    x: 500 + (screenX - 500) / perspective,
-    y: 400 + (screenY + z * 0.035 - 400) / perspective,
-  };
-}
 
 const wrapText = (label: string): string[] => {
   const words = label.split(' ');
@@ -127,7 +95,6 @@ export default function StudentConceptWebView() {
   );
   const prefersReducedMotion = useReducedMotion();
   const [weakOnly, setWeakOnly] = useState(false);
-  const [physicsEnabled, setPhysicsEnabled] = useState(true);
   const [pan, setPan] = useState<PanState>({ x: 0, y: 0, zoom: 1 });
   const [dragging, setDragging] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [popup, setPopup] = useState<PopupState | null>(null);
@@ -140,17 +107,6 @@ export default function StudentConceptWebView() {
   // neighbouring fans sit close together.
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
-  const nodeDragRef = useRef<{
-    id: string;
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    offsetX: number;
-    offsetY: number;
-    z: number;
-    moved: boolean;
-  } | null>(null);
-  const suppressNodeClickRef = useRef(false);
 
   const graph = useMemo(() => {
     const entry = subjectsData[subject];
@@ -212,83 +168,6 @@ export default function StudentConceptWebView() {
     }
     return { nodes, links };
   }, [subject, subjectsData]);
-  const physicsActive = physicsEnabled && !prefersReducedMotion;
-  const { positions, setDraggedNode, moveNode } = useGraphPhysics(
-    graph.nodes,
-    graph.links,
-    physicsActive,
-  );
-
-  const positionFor = useCallback((node: GraphNode) => positions[node.id] ?? { x: node.x, y: node.y, z: 0 }, [positions]);
-  const renderedNodes = useMemo(() => [...graph.nodes].sort((first, second) => (
-    positionFor(first).z - positionFor(second).z
-  )), [graph.nodes, positionFor]);
-
-  const clientToGraphPoint = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const bounds = canvas.getBoundingClientRect();
-    const svgX = ((clientX - bounds.left) / bounds.width) * 1_000;
-    const svgY = ((clientY - bounds.top) / bounds.height) * 800;
-    return {
-      x: (svgX - pan.x) / pan.zoom,
-      y: (svgY - pan.y) / pan.zoom,
-    };
-  }, [pan]);
-
-  const handleNodePointerDown = useCallback((event: React.PointerEvent<SVGGElement>, node: GraphNode) => {
-    if (event.button !== 0) return;
-    const point = clientToGraphPoint(event.clientX, event.clientY);
-    if (!point) return;
-    const position = positionFor(node);
-    // Drag in the node's existing depth plane. Lifting it to a different z on
-    // pointer-down also affects simple clicks and creates a visible offset.
-    const dragZ = position.z;
-    const unprojectedPoint = unprojectDepth(point.x, point.y, dragZ);
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    nodeDragRef.current = {
-      id: node.id,
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      offsetX: unprojectedPoint.x - position.x,
-      offsetY: unprojectedPoint.y - position.y,
-      z: dragZ,
-      moved: false,
-    };
-    setDraggedNode(node.id);
-  }, [clientToGraphPoint, positionFor, setDraggedNode]);
-
-  const handleNodePointerMove = useCallback((event: React.PointerEvent<SVGGElement>) => {
-    const drag = nodeDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const point = clientToGraphPoint(event.clientX, event.clientY);
-    if (!point) return;
-    const unprojectedPoint = unprojectDepth(point.x, point.y, drag.z);
-    event.stopPropagation();
-    // Ignore the tiny pointer movement browsers can emit during a normal
-    // click. It must not be written back as a new physics position.
-    if (!drag.moved) {
-      if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) <= 5) return;
-      drag.moved = true;
-    }
-    moveNode(drag.id, {
-      x: unprojectedPoint.x - drag.offsetX,
-      y: unprojectedPoint.y - drag.offsetY,
-    });
-  }, [clientToGraphPoint, moveNode]);
-
-  const handleNodePointerUp = useCallback((event: React.PointerEvent<SVGGElement>) => {
-    const drag = nodeDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    suppressNodeClickRef.current = drag.moved;
-    if (drag.moved) window.setTimeout(() => { suppressNodeClickRef.current = false; }, 0);
-    nodeDragRef.current = null;
-    setDraggedNode(null);
-  }, [setDraggedNode]);
 
   const handleFriendMarkerPress = useCallback((memberId: string, markerSubject: string, markerTopic: string) => {
     const params = new URLSearchParams({
@@ -396,10 +275,6 @@ export default function StudentConceptWebView() {
 
   const handleNodeClick = (event: React.MouseEvent<SVGGElement>, node: GraphNode) => {
     event.stopPropagation();
-    if (suppressNodeClickRef.current) {
-      suppressNodeClickRef.current = false;
-      return;
-    }
     setHighlightedId(node.id);
     const point = clampPopup(event.clientX + 18, event.clientY - 40);
     setPopup({ node, ...point });
@@ -503,36 +378,18 @@ export default function StudentConceptWebView() {
           <Label htmlFor="weak-toggle" className="font-semibold">Show weak topics only</Label>
           <Switch id="weak-toggle" checked={weakOnly} onCheckedChange={setWeakOnly} />
         </div>
-        <div className="flex items-center gap-3 rounded-full bg-card px-4 py-2 shadow-sm">
-          <Orbit className="h-4 w-4" />
-          <Label htmlFor="physics-toggle" className="font-semibold">3D bubble physics</Label>
-          <Switch
-            id="physics-toggle"
-            checked={physicsActive}
-            disabled={Boolean(prefersReducedMotion)}
-            onCheckedChange={setPhysicsEnabled}
-          />
-        </div>
       </div>
 
       <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
         <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
           <defs>
             <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>
-            <filter id="node-front-glow" x="-55%" y="-55%" width="210%" height="210%"><feDropShadow dx="0" dy="13" stdDeviation="10" floodColor="#1D3A62" floodOpacity="0.28" /><feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#FFFFFF" floodOpacity="0.32" /></filter>
           </defs>
           <g transform={`translate(${pan.x} ${pan.y}) scale(${pan.zoom})`}>
-            {graph.links.map((link: GraphLink, index: number) => {
-              const fromPosition = projectDepth(positionFor(link.from));
-              const toPosition = projectDepth(positionFor(link.to));
-              const linkDepthOpacity = (fromPosition.depthOpacity + toPosition.depthOpacity) / 2;
-              return (
-                <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={fromPosition.screenX} y1={fromPosition.screenY} x2={toPosition.screenX} y2={toPosition.screenY} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={(link.dashed ? 3 : 2.5) * ((fromPosition.depthScale + toPosition.depthScale) / 2)} strokeOpacity={(link.dashed ? 0.8 : 0.45) * linkDepthOpacity} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
-              );
-            })}
-            {renderedNodes.map((node: GraphNode) => {
-              const nodePosition = positionFor(node);
-              const projected = projectDepth(nodePosition);
+            {graph.links.map((link: GraphLink, index: number) => (
+              <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
+            ))}
+            {graph.nodes.map((node: GraphNode) => {
               const due = node.reviewNow ?? (node.memoryScore !== null && node.memoryScore <= 60);
               const greyed = weakOnly && node.kind !== 'subject' && !due;
               const tier = getKnowledgeScoreColor(node.memoryScore);
@@ -540,27 +397,25 @@ export default function StudentConceptWebView() {
               const highlighted = highlightedId === node.id;
               const lines = wrapText(node.name);
               const friendMarkers = friendMarkersByNodeId[node.id] ?? [];
-              const inViewport = projected.screenX * pan.zoom + pan.x > -120 && projected.screenX * pan.zoom + pan.x < 1120 && projected.screenY * pan.zoom + pan.y > -120 && projected.screenY * pan.zoom + pan.y < 920;
+              const inViewport = node.x * pan.zoom + pan.x > -120 && node.x * pan.zoom + pan.x < 1120 && node.y * pan.zoom + pan.y > -120 && node.y * pan.zoom + pan.y < 920;
               const activated = !prefersReducedMotion && (
                 hoveredNodeId === node.id
                 || (node.kind === 'topic' && hoveredNodeId === normalize(subject))
                 || (node.kind === 'subconcept' && hoveredNodeId === node.parentId)
               );
-              const interactionScale = highlighted ? 1.15 : activated ? 1.22 : 1;
-              const renderedOpacity = projected.depthOpacity * (greyed ? 0.35 : 1);
               return (
-                <motion.g key={node.id} data-node="true" data-depth={projected.z.toFixed(1)} role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}. Drag to rearrange.`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onPointerDown={(event: React.PointerEvent<SVGGElement>) => handleNodePointerDown(event, node)} onPointerMove={handleNodePointerMove} onPointerUp={handleNodePointerUp} onPointerCancel={handleNodePointerUp} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: projected.depthScale * 0.75 }} animate={{ opacity: renderedOpacity, scale: projected.depthScale * interactionScale }} transition={{ opacity: { duration: 0.2 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.16 } }} style={{ cursor: 'grab', transformBox: 'view-box', originX: projected.screenX / 1_000, originY: projected.screenY / 800 }}>
-                  {node.kind === 'subject' && <circle cx={projected.screenX} cy={projected.screenY} r={node.r + 14} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.45" />}
-                  {highlighted && <><circle cx={projected.screenX} cy={projected.screenY} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={projected.screenX} cy={projected.screenY} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
-                  <circle cx={projected.screenX} cy={projected.screenY} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter={projected.depthRatio > 0.68 ? 'url(#node-front-glow)' : 'url(#node-shadow)'} />
-                  <ellipse cx={projected.screenX - node.r * 0.25} cy={projected.screenY - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity={0.1 + projected.depthRatio * 0.18} />
-                  {node.kind === 'subject' && <text x={projected.screenX} y={projected.screenY - 18} textAnchor="middle" fontSize="30">{subjectsData[subject]?.icon ?? '🧠'}</text>}
-                  {lines.map((line: string, lineIndex: number) => <text key={line} x={projected.screenX} y={projected.screenY + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
-                  {node.memoryScore === null && <text x={projected.screenX} y={projected.screenY + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
+                <motion.g key={node.id} data-node="true" role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: greyed ? 0.35 : 1, scale: highlighted ? 1.15 : activated ? 1.22 : 1, y: prefersReducedMotion ? 0 : [0, -4, 0, 4, 0] }} transition={{ opacity: { duration: 0.25, delay: node.index * 0.04 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.25 }, y: prefersReducedMotion ? { duration: 0 } : { duration: 5 + (node.index % 3), repeat: Infinity, ease: 'easeInOut' as const, delay: node.index * 0.12 } }} style={{ transformBox: 'view-box', originX: node.x / 1_000, originY: node.y / 800 }}>
+                  {node.kind === 'subject' && <circle cx={node.x} cy={node.y} r={node.r + 14} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.45" />}
+                  {highlighted && <><circle cx={node.x} cy={node.y} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={node.x} cy={node.y} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
+                  <circle cx={node.x} cy={node.y} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter="url(#node-shadow)" />
+                  <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
+                  {node.kind === 'subject' && <text x={node.x} y={node.y - 18} textAnchor="middle" fontSize="30">{subjectsData[subject]?.icon ?? '🧠'}</text>}
+                  {lines.map((line: string, lineIndex: number) => <text key={line} x={node.x} y={node.y + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
+                  {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   {node.kind !== 'subject' && friendMarkers.length > 0 && inViewport && (
                     <ConceptNodeFriendMarkers
                       nodeId={node.id}
-                      nodeCenter={{ x: projected.screenX, y: projected.screenY }}
+                      nodeCenter={{ x: node.x, y: node.y }}
                       nodeRadius={node.r}
                       subject={node.subject}
                       topic={node.name}
