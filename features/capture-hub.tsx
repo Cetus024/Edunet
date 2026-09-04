@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Mic,
@@ -57,6 +57,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useTranscription } from '@/hooks/use-transcription';
 import { useMascotFeedback } from '@/features/mascot';
+import { evaluateNotes as evaluateNotesApi, ocrImage, summarizeNotes as summarizeNotesApi, type NoteEvaluation } from '@/lib/api/capture';
+import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
 // Subject data
 const subjects = [
@@ -373,11 +375,53 @@ export default function CaptureHubPage() {
   const [addToWeb, setAddToWeb] = useState(false);
   const [generateSummary, setGenerateSummary] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isOcrRunning, setIsOcrRunning] = useState(false);
+
+  // Evaluate: how well the captured notes cover the selected topic's syllabus
+  // content, judged against the same reference material the discussion room
+  // uses. Only offered when the topic actually resolves to real syllabus
+  // content -- these subject/topic pickers are demo data that only partly
+  // line up with the real catalog, and a room that cannot score anything
+  // should stay hidden rather than open to a blank result.
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluation, setEvaluation] = useState<NoteEvaluation | null>(null);
+  const [evaluationUnavailable, setEvaluationUnavailable] = useState(false);
+  const [evaluationOpen, setEvaluationOpen] = useState(false);
+
+  // Summarize: tried against the real model first, when one is configured;
+  // falls back to the local heuristic in buildMaterialSummary otherwise, so
+  // opening a summary never shows nothing.
+  const [realSummaryPoints, setRealSummaryPoints] = useState<string[] | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   // Materials library
   const [materials, setMaterials] = useState(materialsSample);
   const [libraryFilter, setLibraryFilter] = useState('all');
   const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
+
+  useEffect(() => {
+    if (!summaryMaterial?.content) {
+      setRealSummaryPoints(null);
+      return;
+    }
+    let cancelled = false;
+    setIsSummarizing(true);
+    setRealSummaryPoints(null);
+    summarizeNotesApi(summaryMaterial.content)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.available && result.points && result.points.length > 0) {
+          setRealSummaryPoints(result.points);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setIsSummarizing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [summaryMaterial]);
 
   // File input refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -469,18 +513,39 @@ export default function CaptureHubPage() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setScannedPreview(reader.result as string);
-        setActiveMethod('scan');
-        setExtractedContent(
-          'OCR Extracted Text:\n\n• Key definition: Mitosis is the process of nuclear division\n• Important formula: F = ma (Force = mass × acceleration)\n• Note: Remember to review chapter 5 for the exam\n• Diagram shows the stages of cell division'
-        );
-        toast.success('Image processed - text extracted!');
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    const mimeType = file.type === 'image/jpeg' || file.type === 'image/webp' ? file.type : 'image/png';
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setScannedPreview(dataUrl);
+      setActiveMethod('scan');
+      setExtractedContent('');
+      setIsOcrRunning(true);
+
+      // Handwriting recognition, not a canned string -- this used to return the
+      // same "Mitosis is the process of..." text regardless of what photo was
+      // uploaded. Most O-Level students have a phone camera and not a laptop
+      // microphone, which is why this path exists at all.
+      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      try {
+        const result = await ocrImage({ imageBase64: base64, mimeType });
+        if (!result.available) {
+          toast.error('Handwriting recognition is not set up for this deployment yet.');
+        } else if (!result.text?.trim()) {
+          toast.error('No text was recognized in that photo. Try a clearer or closer shot.');
+        } else {
+          setExtractedContent(result.text);
+          toast.success('Text extracted from your photo!');
+        }
+      } catch {
+        toast.error('Could not process that photo. Try again.');
+      } finally {
+        setIsOcrRunning(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePasteSubmit = () => {
@@ -488,6 +553,36 @@ export default function CaptureHubPage() {
       setActiveMethod('paste');
       setExtractedContent(pastedText);
       toast.success('Text captured!');
+    }
+  };
+
+  const resolvedTopicId = useMemo(() => {
+    const subjectName = subjects.find((subject) => subject.id === selectedSubject)?.name;
+    if (!subjectName || !selectedTopic) return null;
+    return resolveRubricTopicId(subjectName, selectedTopic);
+  }, [selectedSubject, selectedTopic]);
+
+  const handleEvaluate = async () => {
+    if (!resolvedTopicId || !extractedContent) return;
+    setIsEvaluating(true);
+    setEvaluationUnavailable(false);
+    try {
+      const result = await evaluateNotesApi({ topicId: resolvedTopicId, text: extractedContent });
+      if (!result.available) {
+        setEvaluationUnavailable(true);
+        toast.error('Evaluation is not set up for this deployment yet.');
+        return;
+      }
+      if (!result.evaluation) {
+        toast.error('Could not evaluate these notes -- try adding more content.');
+        return;
+      }
+      setEvaluation(result.evaluation);
+      setEvaluationOpen(true);
+    } catch {
+      toast.error('Could not evaluate these notes. Try again.');
+    } finally {
+      setIsEvaluating(false);
     }
   };
 
@@ -755,10 +850,25 @@ export default function CaptureHubPage() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-[#6486B5]">
-                  <Check className="w-4 h-4" />
-                  <span>Text extracted with OCR</span>
-                </div>
+                {isOcrRunning ? (
+                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
+                    />
+                    <span>Recognizing handwriting...</span>
+                  </div>
+                ) : extractedContent ? (
+                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
+                    <Check className="w-4 h-4" />
+                    <span>Text extracted with OCR</span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No text was recognized yet. Try a clearer photo, or type your notes instead.
+                  </p>
+                )}
               </motion.div>
             ) : (
               <motion.button
@@ -1049,6 +1159,34 @@ export default function CaptureHubPage() {
                   </div>
                 </div>
 
+                {/* Evaluate: judges the captured notes against the syllabus, separate
+                    from saving the material below. Hidden rather than shown
+                    disabled when the topic has no rubric -- see resolvedTopicId. */}
+                {resolvedTopicId && extractedContent && (
+                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleEvaluate()}
+                      disabled={isEvaluating}
+                      className="w-full h-12 rounded-xl border-2 border-[#6486B5] font-bold text-[#6486B5] hover:bg-[#6486B5]/10"
+                    >
+                      {isEvaluating ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            className="mr-2 h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
+                          />
+                          Evaluating against the syllabus...
+                        </>
+                      ) : (
+                        <>📊 Evaluate against the syllabus</>
+                      )}
+                    </Button>
+                  </motion.div>
+                )}
+
                 {/* Process button */}
                 <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                   <Button
@@ -1241,14 +1379,77 @@ export default function CaptureHubPage() {
               {summaryMaterial ? ` · ${summaryMaterial.topic}` : ''}
             </DialogDescription>
           </DialogHeader>
+          {isSummarizing && (
+            <p className="text-xs font-semibold text-muted-foreground">Summarizing with AI...</p>
+          )}
           <ul className="space-y-2.5 text-sm leading-relaxed text-studynow-dark">
-            {summaryMaterial && buildMaterialSummary(summaryMaterial).map((point) => (
+            {summaryMaterial && (realSummaryPoints ?? buildMaterialSummary(summaryMaterial)).map((point) => (
               <li key={point} className="flex gap-2.5">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6486B5]" />
                 <span>{point}</span>
               </li>
             ))}
           </ul>
+        </DialogContent>
+      </Dialog>
+
+      {/* Evaluate result: a percentage the student sees at a glance, plus the
+          breakdown behind it. The rubric this scores against detects whether a
+          reference point was contradicted or never mentioned, not whether the
+          notes were merely worded differently -- so the copy says covered /
+          missing, never a grade on writing quality. */}
+      <Dialog open={evaluationOpen} onOpenChange={(open) => { setEvaluationOpen(open); if (!open) setEvaluation(null); }}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Evaluation</DialogTitle>
+            <DialogDescription>How your notes compare to the syllabus for this topic.</DialogDescription>
+          </DialogHeader>
+          {evaluation && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-center">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#6486B5] text-2xl font-black text-[#6486B5]">
+                  {evaluation.percentage}%
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-studynow-dark">{evaluation.summary}</p>
+
+              {evaluation.incorrect.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-wide text-destructive">To fix</p>
+                  {evaluation.incorrect.map((item, index) => (
+                    <div key={`wrong-${index}`} className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+                      <p className="text-sm font-bold text-studynow-dark">{item.point}</p>
+                      {item.quote && <p className="mt-1 text-xs italic text-muted-foreground">“{item.quote}”</p>}
+                      <p className="mt-1.5 text-sm text-studynow-dark">{item.correction}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {evaluation.missing.length > 0 && (
+                <div className="rounded-xl bg-secondary p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-secondary-foreground">Not in your notes</p>
+                  <p className="mt-1 text-sm text-secondary-foreground">{evaluation.missing.join(' · ')}</p>
+                </div>
+              )}
+
+              {evaluation.correct.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Covered well</p>
+                  {evaluation.correct.map((item, index) => (
+                    <div key={`right-${index}`} className="rounded-xl border border-border p-3">
+                      <p className="text-sm font-bold text-studynow-dark">{item.point}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {evaluationUnavailable && (
+            <p className="text-sm text-muted-foreground">
+              Evaluation is not configured for this deployment yet.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </div>
