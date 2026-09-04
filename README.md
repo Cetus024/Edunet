@@ -9,7 +9,7 @@ EduNets is a Next.js application for Singapore O-Level revision. It keeps the ex
 - Tailwind CSS 4 and Radix UI
 - TanStack Query and Jotai
 - Hono, Better Auth, Drizzle ORM, and Supabase PostgreSQL
-- Browser-native English transcription with an optional Huawei Cloud SIS gateway
+- Microsoft Azure AI Vision OCR and Microsoft Foundry model inference
 - Microsoft Power Apps code app SDK and generated Dataverse client
 - Static export to `out/` for Power Apps deployment
 
@@ -28,7 +28,7 @@ npm run api:start
 
 Copy `.env.example` to the ignored `.env.local` and replace every placeholder. PostgreSQL, Better Auth, Google, and Resend credentials are server-only; only `NEXT_PUBLIC_EDUNETS_API_URL` is exposed to the browser. Database setup is idempotent and uses separate Supabase runtime and administrative connections. See [`database/README.md`](database/README.md) and [`services/edunets-api/README.md`](services/edunets-api/README.md).
 
-Capture Hub live transcription defaults to the browser's English speech recognizer in supported Chrome and Edge browsers; this mode does not require a separate gateway. Set `NEXT_PUBLIC_TRANSCRIPTION_PROVIDER=huawei` and configure `NEXT_PUBLIC_HUAWEI_SIS_GATEWAY_URL` to use the optional Huawei SIS gateway instead. Huawei AK/SK credentials and the Project ID must only be configured in the Python service documented at [`services/huawei-sis-gateway`](services/huawei-sis-gateway/README.md); they must never be added to the Next.js environment. The frontend keeps final transcript text in the existing capture flow and does not persist raw microphone audio.
+Capture Hub 2.0 is phone-first and does not use voice transcription. Students photograph handwritten notes for Microsoft Azure AI Vision OCR or type/paste notes directly. Both inputs are combined and editable before Microsoft Foundry summarizes them; evaluation then compares that exact summary with the selected O-Level topic data in the backend. The provider boundary prefers `AZURE_FOUNDRY_*` and can later fall back to `MODELARTS_*` without changing the Capture Hub flow. All keys remain server-side.
 
 ## Structure
 

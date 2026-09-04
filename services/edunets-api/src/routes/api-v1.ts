@@ -18,8 +18,8 @@ import {
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
 import { analyzeExplanation } from '../services/explanation-analysis.js';
-import { getAnalysisModel, isAnalysisConfigured } from '../services/modelarts.js';
-import { evaluateNotes } from '../services/note-evaluation.js';
+import { getAnalysisModel, isAnalysisConfigured } from '../services/analysis-model.js';
+import { assessCapturedNotes } from '../services/capture-analysis.js';
 import { getOcrProvider, isOcrConfigured } from '../services/ocr.js';
 import { summarizeNotes } from '../services/summarize-notes.js';
 import {
@@ -937,9 +937,10 @@ api.post('/me/capture/summarize', loadSession, requireSession, async (context) =
   }
 });
 
-// Capture Hub: mark captured notes against the syllabus content behind
-// discussion-analysis, reporting a derived percentage alongside what the notes
-// got right, wrong, and never mentioned.
+// Capture Hub: summarize the combined OCR + typed notes first, then compare
+// that summary with the syllabus/database grounding. Returning both artifacts
+// makes the data flow visible to the student and keeps evaluation consistent
+// with the exact summary they reviewed.
 api.post('/me/capture/evaluate', loadSession, requireSession, async (context) => {
   requireUserId(context);
   const input = captureEvaluateSchema.parse(await readJson(context));
@@ -951,10 +952,14 @@ api.post('/me/capture/evaluate', loadSession, requireSession, async (context) =>
   if (!model) return context.json({ available: false, evaluation: null });
 
   try {
-    const evaluation = await evaluateNotes(input.topicId, input.text, model);
-    return context.json({ available: true, evaluation });
+    const assessment = await assessCapturedNotes(input.topicId, input.text, model);
+    return context.json({
+      available: true,
+      summaryPoints: assessment?.summaryPoints ?? null,
+      evaluation: assessment?.evaluation ?? null,
+    });
   } catch {
-    return context.json({ available: true, evaluation: null });
+    return context.json({ available: true, summaryPoints: null, evaluation: null });
   }
 });
 

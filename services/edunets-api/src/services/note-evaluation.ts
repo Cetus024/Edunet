@@ -10,10 +10,9 @@ import {
  * that matter enough to keep this a separate module rather than a branch
  * inside that one:
  *
- * 1. The source is OCR'd handwriting and typed text, not speech-to-text. The
- *    noise is different in kind -- a misread character or merged word, not a
- *    dropped one -- so the prompt's caveat to the model has to say so, not
- *    reuse the speech-recognition wording verbatim.
+ * 1. The source is a generated summary of OCR'd handwriting and typed text,
+ *    not speech-to-text. The summary is evaluated only after the capture step
+ *    has normalized the raw notes, keeping the comparison focused and cheap.
  * 2. The output carries a percentage. Capture Hub asked for a score a student
  *    can see at a glance, not just a breakdown to read. The score is never
  *    asked of the model directly -- models are not reliable, self-consistent
@@ -52,9 +51,7 @@ export function buildNoteEvaluationPrompt(grounding: TopicGrounding, notes: stri
     'REFERENCE FACTS:',
     factLines,
     '',
-    'STUDENT NOTES (recovered by OCR from handwriting and typed text: characters can be',
-    'misread, e.g. "1"/"l"/"I" or "0"/"O", and words can run together or be split apart --',
-    'do not treat an OCR-shaped glitch as a mistake, and quote only what bears on meaning):',
+    'STUDENT SUMMARY (generated from handwritten notes recovered by OCR and/or typed text):',
     `"""${notes.trim()}"""`,
     '',
     'Return ONLY a JSON object, no prose and no code fence, shaped exactly:',

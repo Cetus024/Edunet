@@ -27,7 +27,7 @@ export function summarizeNotes(text: string) {
 }
 
 export function evaluateNotes(input: { topicId: string; text: string }) {
-  return apiRequest<{ available: boolean; evaluation: NoteEvaluation | null }>('/api/v1/me/capture/evaluate', {
+  return apiRequest<{ available: boolean; summaryPoints: string[] | null; evaluation: NoteEvaluation | null }>('/api/v1/me/capture/evaluate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

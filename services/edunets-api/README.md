@@ -18,6 +18,9 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `RESEND_API_KEY` | Server-only Resend API key used to deliver transactional emails. |
 | `SQUAD_INVITE_FROM_EMAIL` | Sender using a domain verified in Resend. |
 | `AUTH_FROM_EMAIL` | Sender for password-reset emails using a domain verified in Resend. |
+| `AZURE_VISION_ENDPOINT` / `AZURE_VISION_KEY` | Server-only Azure AI Vision resource used for handwritten-note OCR. |
+| `AZURE_FOUNDRY_ENDPOINT` / `AZURE_FOUNDRY_API_KEY` / `AZURE_FOUNDRY_MODEL` | Preferred Microsoft Foundry endpoint, key, and model deployment used for summaries and evaluation. |
+| `MODELARTS_ENDPOINT` / `MODELARTS_API_KEY` / `MODELARTS_MODEL` | Optional later fallback analysis provider when the Foundry variables are absent. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
 Initialize and harden a new Supabase database from the repository root before starting the API:
@@ -85,6 +88,9 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `GET /api/v1/me/notifications`
 - `PUT /api/v1/me/notifications/:notificationId/read`
 - `PUT /api/v1/me/notifications/read-all`
+- `POST /api/v1/me/capture/ocr` — extracts handwritten text with Azure AI Vision.
+- `POST /api/v1/me/capture/summarize` — summarizes combined OCR and typed notes.
+- `POST /api/v1/me/capture/evaluate` — summarizes first, then evaluates that summary against stored topic data.
 
 Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; email/password signup sends the same field in its protected request body. The server validates both paths before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
 
