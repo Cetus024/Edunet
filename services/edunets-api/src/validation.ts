@@ -137,6 +137,27 @@ export const discussionAnalysisSchema = z.strictObject({
   transcript: z.string().trim().min(1).max(20_000),
 });
 
+// Capture Hub: OCR, summarize, and evaluate a page of notes.
+//
+// captureOcrSchema takes base64 image bytes rather than a multipart upload --
+// the whole request/response cycle here is small JSON like every other route,
+// and a phone photo compressed client-side comfortably fits the cap. 12MB of
+// base64 is roughly 9MB of image, generous for a compressed photo of a page of
+// handwriting and still far under typical serverless body limits.
+export const captureOcrSchema = z.strictObject({
+  imageBase64: z.string().min(1).max(12_000_000),
+  mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+});
+
+export const captureSummarizeSchema = z.strictObject({
+  text: z.string().trim().min(1).max(20_000),
+});
+
+export const captureEvaluateSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  text: z.string().trim().min(1).max(20_000),
+});
+
 export const createStudySquadSchema = z.strictObject({
   name: z.string().trim().min(1).max(80),
 });

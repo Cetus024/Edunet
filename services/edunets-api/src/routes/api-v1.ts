@@ -18,7 +18,15 @@ import {
 import { ApiError, readJson } from '../errors.js';
 import { analyzeExplanation } from '../services/explanation-analysis.js';
 import { getAnalysisModel, isAnalysisConfigured } from '../services/modelarts.js';
-import { discussionAnalysisSchema } from '../validation.js';
+import { evaluateNotes } from '../services/note-evaluation.js';
+import { getOcrProvider, isOcrConfigured } from '../services/ocr.js';
+import { summarizeNotes } from '../services/summarize-notes.js';
+import {
+  captureEvaluateSchema,
+  captureOcrSchema,
+  captureSummarizeSchema,
+  discussionAnalysisSchema,
+} from '../validation.js';
 import {
   KNOWLEDGE_MODEL_VERSION,
   PHASE1_PARAMETERS,
@@ -855,6 +863,74 @@ api.post('/me/discussion-analysis', loadSession, requireSession, async (context)
     // The upstream error can echo the prompt, which carries the transcript, so
     // it is not logged or returned.
     return context.json({ available: true, analysis: null });
+  }
+});
+
+// Capture Hub: OCR a photographed or scanned page of notes.
+//
+// `available: false` means this deployment has no OCR provider configured;
+// `available: true, text: null` means a provider was called and it failed.
+// The frontend tells those apart -- one says "not set up here", the other
+// says "try again" -- and either way the student's typed/pasted text still
+// works, since OCR only ever adds to that rather than replacing it.
+api.post('/me/capture/ocr', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureOcrSchema.parse(await readJson(context));
+
+  if (!isOcrConfigured()) {
+    return context.json({ available: false, text: null });
+  }
+  const provider = getOcrProvider();
+  if (!provider) return context.json({ available: false, text: null });
+
+  try {
+    const text = await provider.recognize(Buffer.from(input.imageBase64, 'base64'), input.mimeType);
+    return context.json({ available: true, text });
+  } catch {
+    // The upstream error can carry account details; not logged or returned.
+    return context.json({ available: true, text: null });
+  }
+});
+
+// Capture Hub: compress OCR'd and/or typed notes into key points. Not graded
+// against the syllabus -- see /me/capture/evaluate for that -- a summary
+// reflects what the student wrote, nothing more.
+api.post('/me/capture/summarize', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureSummarizeSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({ available: false, points: null });
+  }
+  const model = getAnalysisModel();
+  if (!model) return context.json({ available: false, points: null });
+
+  try {
+    const points = await summarizeNotes(input.text, model);
+    return context.json({ available: true, points });
+  } catch {
+    return context.json({ available: true, points: null });
+  }
+});
+
+// Capture Hub: mark captured notes against the syllabus content behind
+// discussion-analysis, reporting a derived percentage alongside what the notes
+// got right, wrong, and never mentioned.
+api.post('/me/capture/evaluate', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureEvaluateSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({ available: false, evaluation: null });
+  }
+  const model = getAnalysisModel();
+  if (!model) return context.json({ available: false, evaluation: null });
+
+  try {
+    const evaluation = await evaluateNotes(input.topicId, input.text, model);
+    return context.json({ available: true, evaluation });
+  } catch {
+    return context.json({ available: true, evaluation: null });
   }
 });
 
