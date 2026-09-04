@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -52,7 +52,14 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { evaluateNotes as evaluateNotesApi, ocrImage, summarizeNotes as summarizeNotesApi, type NoteEvaluation } from '@/lib/api/capture';
+import {
+  evaluateNotes as evaluateNotesApi,
+  ocrImage,
+  summarizeNotes as summarizeNotesApi,
+  type CaptureFailure,
+  type NoteEvaluation,
+} from '@/lib/api/capture';
+import { ApiConnectionError, isApiError } from '@/lib/api/client';
 import { useCatalog } from '@/lib/api/study';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
@@ -67,6 +74,64 @@ const topicsMap: Record<string, string[]> = {
   'e-math': ['Numbers', 'Algebra', 'Geometry', 'Statistics', 'Probability', 'Mensuration'],
   chemistry: ['Atomic Structure', 'Covalent Bonding', 'Stoichiometry', 'Acids & Bases', 'Redox Reactions', 'Organic Chemistry', 'Rate of Reaction'],
 };
+
+type DebugLogStatus = 'running' | 'success' | 'warning' | 'error';
+
+type DebugLogEntry = {
+  id: string;
+  time: string;
+  stage: string;
+  status: DebugLogStatus;
+  message: string;
+};
+
+function describeCaptureFailure(failure: CaptureFailure): string {
+  if (failure.reason === 'not_configured') {
+    return failure.stage === 'ocr'
+      ? 'OCR is not connected: Azure Vision server credentials are not configured.'
+      : 'Analysis is not connected: no Microsoft Foundry model is configured on the server.';
+  }
+  if (failure.reason === 'no_text') {
+    return 'Azure Vision connected, but it could not detect readable text in this image.';
+  }
+  if (failure.reason === 'no_summary') {
+    return 'The model connected, but it did not produce a usable summary from these notes.';
+  }
+  if (failure.reason === 'topic_not_found') {
+    return 'The summary was created, but the selected topic was not found in the backend syllabus database.';
+  }
+  if (failure.reason === 'invalid_evaluation') {
+    return 'The summary was created, but the model evaluation response could not be read safely.';
+  }
+  if (failure.stage === 'ocr') {
+    return 'Azure Vision is configured, but the OCR request failed or timed out.';
+  }
+  if (failure.stage === 'summary') {
+    return 'The analysis provider is configured, but summary generation failed or timed out.';
+  }
+  if (failure.stage === 'grounding') {
+    return 'The summary was created, but the syllabus database could not be read.';
+  }
+  return 'The summary was created, but evaluation failed or timed out.';
+}
+
+function describeRequestError(error: unknown, operation: string): string {
+  if (error instanceof ApiConnectionError) {
+    return `${operation} could not start because Capture Hub cannot connect to the EduNets API.`;
+  }
+  if (isApiError(error)) {
+    const requestId = error.requestId ? ` Request ID: ${error.requestId}.` : '';
+    return `${operation} failed: ${error.message}${requestId}`;
+  }
+  return `${operation} failed because of an unexpected client error.`;
+}
+
+function debugStatusClass(status: DebugLogStatus): string {
+  if (status === 'success') return 'bg-emerald-500';
+  if (status === 'warning') return 'bg-amber-500';
+  if (status === 'error') return 'bg-red-500';
+  return 'bg-blue-500 animate-pulse';
+}
 
 // Sample materials library
 const materialsSample = [
@@ -304,6 +369,8 @@ export default function CaptureHubPage() {
   const [activeMethod, setActiveMethod] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState('');
   const [scannedPreview, setScannedPreview] = useState<string | null>(null);
+  const [ocrTranscript, setOcrTranscript] = useState('');
+  const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
   // Processing state
   const [extractedContent, setExtractedContent] = useState('');
@@ -338,6 +405,23 @@ export default function CaptureHubPage() {
   const [libraryFilter, setLibraryFilter] = useState('all');
   const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
 
+  const appendDebugLog = useCallback(
+    (stage: string, status: DebugLogStatus, message: string) => {
+      const now = new Date();
+      setDebugLog((current) => [
+        {
+          id: `${now.getTime()}-${Math.random().toString(16).slice(2)}`,
+          time: format(now, 'HH:mm:ss'),
+          stage,
+          status,
+          message,
+        },
+        ...current,
+      ].slice(0, 20));
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!summaryMaterial?.content) {
       setRealSummaryPoints(null);
@@ -346,21 +430,34 @@ export default function CaptureHubPage() {
     let cancelled = false;
     setIsSummarizing(true);
     setRealSummaryPoints(null);
+    appendDebugLog('Summary', 'running', 'Sending the captured notes to the configured analysis provider.');
     summarizeNotesApi(summaryMaterial.content)
       .then((result) => {
         if (cancelled) return;
         if (result.available && result.points && result.points.length > 0) {
           setRealSummaryPoints(result.points);
+          appendDebugLog('Summary', 'success', `Generated ${result.points.length} summary points.`);
+          return;
         }
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'The summary endpoint returned no usable points and no diagnostic reason.';
+        appendDebugLog('Summary', result.available ? 'warning' : 'error', message);
+        toast.error(message);
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = describeRequestError(error, 'Summary');
+        appendDebugLog('Connection', 'error', message);
+        toast.error(message);
+      })
       .finally(() => {
         if (!cancelled) setIsSummarizing(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [summaryMaterial]);
+  }, [appendDebugLog, summaryMaterial]);
 
   // File input refs
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -376,6 +473,7 @@ export default function CaptureHubPage() {
       setScannedPreview(dataUrl);
       setActiveMethod('scan');
       setIsOcrRunning(true);
+      appendDebugLog('OCR', 'running', `Reading ${file.name || 'uploaded image'} with Microsoft Azure AI Vision.`);
 
       // Handwriting recognition, not a canned string -- this used to return the
       // same "Mitosis is the process of..." text regardless of what photo was
@@ -385,17 +483,34 @@ export default function CaptureHubPage() {
       try {
         const result = await ocrImage({ imageBase64: base64, mimeType });
         if (!result.available) {
-          toast.error('Handwriting recognition is not set up for this deployment yet.');
+          const message = result.failure
+            ? describeCaptureFailure(result.failure)
+            : 'OCR is unavailable and the server did not provide a diagnostic reason.';
+          appendDebugLog('OCR', 'error', message);
+          toast.error(message);
         } else if (!result.text?.trim()) {
-          toast.error('No text was recognized in that photo. Try a clearer or closer shot.');
+          const message = result.failure
+            ? describeCaptureFailure(result.failure)
+            : 'OCR completed, but no readable text was returned.';
+          const isProviderError = result.failure?.reason === 'provider_error';
+          appendDebugLog('OCR', isProviderError ? 'error' : 'warning', message);
+          if (isProviderError) toast.error(message);
+          else toast.warning(message);
         } else {
-          setExtractedContent((current) =>
-            [current.trim(), result.text?.trim()].filter(Boolean).join('\n\n')
+          const transcript = result.text.trim();
+          setOcrTranscript((current) =>
+            [current.trim(), transcript].filter(Boolean).join('\n\n--- Next scanned page ---\n\n')
           );
-          toast.success('Text extracted from your photo!');
+          setExtractedContent((current) =>
+            [current.trim(), transcript].filter(Boolean).join('\n\n')
+          );
+          appendDebugLog('OCR', 'success', `OCR transcript received (${transcript.length} characters).`);
+          toast.success('OCR transcript received and shown below.');
         }
-      } catch {
-        toast.error('Could not process that photo. Try again.');
+      } catch (error: unknown) {
+        const message = describeRequestError(error, 'OCR');
+        appendDebugLog('Connection', 'error', message);
+        toast.error(message);
       } finally {
         setIsOcrRunning(false);
       }
@@ -411,6 +526,7 @@ export default function CaptureHubPage() {
       [current.trim(), typedNotes].filter(Boolean).join('\n\n')
     );
     setPastedText('');
+    appendDebugLog('Input', 'success', `Added ${typedNotes.length} typed characters to the combined notes.`);
     toast.success('Typed notes added!');
   };
 
@@ -420,27 +536,61 @@ export default function CaptureHubPage() {
     return resolveRubricTopicId(subjectName, selectedTopic);
   }, [selectedSubject, selectedTopic]);
 
+  const handleTopicSelect = (topic: string) => {
+    setSelectedTopic(topic);
+    const subjectName = subjects.find((subject) => subject.id === selectedSubject)?.name;
+    if (subjectName && !resolveRubricTopicId(subjectName, topic)) {
+      const message = `${subjectName} · ${topic} is not connected to backend syllabus grounding, so evaluation will not run.`;
+      appendDebugLog('Grounding', 'warning', message);
+      toast.warning(message);
+    }
+  };
+
   const handleEvaluate = async () => {
     if (!resolvedTopicId || !extractedContent) return;
     setIsEvaluating(true);
     setEvaluationUnavailable(false);
     setEvaluationSummaryPoints([]);
+    appendDebugLog('Summary', 'running', 'Generating a summary before syllabus evaluation.');
     try {
       const result = await evaluateNotesApi({ topicId: resolvedTopicId, text: extractedContent });
+      if (result.summaryPoints?.length) {
+        setEvaluationSummaryPoints(result.summaryPoints);
+        appendDebugLog('Summary', 'success', `Generated ${result.summaryPoints.length} summary points.`);
+      }
       if (!result.available) {
         setEvaluationUnavailable(true);
-        toast.error('Evaluation is not set up for this deployment yet.');
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'Analysis is unavailable and the server did not provide a diagnostic reason.';
+        appendDebugLog(result.failure?.stage ?? 'Analysis', 'error', message);
+        toast.error(message);
+        return;
+      }
+      if (result.failure) {
+        const message = describeCaptureFailure(result.failure);
+        appendDebugLog(result.failure.stage, 'error', message);
+        toast.error(message);
         return;
       }
       if (!result.evaluation) {
-        toast.error('Could not evaluate these notes -- try adding more content.');
+        const message = 'No evaluation was returned and the server did not provide a diagnostic reason.';
+        appendDebugLog('Evaluation', 'error', message);
+        toast.error(message);
         return;
       }
-      setEvaluationSummaryPoints(result.summaryPoints ?? []);
       setEvaluation(result.evaluation);
       setEvaluationOpen(true);
-    } catch {
-      toast.error('Could not evaluate these notes. Try again.');
+      appendDebugLog(
+        'Evaluation',
+        'success',
+        `Compared the summary with the syllabus database: ${result.evaluation.percentage}% coverage.`,
+      );
+      toast.success('Summary and syllabus evaluation completed.');
+    } catch (error: unknown) {
+      const message = describeRequestError(error, 'Analysis');
+      appendDebugLog('Connection', 'error', message);
+      toast.error(message);
     } finally {
       setIsEvaluating(false);
     }
@@ -491,6 +641,7 @@ export default function CaptureHubPage() {
     setExtractedContent('');
     setActiveMethod(null);
     setScannedPreview(null);
+    setOcrTranscript('');
     setPastedText('');
     setSelectedSubject('');
     setSelectedTopic('');
@@ -500,6 +651,7 @@ export default function CaptureHubPage() {
     setExtractedContent('');
     setActiveMethod(null);
     setScannedPreview(null);
+    setOcrTranscript('');
     setPastedText('');
   };
 
@@ -527,15 +679,15 @@ export default function CaptureHubPage() {
     },
   ];
 
-  // Real catalog topics for the chosen subject, not the old hardcoded list --
-  // see resolvedTopicId above for why that mattered. subjects[].name and the
-  // catalog's subject names are the same eight strings (Biology, Chemistry,
-  // Physics, English, History, Geography, A-Math, E-Math), so the lookup is a
-  // name match, not an id one.
+  // Prefer the real catalog so the selected topic resolves to backend data.
+  // Shisa's focused Mathematics/Chemistry topic map remains as a loading
+  // fallback, and the warning/debug flow below reports any topic that still
+  // cannot resolve to syllabus grounding.
   const availableTopics = useMemo(() => {
     const subjectName = subjects.find((candidate) => candidate.id === selectedSubject)?.name;
     const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);
-    return catalogSubject?.topics.map((topic) => topic.name) ?? [];
+    const catalogTopics = catalogSubject?.topics.map((topic) => topic.name);
+    return catalogTopics?.length ? catalogTopics : (topicsMap[selectedSubject] ?? []);
   }, [catalog, selectedSubject]);
 
   return (
@@ -610,7 +762,7 @@ export default function CaptureHubPage() {
                     />
                     <span>Microsoft Azure AI Vision is reading your notes...</span>
                   </div>
-                ) : extractedContent ? (
+                ) : ocrTranscript ? (
                   <div className="flex items-center gap-2 text-sm text-[#6486B5]">
                     <Check className="w-4 h-4" />
                     <span>Text extracted with Microsoft Azure AI Vision</span>
@@ -666,6 +818,50 @@ export default function CaptureHubPage() {
         </UploadTile>
       </motion.div>
 
+      <Card className="mb-8 overflow-hidden rounded-2xl border border-[#6486B5]/25 bg-white/80 card-shadow">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-studynow-dark">Capture Debug Log</h2>
+              <p className="text-xs text-muted-foreground">
+                Live connection, OCR, summary, and syllabus-analysis status. No credentials are shown.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDebugLog([])}
+              disabled={debugLog.length === 0}
+            >
+              Clear log
+            </Button>
+          </div>
+
+          <div className="mt-4 max-h-52 space-y-2 overflow-y-auto" aria-live="polite">
+            {debugLog.length === 0 ? (
+              <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                No capture or analysis request has run yet.
+              </p>
+            ) : (
+              debugLog.map((entry) => (
+                <div key={entry.id} className="flex gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
+                  <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${debugStatusClass(entry.status)}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2">
+                      <span className="font-bold text-studynow-dark">{entry.stage}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{entry.status}</span>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground">{entry.time}</span>
+                    </div>
+                    <p className="mt-0.5 break-words text-muted-foreground">{entry.message}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Process My Material Section */}
       <AnimatePresence>
         {extractedContent && (
@@ -688,6 +884,28 @@ export default function CaptureHubPage() {
 
             <Card className="border-0 rounded-2xl card-shadow overflow-hidden">
               <CardContent className="p-6">
+                {ocrTranscript && (
+                  <div className="mb-6 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 p-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <Label className="text-sm font-semibold text-studynow-dark">
+                        OCR Transcript (raw)
+                      </Label>
+                      <Badge variant="outline" className="border-[#EAA93C]/40 text-studynow-dark">
+                        {ocrTranscript.length} characters
+                      </Badge>
+                    </div>
+                    <Textarea
+                      value={ocrTranscript}
+                      readOnly
+                      aria-label="Raw OCR transcript"
+                      className="min-h-32 resize-y rounded-xl bg-white/80 font-mono text-xs leading-relaxed"
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      This is exactly what Azure Vision returned. Make corrections in Review Combined Notes below.
+                    </p>
+                  </div>
+                )}
+
                 {/* Editable combined OCR + typed notes. */}
                 <div className="mb-6">
                   <Label className="text-sm font-semibold text-studynow-dark mb-2 block">
@@ -732,9 +950,9 @@ export default function CaptureHubPage() {
                       <Folder className="w-4 h-4 inline mr-1" />
                       Topic
                     </Label>
-                    <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedSubject || !catalog}>
+                    <Select value={selectedTopic} onValueChange={handleTopicSelect} disabled={!selectedSubject}>
                       <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder={!selectedSubject ? 'Select subject first' : !catalog ? 'Loading topics...' : 'Select topic'} />
+                        <SelectValue placeholder={!selectedSubject ? 'Select subject first' : 'Select topic'} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableTopics.map((t) => (
@@ -746,6 +964,13 @@ export default function CaptureHubPage() {
                     </Select>
                   </div>
                 </div>
+
+                {selectedTopic && !resolvedTopicId && (
+                  <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    This topic is not connected to backend syllabus data. You can still save and summarize the notes,
+                    but syllabus evaluation will be skipped.
+                  </div>
+                )}
 
                 {/* Action buttons - checkboxes */}
                 <div className="mb-6">

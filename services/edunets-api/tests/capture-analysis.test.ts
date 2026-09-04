@@ -33,8 +33,9 @@ describe('assessCapturedNotes', () => {
       async () => GROUNDING,
     );
 
-    expect(result?.summaryPoints).toHaveLength(2);
-    expect(result?.evaluation?.percentage).toBe(50);
+    expect(result.summaryPoints).toHaveLength(2);
+    expect(result.evaluation?.percentage).toBe(50);
+    expect(result.failure).toBeNull();
     expect(complete).toHaveBeenCalledTimes(2);
     expect(complete.mock.calls[1][0]).toContain('Mitosis produces two genetically identical daughter cells.');
     expect(complete.mock.calls[1][0]).not.toContain('raw handwritten mitosis notes');
@@ -51,7 +52,46 @@ describe('assessCapturedNotes', () => {
       loadGrounding,
     );
 
-    expect(result).toBeNull();
+    expect(result).toEqual({
+      summaryPoints: [],
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'no_summary' },
+    });
     expect(loadGrounding).not.toHaveBeenCalled();
+  });
+
+  it('reports when the summary cannot be matched to backend syllabus data', async () => {
+    const complete = vi.fn().mockResolvedValue(JSON.stringify({
+      points: ['Mitosis produces genetically identical daughter cells for growth and repair.'],
+    }));
+
+    const result = await assessCapturedNotes(
+      'unknown-topic',
+      'these notes contain enough words to generate one useful summary point for evaluation',
+      { complete },
+      async () => null,
+    );
+
+    expect(result.summaryPoints).toHaveLength(1);
+    expect(result.evaluation).toBeNull();
+    expect(result.failure).toEqual({ stage: 'grounding', reason: 'topic_not_found' });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the exact stage when the analysis provider throws', async () => {
+    const complete = vi.fn().mockRejectedValue(new Error('upstream unavailable'));
+
+    const result = await assessCapturedNotes(
+      'biology-cell-division',
+      'these notes contain enough words to reach the configured analysis provider today',
+      { complete },
+      async () => GROUNDING,
+    );
+
+    expect(result).toEqual({
+      summaryPoints: [],
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'provider_error' },
+    });
   });
 });

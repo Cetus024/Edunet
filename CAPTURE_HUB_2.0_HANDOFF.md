@@ -19,6 +19,13 @@ Capture Hub is designed for O-Level students who often use phones instead of lap
 
 Voice recording and voice translation have been removed from this flow.
 
+## Diagnostics and transparency
+
+- The raw Azure Vision OCR transcript is shown separately from the editable combined notes.
+- A rolling in-page debug log records input, OCR, summary, grounding, evaluation, and connection stages.
+- Toasts distinguish missing configuration, API disconnection, provider failure or timeout, empty OCR/summary output, missing syllabus grounding, and an invalid evaluation response.
+- Diagnostic responses use safe reason codes and do not expose credentials or upstream response bodies.
+
 ## Microsoft integration
 
 - OCR provider: Microsoft Azure AI Vision Image Analysis API `2024-02-01`.
@@ -30,7 +37,7 @@ Voice recording and voice translation have been removed from this flow.
 Required server configuration is documented in `.env.example`:
 
 - `AZURE_VISION_ENDPOINT`
-- `AZURE_VISION_API_KEY`
+- `AZURE_VISION_KEY`
 - `AZURE_FOUNDRY_ENDPOINT`
 - `AZURE_FOUNDRY_API_KEY`
 - `AZURE_FOUNDRY_MODEL`

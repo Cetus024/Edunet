@@ -902,17 +902,35 @@ api.post('/me/capture/ocr', loadSession, requireSession, async (context) => {
   const input = captureOcrSchema.parse(await readJson(context));
 
   if (!isOcrConfigured()) {
-    return context.json({ available: false, text: null });
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'ocr', reason: 'not_configured' },
+    });
   }
   const provider = getOcrProvider();
-  if (!provider) return context.json({ available: false, text: null });
+  if (!provider) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'ocr', reason: 'not_configured' },
+    });
+  }
 
   try {
     const text = await provider.recognize(Buffer.from(input.imageBase64, 'base64'), input.mimeType);
-    return context.json({ available: true, text });
+    return context.json({
+      available: true,
+      text,
+      failure: text.trim() ? null : { stage: 'ocr', reason: 'no_text' },
+    });
   } catch {
     // The upstream error can carry account details; not logged or returned.
-    return context.json({ available: true, text: null });
+    return context.json({
+      available: true,
+      text: null,
+      failure: { stage: 'ocr', reason: 'provider_error' },
+    });
   }
 });
 
@@ -924,16 +942,34 @@ api.post('/me/capture/summarize', loadSession, requireSession, async (context) =
   const input = captureSummarizeSchema.parse(await readJson(context));
 
   if (!isAnalysisConfigured()) {
-    return context.json({ available: false, points: null });
+    return context.json({
+      available: false,
+      points: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
   }
   const model = getAnalysisModel();
-  if (!model) return context.json({ available: false, points: null });
+  if (!model) {
+    return context.json({
+      available: false,
+      points: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
 
   try {
     const points = await summarizeNotes(input.text, model);
-    return context.json({ available: true, points });
+    return context.json({
+      available: true,
+      points,
+      failure: points?.length ? null : { stage: 'summary', reason: 'no_summary' },
+    });
   } catch {
-    return context.json({ available: true, points: null });
+    return context.json({
+      available: true,
+      points: null,
+      failure: { stage: 'summary', reason: 'provider_error' },
+    });
   }
 });
 
@@ -946,20 +982,38 @@ api.post('/me/capture/evaluate', loadSession, requireSession, async (context) =>
   const input = captureEvaluateSchema.parse(await readJson(context));
 
   if (!isAnalysisConfigured()) {
-    return context.json({ available: false, evaluation: null });
+    return context.json({
+      available: false,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
   }
   const model = getAnalysisModel();
-  if (!model) return context.json({ available: false, evaluation: null });
+  if (!model) {
+    return context.json({
+      available: false,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
 
   try {
     const assessment = await assessCapturedNotes(input.topicId, input.text, model);
     return context.json({
       available: true,
-      summaryPoints: assessment?.summaryPoints ?? null,
-      evaluation: assessment?.evaluation ?? null,
+      summaryPoints: assessment.summaryPoints,
+      evaluation: assessment.evaluation,
+      failure: assessment.failure,
     });
   } catch {
-    return context.json({ available: true, summaryPoints: null, evaluation: null });
+    return context.json({
+      available: true,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'evaluation', reason: 'provider_error' },
+    });
   }
 });
 
