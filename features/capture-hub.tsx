@@ -58,6 +58,7 @@ import { format } from 'date-fns';
 import { useTranscription } from '@/hooks/use-transcription';
 import { useMascotFeedback } from '@/features/mascot';
 import { evaluateNotes as evaluateNotesApi, ocrImage, summarizeNotes as summarizeNotesApi, type NoteEvaluation } from '@/lib/api/capture';
+import { useCatalog } from '@/lib/api/study';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
 // Subject data
@@ -336,6 +337,7 @@ function getTypeIcon(type: string) {
 
 export default function CaptureHubPage() {
   const { notify } = useMascotFeedback();
+  const { data: catalog } = useCatalog();
   const {
     status: transcriptionStatus,
     finalTranscript,
@@ -660,7 +662,16 @@ export default function CaptureHubPage() {
     },
   ];
 
-  const availableTopics = selectedSubject ? topicsMap[selectedSubject] || [] : [];
+  // Real catalog topics for the chosen subject, not the old hardcoded list --
+  // see resolvedTopicId above for why that mattered. subjects[].name and the
+  // catalog's subject names are the same eight strings (Biology, Chemistry,
+  // Physics, English, History, Geography, A-Math, E-Math), so the lookup is a
+  // name match, not an id one.
+  const availableTopics = useMemo(() => {
+    const subjectName = subjects.find((candidate) => candidate.id === selectedSubject)?.name;
+    const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);
+    return catalogSubject?.topics.map((topic) => topic.name) ?? [];
+  }, [catalog, selectedSubject]);
 
   return (
     <div className="p-6 lg:p-8 pattern-overlay">
@@ -1030,9 +1041,9 @@ export default function CaptureHubPage() {
                       <Folder className="w-4 h-4 inline mr-1" />
                       Topic
                     </Label>
-                    <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedSubject}>
+                    <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedSubject || !catalog}>
                       <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder={selectedSubject ? 'Select topic' : 'Select subject first'} />
+                        <SelectValue placeholder={!selectedSubject ? 'Select subject first' : !catalog ? 'Loading topics...' : 'Select topic'} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableTopics.map((t) => (
