@@ -423,7 +423,7 @@ export default function StudentConceptWebView() {
     setPan((current: PanState) => ({ ...current, x: dragging.panX + event.clientX - dragging.x, y: dragging.panY + event.clientY - dragging.y }));
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
     const canvas = canvasRef.current;
     setPan((current: PanState) => {
@@ -440,7 +440,19 @@ export default function StudentConceptWebView() {
       const contentY = (svgY - current.y) / current.zoom;
       return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // React registers delegated wheel listeners as passive, so preventDefault()
+    // inside onWheel cannot stop trackpad pinch/Ctrl+wheel from zooming the
+    // browser page. A native non-passive listener keeps the gesture scoped to
+    // the concept canvas.
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   const selectedPopupTier = popup ? getKnowledgeScoreColor(popup.node.memoryScore) : null;
   // The quiz page's ?topic= deep link matches on a topic's display NAME
@@ -503,7 +515,7 @@ export default function StudentConceptWebView() {
         </div>
       </div>
 
-      <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onWheel={handleWheel} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
+      <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
         <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
           <defs>
             <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>

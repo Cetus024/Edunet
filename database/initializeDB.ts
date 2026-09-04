@@ -43,7 +43,13 @@ async function replaceCatalog(): Promise<void> {
       });
     }
 
-    // Subjects before topics: topics.subjectId references subjects.id.
+    // Remove stale topics before their parent subjects. If real user records
+    // still reference a removed topic/subject, the foreign key intentionally
+    // stops initialization instead of silently deleting learning history.
+    if (topicSeed.length > 0) {
+      await tx.delete(topics).where(notInArray(topics.id, topicSeed.map((topic) => topic.id)));
+    }
+
     if (subjectSeed.length > 0) {
       await tx.delete(subjects).where(notInArray(subjects.id, subjectSeed.map((subject) => subject.id)));
       await tx.insert(subjects).values(subjectSeed).onConflictDoUpdate({
@@ -57,7 +63,6 @@ async function replaceCatalog(): Promise<void> {
     }
 
     if (topicSeed.length > 0) {
-      await tx.delete(topics).where(notInArray(topics.id, topicSeed.map((topic) => topic.id)));
       await tx.insert(topics).values(topicSeed).onConflictDoUpdate({
         target: topics.id,
         set: {

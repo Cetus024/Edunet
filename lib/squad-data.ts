@@ -45,7 +45,7 @@ export interface StrugglingFriend {
 // (Biology/Chemistry/Physics, see database/seed) so getStrugglingFriendsForTopic
 // can match them against a signed-in student's authenticated concept web
 // nodes. Keep these in sync with the catalog if topic names ever change there.
-export const squadMembers: SquadMember[] = [
+const squadMemberSeeds: SquadMember[] = [
   {
     id: 'maya',
     name: 'Maya',
@@ -148,6 +148,13 @@ export const squadMembers: SquadMember[] = [
   },
 ];
 
+export const squadMembers: SquadMember[] = squadMemberSeeds.map((member) => ({
+  ...member,
+  subjects: member.subjects
+    .filter((subject) => subject.subject === 'Chemistry' || subject.subject === 'E-Math')
+    .map((subject) => subject.subject === 'E-Math' ? { ...subject, subject: 'Mathematics' } : subject),
+}));
+
 // Per-topic scores are derived from each member's real leaderboard subject
 // score (squadMembers[].subjects[].score) with a bounded spread per pair, so
 // the average of a member's tracked topics in a subject lands back on their
@@ -158,7 +165,7 @@ export const squadMembers: SquadMember[] = [
 // subject score is already low (see weakTopics below) - not everyone,
 // everywhere, like the old flat 24-39 range did regardless of leaderboard
 // standing.
-export const squadMemberTopicScores: SquadMemberTopicScore[] = [
+const squadMemberTopicScoreSeeds: SquadMemberTopicScore[] = [
   // Biology
   { memberId: 'maya', subject: 'Biology', topic: 'Nutrition', memoryScore: 97 },
   { memberId: 'maya', subject: 'Biology', topic: 'Ecology', memoryScore: 79 },
@@ -248,14 +255,16 @@ export const squadMemberTopicScores: SquadMemberTopicScore[] = [
   { memberId: 'nora', subject: 'E-Math', topic: 'Numbers', memoryScore: 47 },
 ];
 
+export const squadMemberTopicScores: SquadMemberTopicScore[] = squadMemberTopicScoreSeeds
+  .filter((score) => score.subject === 'Chemistry' || score.subject === 'E-Math')
+  .map((score) => score.subject === 'E-Math' ? { ...score, subject: 'Mathematics' } : score);
+
 // Curated from the genuinely lowest scores in squadMemberTopicScores above
 // (was previously 4 fixed picks that didn't track the real data - now the
 // actual weakest topics for whichever member is weakest at them).
 export const weakTopics: WeakTopic[] = [
-  { id: 'genetics', topicId: 'biology-genetics', topic: 'Genetics', subject: 'Biology', memberId: 'nora', score: 37 },
   { id: 'rate-of-reaction', topicId: 'chemistry-rate-of-reaction', topic: 'Rate of Reaction', subject: 'Chemistry', memberId: 'leo', score: 39 },
-  { id: 'visual-text', topicId: 'english-visual-text', topic: 'Visual Text', subject: 'English', memberId: 'nora', score: 40 },
-  { id: 'rivers', topicId: 'geography-rivers', topic: 'Rivers', subject: 'Geography', memberId: 'nora', score: 42 },
+  { id: 'numbers', topicId: 'e-math-numbers', topic: 'Numbers', subject: 'Mathematics', memberId: 'nora', score: 47 },
 ];
 
 export function getInitials(name: string): string {

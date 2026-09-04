@@ -62,26 +62,14 @@ import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
 // Subject data
 const subjects = [
-  { id: 'bio', name: 'Biology', icon: '🧬' },
-  { id: 'chem', name: 'Chemistry', icon: '⚗️' },
-  { id: 'phys', name: 'Physics', icon: '⚛️' },
-  { id: 'eng', name: 'English', icon: '📚' },
-  { id: 'hist', name: 'History', icon: '🏛️' },
-  { id: 'geo', name: 'Geography', icon: '🌍' },
-  { id: 'amath', name: 'A-Math', icon: '📐' },
-  { id: 'emath', name: 'E-Math', icon: '🔢' },
+  { id: 'e-math', name: 'Mathematics', icon: '🔢' },
+  { id: 'chemistry', name: 'Chemistry', icon: '⚗️' },
 ];
 
 // Sample topics per subject
 const topicsMap: Record<string, string[]> = {
-  bio: ['Cell Division', 'Photosynthesis', 'Human Circulation', 'DNA & Genetics', 'Ecology'],
-  chem: ['Atomic Structure', 'Chemical Bonding', 'Acids & Bases', 'Organic Chemistry', 'Redox Reactions'],
-  phys: ['Kinematics', 'Forces & Motion', 'Energy', 'Waves', 'Electricity'],
-  eng: ['Comprehension', 'Summary Writing', 'Essay Writing', 'Literature Analysis', 'Grammar'],
-  hist: ['World War I', 'World War II', 'Cold War', 'Singapore History', 'Southeast Asia'],
-  geo: ['Weather & Climate', 'Plate Tectonics', 'Rivers', 'Tourism', 'Population'],
-  amath: ['Quadratics', 'Trigonometry', 'Calculus', 'Logarithms', 'Binomial Theorem'],
-  emath: ['Algebra', 'Geometry', 'Statistics', 'Probability', 'Mensuration'],
+  'e-math': ['Numbers', 'Algebra', 'Geometry', 'Statistics', 'Probability', 'Mensuration'],
+  chemistry: ['Atomic Structure', 'Covalent Bonding', 'Stoichiometry', 'Acids & Bases', 'Redox Reactions', 'Organic Chemistry', 'Rate of Reaction'],
 };
 
 // Sample materials library
@@ -98,7 +86,7 @@ const materialsSample = [
   {
     id: '2',
     name: 'Organic Chemistry Summary',
-    subject: 'chem',
+    subject: 'chemistry',
     topic: 'Organic Chemistry',
     dateUploaded: '2024-01-14',
     type: 'document',
@@ -142,8 +130,8 @@ const materialsSample = [
   },
   {
     id: '7',
-    name: 'E-Math Geometry Formula Sheet',
-    subject: 'emath',
+    name: 'Mathematics Geometry Formula Sheet',
+    subject: 'e-math',
     topic: 'Geometry',
     dateUploaded: '2024-01-09',
     type: 'scan',
@@ -178,7 +166,9 @@ const materialsSample = [
   },
   // Sample entries have no captured text of their own, so their summary
   // falls back to metadata-only bullets — see buildMaterialSummary below.
-].map((material) => ({ ...material, content: null as string | null }));
+]
+  .filter((material) => ['e-math', 'chemistry'].includes(material.subject))
+  .map((material) => ({ ...material, content: null as string | null }));
 
 // Animated soundwave component
 function SoundWave({ isActive }: { isActive: boolean }) {
@@ -649,36 +639,24 @@ export default function CaptureHubPage() {
   const filteredMaterials =
     libraryFilter === 'all' ? materials : materials.filter((m) => m.subject === libraryFilter);
 
-  const scienceSubjects = subjects.filter((subject) => ['bio', 'chem', 'phys'].includes(subject.id));
-  const humanitiesSubjects = subjects.filter((subject) => ['eng', 'hist', 'geo'].includes(subject.id));
-  const mathSubjects = subjects.filter((subject) => ['amath', 'emath'].includes(subject.id));
   const libraryCards = [
     {
-      icon: <span className="text-lg leading-none">🧪</span>,
-      title: 'Science Stack',
-      description: `${scienceSubjects.reduce((count, subject) => count + materials.filter((material) => material.subject === subject.id).length, 0)} saved items`,
-      date: 'Biology • Chemistry • Physics',
-      onClick: () => setLibraryFilter('bio'),
-      isActive: scienceSubjects.some((subject) => subject.id === libraryFilter),
+      icon: <span className="text-lg leading-none">🔢</span>,
+      title: 'Mathematics',
+      description: `${materials.filter((material) => material.subject === 'e-math').length} saved items`,
+      date: 'Syllabus 4052',
+      onClick: () => setLibraryFilter('e-math'),
+      isActive: libraryFilter === 'e-math',
       className: "[grid-area:stack] hover:-translate-y-10 before:absolute before:left-0 before:top-0 before:h-full before:w-full before:rounded-2xl before:outline before:outline-1 before:outline-border before:bg-background/50 before:content-[''] before:transition-opacity before:duration-700 hover:before:opacity-0",
     },
     {
-      icon: <span className="text-lg leading-none">📚</span>,
-      title: 'Writing & Humans',
-      description: `${humanitiesSubjects.reduce((count, subject) => count + materials.filter((material) => material.subject === subject.id).length, 0)} saved items`,
-      date: 'English • History • Geography',
-      onClick: () => setLibraryFilter('eng'),
-      isActive: humanitiesSubjects.some((subject) => subject.id === libraryFilter),
-      className: "[grid-area:stack] translate-x-12 translate-y-10 hover:-translate-y-1 before:absolute before:left-0 before:top-0 before:h-full before:w-full before:rounded-2xl before:outline before:outline-1 before:outline-border before:bg-background/50 before:content-[''] before:transition-opacity before:duration-700 hover:before:opacity-0",
-    },
-    {
-      icon: <span className="text-lg leading-none">📐</span>,
-      title: 'Math Stack',
-      description: `${mathSubjects.reduce((count, subject) => count + materials.filter((material) => material.subject === subject.id).length, 0)} saved items`,
-      date: 'A-Math • E-Math',
-      onClick: () => setLibraryFilter('amath'),
-      isActive: mathSubjects.some((subject) => subject.id === libraryFilter),
-      className: '[grid-area:stack] translate-x-24 translate-y-20 hover:translate-y-10',
+      icon: <span className="text-lg leading-none">⚗️</span>,
+      title: 'Chemistry',
+      description: `${materials.filter((material) => material.subject === 'chemistry').length} saved items`,
+      date: 'Syllabus 6092',
+      onClick: () => setLibraryFilter('chemistry'),
+      isActive: libraryFilter === 'chemistry',
+      className: '[grid-area:stack] translate-x-14 translate-y-12 hover:translate-y-2',
     },
   ];
 

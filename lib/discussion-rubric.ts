@@ -39,7 +39,8 @@ import { topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/co
  */
 export function resolveRubricTopicId(subject: string, topicName: string): string | null {
   const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const candidate = `${slug(subject)}-${slug(topicName)}`;
+  const subjectSlug = slug(subject) === 'mathematics' ? 'e-math' : slug(subject);
+  const candidate = `${subjectSlug}-${slug(topicName)}`;
   return topicSubconcepts[candidate] ? candidate : null;
 }
 

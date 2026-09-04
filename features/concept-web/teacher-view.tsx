@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Brain, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'lucide-react';
 
@@ -314,7 +314,7 @@ export default function TeacherConceptWebView() {
     if (!dragging) return;
     setPan((current) => ({ ...current, x: dragging.panX + event.clientX - dragging.x, y: dragging.panY + event.clientY - dragging.y }));
   };
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
     const canvas = canvasRef.current;
     setPan((current) => {
@@ -327,7 +327,17 @@ export default function TeacherConceptWebView() {
       const contentY = (svgY - current.y) / current.zoom;
       return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Keep browser page zoom/scroll from winning over the graph interaction.
+    // React's delegated wheel listener is passive, so this must be native.
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   const selectedPopupTier = popup ? getKnowledgeScoreColor(popup.node.memoryScore) : null;
 
@@ -408,7 +418,7 @@ export default function TeacherConceptWebView() {
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onWheel={handleWheel} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
+        <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
           {(rosterLoading || webLoading) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm font-semibold text-muted-foreground">
               Loading your class's concept web…

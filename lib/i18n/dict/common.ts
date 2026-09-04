@@ -35,5 +35,5 @@ export const commonDict = {
   'subject.history': { en: 'History', zh: '历史' },
   'subject.geography': { en: 'Geography', zh: '地理' },
   'subject.aMath': { en: 'A-Math', zh: '高级数学' },
-  'subject.eMath': { en: 'E-Math', zh: '基础数学' },
+  'subject.eMath': { en: 'Mathematics', zh: '数学' },
 } satisfies Dictionary;

@@ -66,6 +66,7 @@ const SUBJECT_KEYS: Record<string, TranslationKey> = {
   History: 'subject.history',
   Geography: 'subject.geography',
   'A-Math': 'subject.aMath',
+  Mathematics: 'subject.eMath',
   'E-Math': 'subject.eMath',
 };
 

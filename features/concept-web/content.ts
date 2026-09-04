@@ -321,7 +321,7 @@ export const realisticTopicConnections: Record<string, { from: string; to: strin
     { from: 'a-math-trigonometry', to: 'a-math-differentiation' }, // differentiating trigonometric functions
     { from: 'a-math-differentiation', to: 'a-math-integration' }, // integration reverses differentiation
   ],
-  'E-Math': [
+  Mathematics: [
     { from: 'e-math-algebra', to: 'e-math-numbers' }, // algebra builds directly on number properties
     { from: 'e-math-geometry', to: 'e-math-mensuration' }, // mensuration applies geometric shape properties
     { from: 'e-math-statistics', to: 'e-math-probability' }, // both are data and chance topics, often taught together

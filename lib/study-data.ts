@@ -181,7 +181,22 @@ const createInitialData = (): SubjectData[] => [
       { id: 'emath-mensuration', subjectId: 'emath', name: 'Mensuration', memoryScore: null, lastReviewedAt: null, nextReviewAt: null, quizAttempts: 0 },
     ],
   },
-];
+]
+  .filter((subject) => ['emath', 'chem'].includes(subject.id))
+  .map((subject) => {
+    const id = subject.id === 'emath' ? 'e-math' : 'chemistry';
+    return {
+      ...subject,
+      id,
+      name: subject.id === 'emath' ? 'Mathematics' : subject.name,
+      topics: subject.topics.map((topic) => ({
+        ...topic,
+        id: `${id}-${topic.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+        subjectId: id,
+      })),
+    };
+  })
+  .sort((first, second) => ['e-math', 'chemistry'].indexOf(first.id) - ['e-math', 'chemistry'].indexOf(second.id));
 
 // Helper to get ISO date string for X days ago
 function getDateDaysAgo(days: number): string {

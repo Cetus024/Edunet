@@ -1,4 +1,5 @@
 import quizCatalogFixtureJson from './fixtures/quiz-catalog.json';
+import { ACTIVE_SUBJECT_IDS } from './constants.js';
 
 function slugify(value: string): string {
   return value
@@ -39,7 +40,21 @@ type QuizCatalogFixture = {
   }>;
 };
 
-export const quizCatalogFixture = quizCatalogFixtureJson as QuizCatalogFixture;
+const completeQuizCatalogFixture = quizCatalogFixtureJson as QuizCatalogFixture;
+
+export const quizCatalogFixture: QuizCatalogFixture = {
+  ...completeQuizCatalogFixture,
+  version: 2,
+  subjects: ACTIVE_SUBJECT_IDS.map((subjectId, position) => {
+    const subject = completeQuizCatalogFixture.subjects.find((candidate) => candidate.id === subjectId);
+    if (!subject) throw new Error(`Active subject ${subjectId} is missing from quiz-catalog.json.`);
+    return {
+      ...subject,
+      name: subjectId === 'e-math' ? 'Mathematics' : subject.name,
+      position,
+    };
+  }),
+};
 
 // Singapore secondary schools (mainstream, religious, madrasah, and NT/special-needs
 // secondary schools), sourced from https://en.wikipedia.org/wiki/List_of_secondary_schools_in_Singapore.

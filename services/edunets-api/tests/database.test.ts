@@ -26,9 +26,10 @@ function expectUnique(values: readonly string[]): void {
 describe('database catalog seed', () => {
   it('contains the exact fixed catalog counts', () => {
     expect(schoolSeed).toHaveLength(151);
-    expect(subjectSeed).toHaveLength(8);
-    expect(topicSeed).toHaveLength(51);
-    expect(quizQuestionSeed).toHaveLength(816);
+    expect(subjectSeed).toHaveLength(2);
+    expect(topicSeed).toHaveLength(13);
+    expect(quizQuestionSeed).toHaveLength(208);
+    expect(subjectSeed.map((subject) => subject.name)).toEqual(['Mathematics', 'Chemistry']);
   });
 
   it('uses unique school, subject, and topic IDs', () => {

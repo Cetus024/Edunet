@@ -1,5 +1,6 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 
+import { ACTIVE_SUBJECT_IDS } from '../../../../database/constants.js';
 import { db } from '../../../../database/index.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { userTopicModeProgress, userTopicProgress } from '../../../../database/schema/learning.js';
@@ -28,11 +29,16 @@ export type StudyStateSubject = {
 
 export async function getStudyStateForUser(userId: string): Promise<{ subjects: StudyStateSubject[] }> {
   const calculatedAt = new Date();
+  const activeSubjectIds: string[] = [...ACTIVE_SUBJECT_IDS];
   const [subjectRows, topicRows, modeRows, reminderRows] = await Promise.all([
     db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
-      .from(subjects).orderBy(asc(subjects.position)),
+      .from(subjects)
+      .where(inArray(subjects.id, activeSubjectIds))
+      .orderBy(asc(subjects.position)),
     db.select({ id: topics.id, subjectId: topics.subjectId, name: topics.name })
-      .from(topics).orderBy(asc(topics.subjectId), asc(topics.position)),
+      .from(topics)
+      .where(inArray(topics.subjectId, activeSubjectIds))
+      .orderBy(asc(topics.subjectId), asc(topics.position)),
     db.select({
       topicId: userTopicModeProgress.topicId,
       mode: userTopicModeProgress.assessmentMode,
@@ -79,9 +85,12 @@ export async function getStudyStateForUser(userId: string): Promise<{ subjects: 
   }
 
   return {
-    subjects: subjectRows.map((subject) => ({
-      ...subject,
-      topics: topicsBySubject.get(subject.id) ?? [],
-    })),
+    subjects: subjectRows
+      .map((subject) => ({
+        ...subject,
+        name: subject.id === 'e-math' ? 'Mathematics' : subject.name,
+        topics: topicsBySubject.get(subject.id) ?? [],
+      }))
+      .sort((first, second) => activeSubjectIds.indexOf(first.id) - activeSubjectIds.indexOf(second.id)),
   };
 }

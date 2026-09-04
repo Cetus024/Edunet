@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
+import { ACTIVE_SUBJECT_IDS } from '../../../../database/constants.js';
 import { db } from '../../../../database/index.js';
 import {
   schools,
@@ -78,6 +79,16 @@ import {
 } from '../validation.js';
 
 const api = new Hono<AppEnv>();
+const activeSubjectIds: string[] = [...ACTIVE_SUBJECT_IDS];
+
+function activeSubjectName(subject: { id: string; name: string }) {
+  return subject.id === 'e-math' ? 'Mathematics' : subject.name;
+}
+
+function activeSubjectPosition(subjectId: string) {
+  const position = activeSubjectIds.indexOf(subjectId);
+  return position === -1 ? activeSubjectIds.length : position;
+}
 
 function requireUserId(context: Context<AppEnv>): string {
   const user = context.get('user');
@@ -108,7 +119,7 @@ function localizeSessionQuestions<T extends { questions?: unknown }>(result: T, 
 }
 
 async function loadTeachingScopes(userId: string) {
-  return db.select({
+  const rows = await db.select({
     id: teachingScopes.id,
     schoolId: teachingScopes.schoolId,
     schoolName: schools.name,
@@ -121,8 +132,16 @@ async function loadTeachingScopes(userId: string) {
     .from(teachingScopes)
     .innerJoin(schools, eq(schools.id, teachingScopes.schoolId))
     .innerJoin(subjects, eq(subjects.id, teachingScopes.subjectId))
-    .where(eq(teachingScopes.userId, userId))
+    .where(and(
+      eq(teachingScopes.userId, userId),
+      inArray(teachingScopes.subjectId, activeSubjectIds),
+    ))
     .orderBy(asc(teachingScopes.position), asc(teachingScopes.id));
+
+  return rows.map((scope) => ({
+    ...scope,
+    subjectName: activeSubjectName({ id: scope.subjectId, name: scope.subjectName }),
+  }));
 }
 
 api.get('/catalog', async (context) => {
@@ -132,9 +151,11 @@ api.get('/catalog', async (context) => {
       .orderBy(asc(schools.position)),
     db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
       .from(subjects)
+      .where(inArray(subjects.id, activeSubjectIds))
       .orderBy(asc(subjects.position)),
     db.select({ id: topics.id, subjectId: topics.subjectId, name: topics.name })
       .from(topics)
+      .where(inArray(topics.subjectId, activeSubjectIds))
       .orderBy(asc(topics.subjectId), asc(topics.position)),
     db.select({ topicId: topicAliases.topicId, alias: topicAliases.alias })
       .from(topicAliases)
@@ -162,10 +183,13 @@ api.get('/catalog', async (context) => {
 
   return context.json({
     schools: schoolRows,
-    subjects: subjectRows.map((subject) => ({
-      ...subject,
-      topics: topicsBySubject.get(subject.id) ?? [],
-    })),
+    subjects: subjectRows
+      .map((subject) => ({
+        ...subject,
+        name: activeSubjectName(subject),
+        topics: topicsBySubject.get(subject.id) ?? [],
+      }))
+      .sort((first, second) => activeSubjectPosition(first.id) - activeSubjectPosition(second.id)),
   });
 });
 

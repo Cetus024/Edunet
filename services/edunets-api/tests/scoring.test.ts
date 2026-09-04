@@ -166,15 +166,15 @@ describe('quiz scoring and Phase 1 question sets', () => {
   });
 
   it('selects deterministic ten-question MCQ and five-question Essay sets', () => {
-    const biologyRows = questionRows.filter((row) => row.topicId.startsWith('biology-'));
-    const ecology = topicById.get('biology-ecology')!;
-    const mcq = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'mcq', 'attempt')!;
-    const repeated = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'mcq', 'attempt')!;
-    const essay = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'essay', 'attempt')!;
-    const placement = selectQuestionRows(biologyRows, ecology.id, ecology.position, 'placement', 'attempt')!;
+    const chemistryRows = questionRows.filter((row) => row.topicId.startsWith('chemistry-'));
+    const atomicStructure = topicById.get('chemistry-atomic-structure')!;
+    const mcq = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'mcq', 'attempt')!;
+    const repeated = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'mcq', 'attempt')!;
+    const essay = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'essay', 'attempt')!;
+    const placement = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'placement', 'attempt')!;
 
     expect(mcq).toHaveLength(10);
-    expect(mcq.every((question) => question.topicId === ecology.id && question.type === 'mcq')).toBe(true);
+    expect(mcq.every((question) => question.topicId === atomicStructure.id && question.type === 'mcq')).toBe(true);
     expect(mcq.map((question) => question.id)).toEqual(repeated.map((question) => question.id));
     expect(essay).toHaveLength(5);
     expect(essay.every((question) => question.type === 'structured' && question.maxMarks === 10)).toBe(true);
@@ -183,8 +183,8 @@ describe('quiz scoring and Phase 1 question sets', () => {
 
   it('maps all fixture questions to unique stable keys', () => {
     const keys = questionRows.map((question) => questionKeyFromDatabaseId(question.id, question.topicId));
-    expect(topicSeed).toHaveLength(51);
-    expect(questionRows).toHaveLength(816);
-    expect(new Set(keys).size).toBe(816);
+    expect(topicSeed).toHaveLength(13);
+    expect(questionRows).toHaveLength(208);
+    expect(new Set(keys).size).toBe(208);
   });
 });
