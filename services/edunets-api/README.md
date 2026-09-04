@@ -15,8 +15,9 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials. |
 | `CORS_ORIGINS` | Comma-separated exact frontend origins. Wildcards are rejected. |
 | `WEB_APP_URL` | Public frontend origin used in Study Squad invitation links. |
-| `RESEND_API_KEY` | Server-only Resend API key used to deliver squad invitations. |
+| `RESEND_API_KEY` | Server-only Resend API key used to deliver transactional emails. |
 | `SQUAD_INVITE_FROM_EMAIL` | Sender using a domain verified in Resend. |
+| `AUTH_FROM_EMAIL` | Sender for password-reset emails using a domain verified in Resend. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
 Initialize and harden a new Supabase database from the repository root before starting the API:
@@ -48,7 +49,7 @@ Public endpoints:
 - `GET /health` — process liveness.
 - `GET /ready` — PostgreSQL readiness; returns `503` while unavailable.
 - `GET /api/v1/catalog` — fixed schools plus nested subjects, topics, and aliases.
-- `GET|POST /api/auth/*` — Better Auth Google OAuth, session, and sign-out endpoints. Email/password registration and login are disabled.
+- `GET|POST /api/auth/*` — Better Auth Google OAuth, email/password registration and login, password reset, session, and sign-out endpoints.
 
 Authenticated endpoints require the Better Auth HttpOnly cookie and browser requests must use `credentials: "include"`:
 
@@ -85,9 +86,11 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `PUT /api/v1/me/notifications/:notificationId/read`
 - `PUT /api/v1/me/notifications/read-all`
 
-Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; the server validates it again before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
+Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; email/password signup sends the same field in its protected request body. The server validates both paths before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
 
-Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted; different-email implicit linking remains disabled.
+Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted. Google and credential accounts are never linked implicitly, even when their email addresses match; users must continue with their original sign-in method.
+
+Email/password accounts use passwords from 8 to 128 characters and are signed in immediately after registration without email verification. Password-reset links expire after one hour, can be used once, and revoke existing sessions. Reset requests always return the same public response for unknown, Google-only, and password-account email addresses; only an existing credential account receives mail.
 
 Student onboarding first requests a placement set with a UUID, subject, and topic. The response contains exactly ten MCQs and deliberately omits correct answers and explanations. The same UUID and all ten answers are then submitted atomically with onboarding:
 

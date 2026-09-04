@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Loader2, LogIn, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, LogIn, Mail, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { GoogleAuthButton, startGoogleAuth } from '@/features/auth/google-auth';
+import { buildAuthPath } from '@/features/auth/auth-navigation';
+import { GoogleAuthButton, startGoogleAuth, useOAuthErrorToast } from '@/features/auth/google-auth';
 import { getAuthErrorMessage } from '@/lib/api/auth-client';
 import { useCurrentAccount } from '@/lib/api/me';
 import {
@@ -27,6 +28,9 @@ export default function SquadInvitePage() {
   const accountQuery = useCurrentAccount();
   const [isGooglePending, setIsGooglePending] = useState(false);
   const { t } = useTranslation();
+  const invitePath = token ? `/squad-invite?token=${encodeURIComponent(token)}` : '/squad-invite';
+
+  useOAuthErrorToast();
 
   const acceptMutation = useMutation({
     mutationFn: () => {
@@ -47,7 +51,6 @@ export default function SquadInvitePage() {
 
   const continueWithGoogle = async () => {
     if (!token) return;
-    const invitePath = `/squad-invite?token=${encodeURIComponent(token)}`;
     setIsGooglePending(true);
     try {
       const result = await startGoogleAuth({
@@ -117,12 +120,34 @@ export default function SquadInvitePage() {
                     </Button>
                   </>
                 ) : (
-                  <GoogleAuthButton
-                    label={t('squadInvite.continueWithGoogle')}
-                    busy={isGooglePending}
-                    disabled={isGooglePending}
-                    onClick={() => void continueWithGoogle()}
-                  />
+                  <div className="space-y-4">
+                    <GoogleAuthButton
+                      label={t('squadInvite.continueWithGoogle')}
+                      busy={isGooglePending}
+                      disabled={isGooglePending}
+                      onClick={() => void continueWithGoogle()}
+                    />
+                    <div className="flex items-center gap-3" aria-hidden="true">
+                      <span className="h-px flex-1 bg-slate-200" />
+                      <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{t('squadInvite.or')}</span>
+                      <span className="h-px flex-1 bg-slate-200" />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(buildAuthPath('/login', invitePath))}
+                      className="h-12 w-full rounded-full border-[var(--edunets-dark-blue)] font-black text-[var(--edunets-dark-blue)]"
+                    >
+                      <Mail className="h-4 w-4" /> {t('squadInvite.continueWithEmail')}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(buildAuthPath('/signup', invitePath))}
+                      className="inline-flex items-center gap-2 text-sm font-black text-[var(--edunets-dark-blue)] hover:text-[var(--edunets-light-blue)] focus-visible:outline-none focus-visible:underline"
+                    >
+                      <UserPlus className="h-4 w-4" /> {t('squadInvite.createWithEmail')}
+                    </button>
+                  </div>
                 )}
               </div>
 

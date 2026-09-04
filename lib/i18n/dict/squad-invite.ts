@@ -19,6 +19,15 @@ export const squadInviteDict = {
     en: 'Continue with the invited Google account',
     zh: '使用受邀的 Google 账号继续',
   },
+  'squadInvite.or': { en: 'or', zh: '或' },
+  'squadInvite.continueWithEmail': {
+    en: 'Log in with email and password',
+    zh: '使用邮箱和密码登录',
+  },
+  'squadInvite.createWithEmail': {
+    en: 'Create an email account',
+    zh: '创建邮箱账号',
+  },
   'squadInvite.goToEdunets': { en: 'Go to EduNets', zh: '前往 EduNets' },
   'squadInvite.join': { en: 'Join {squad}', zh: '加入 {squad}' },
   'squadInvite.invitedBy': {

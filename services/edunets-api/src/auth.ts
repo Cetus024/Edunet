@@ -1,14 +1,17 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { betterAuth } from 'better-auth';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../../database/index.js';
 import { accounts, sessions, users, verifications } from '../../../database/schema/auth.js';
 import {
   ACCOUNT_LINKING_POLICY,
   applySignupReferralToNewUser,
+  CREDENTIAL_PROVIDER_ID,
   GOOGLE_OAUTH_SCOPES,
   requireVerifiedGoogleProfile,
 } from './auth-policy.js';
 import { env } from './env.js';
+import { sendPasswordResetEmail } from './services/auth-email.js';
 
 export const auth = betterAuth({
   appName: 'EduNets',
@@ -45,7 +48,29 @@ export const auth = betterAuth({
     },
   },
   emailAndPassword: {
-    enabled: false,
+    enabled: true,
+    requireEmailVerification: false,
+    autoSignIn: true,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }) => {
+      const [credential] = await db
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(and(
+          eq(accounts.userId, user.id),
+          eq(accounts.providerId, CREDENTIAL_PROVIDER_ID),
+        ))
+        .limit(1);
+      if (!credential) return;
+
+      await sendPasswordResetEmail({
+        recipientEmail: user.email,
+        resetUrl: url,
+      });
+    },
   },
   socialProviders: {
     google: {
@@ -76,6 +101,12 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24,
   },
   advanced: {
+    // The API is a long-running Node service. Better Auth attaches sanitized
+    // error logging before handing background work here, so password-reset
+    // requests do not reveal account existence through email-provider timing.
+    backgroundTasks: {
+      handler: (promise) => { void promise; },
+    },
     defaultCookieAttributes: {
       httpOnly: true,
       sameSite: 'lax',

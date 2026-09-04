@@ -22,6 +22,11 @@ type AuthErrorLike = {
   };
 };
 
+export function getAuthErrorCode(error: unknown): string | undefined {
+  const candidate = error as AuthErrorLike | null;
+  return candidate?.code ?? candidate?.error?.code;
+}
+
 export function getAuthErrorMessage(error: unknown, fallback: string) {
   const candidate = error as AuthErrorLike | null;
   const message =

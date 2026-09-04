@@ -6,11 +6,17 @@ export const GOOGLE_OAUTH_SCOPES = ['openid', 'email', 'profile'] as const;
 
 export const ACCOUNT_LINKING_POLICY = {
   enabled: true,
-  disableImplicitLinking: false,
+  disableImplicitLinking: true,
   requireLocalEmailVerified: true,
   allowDifferentEmails: false,
   updateUserInfoOnLink: false,
 } as const;
+
+export const CREDENTIAL_PROVIDER_ID = 'credential';
+
+export function hasPasswordCredential(accountRows: Array<{ providerId: string }>): boolean {
+  return accountRows.some((account) => account.providerId === CREDENTIAL_PROVIDER_ID);
+}
 
 export function requireVerifiedGoogleProfile(
   profile: { email_verified?: boolean },

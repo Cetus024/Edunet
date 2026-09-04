@@ -159,8 +159,10 @@ function matchesRoute(pathname: string, route: string) {
 function configForPath(pathname: string): RouteMascotConfig {
   const isLogin = matchesRoute(pathname, '/login');
   const isSignup = matchesRoute(pathname, '/signup');
+  const isPasswordRecovery = matchesRoute(pathname, '/forgot-password')
+    || matchesRoute(pathname, '/reset-password');
 
-  if (isLogin || isSignup) {
+  if (isLogin || isSignup || isPasswordRecovery) {
     return {
       scene: isSignup ? 'growth' : 'welcome',
       message: isSignup ? 'Let us start building your learning web.' : 'Welcome back to your learning web.',

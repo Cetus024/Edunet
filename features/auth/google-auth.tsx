@@ -36,7 +36,7 @@ export async function startGoogleAuth(options: {
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   access_denied: 'Google sign-in was cancelled.',
-  account_not_linked: 'This Google account could not be linked safely.',
+  account_not_linked: 'An account already exists for this email. Use the original sign-in method.',
   email_not_verified: 'Google could not confirm this email address.',
   oauth_callback_error: 'Google sign-in could not be completed. Please try again.',
 };

@@ -4,19 +4,26 @@ import {
   ACCOUNT_LINKING_POLICY,
   applySignupReferralToNewUser,
   GOOGLE_OAUTH_SCOPES,
+  hasPasswordCredential,
   requireVerifiedGoogleProfile,
 } from '../src/auth-policy.js';
 
 describe('authentication policy', () => {
-  it('keeps Google scopes and safe implicit-linking rules explicit', () => {
+  it('keeps Google scopes and isolated account-linking rules explicit', () => {
     expect(GOOGLE_OAUTH_SCOPES).toEqual(['openid', 'email', 'profile']);
     expect(ACCOUNT_LINKING_POLICY).toEqual({
       enabled: true,
-      disableImplicitLinking: false,
+      disableImplicitLinking: true,
       requireLocalEmailVerified: true,
       allowDifferentEmails: false,
       updateUserInfoOnLink: false,
     });
+  });
+
+  it('recognizes only Better Auth credential accounts as password accounts', () => {
+    expect(hasPasswordCredential([{ providerId: 'credential' }])).toBe(true);
+    expect(hasPasswordCredential([{ providerId: 'google' }])).toBe(false);
+    expect(hasPasswordCredential([])).toBe(false);
   });
 
   it('requires the verified-email claim from Google', () => {

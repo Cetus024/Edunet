@@ -26,7 +26,7 @@ npm run api:start
 
 `npm run dev` starts the web frontend at `http://localhost:3000` and the API at `http://localhost:8787`. `npm run build` creates the deployable static frontend in `out/` and the API bundle in `services/edunets-api/dist/`. Use `npm start` to preview the static frontend and `npm run api:start` for its API.
 
-Copy `.env.example` to the ignored `.env.local` and replace every placeholder. PostgreSQL, Better Auth, and Google credentials are server-only; only `NEXT_PUBLIC_EDUNETS_API_URL` is exposed to the browser. Database setup is idempotent and uses separate Supabase runtime and administrative connections. See [`database/README.md`](database/README.md) and [`services/edunets-api/README.md`](services/edunets-api/README.md).
+Copy `.env.example` to the ignored `.env.local` and replace every placeholder. PostgreSQL, Better Auth, Google, and Resend credentials are server-only; only `NEXT_PUBLIC_EDUNETS_API_URL` is exposed to the browser. Database setup is idempotent and uses separate Supabase runtime and administrative connections. See [`database/README.md`](database/README.md) and [`services/edunets-api/README.md`](services/edunets-api/README.md).
 
 Capture Hub live transcription defaults to the browser's English speech recognizer in supported Chrome and Edge browsers; this mode does not require a separate gateway. Set `NEXT_PUBLIC_TRANSCRIPTION_PROVIDER=huawei` and configure `NEXT_PUBLIC_HUAWEI_SIS_GATEWAY_URL` to use the optional Huawei SIS gateway instead. Huawei AK/SK credentials and the Project ID must only be configured in the Python service documented at [`services/huawei-sis-gateway`](services/huawei-sis-gateway/README.md); they must never be added to the Next.js environment. The frontend keeps final transcript text in the existing capture flow and does not persist raw microphone audio.
 
@@ -71,8 +71,10 @@ The routing adapter in `src/lib/navigation.tsx` preserves the screens' existing 
 | `/ask-teacher` | Student question flow or Teacher Students' Enquiries workspace |
 | `/rescue-room` | Rescue room |
 | `/rescue-join` | Rescue room join flow |
-| `/login` | Google login |
-| `/signup` | Google account creation with an optional referral code |
+| `/login` | Email/password or Google login |
+| `/signup` | Email/password or Google account creation with an optional referral code |
+| `/forgot-password` | Password-reset email request |
+| `/reset-password` | One-time password reset |
 | `/onboarding` | Required first-account setup |
 | `/placement-result` | Student starting-point quiz result and answer review |
 
