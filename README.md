@@ -34,15 +34,14 @@ Capture Hub 2.0 is phone-first and does not use voice transcription. Students ph
 
 ```text
 edunets/
-├─ src/
-│  ├─ app/            Next.js routes, layouts, and providers
-│  ├─ features/       Existing business screens
-│  ├─ components/     Shared application and UI components
-│  ├─ hooks/          Application hooks
-│  ├─ lib/            Business data, state, and compatibility helpers
-│  └─ generated/      Generated data contracts
+├─ app/               Next.js routes, layouts, and providers
+├─ features/          Business screens and feature components
+├─ hooks/             Application hooks
+├─ lib/               Business data, state, API clients, and compatibility helpers
+├─ system/            Shared system-level components
+├─ ui/                Shared UI primitives
 ├─ app-gen-sdk/       Generated Power Apps/Dataverse client
-├─ data-model/        Dataverse model metadata
+├─ generated/         Generated Dataverse data contracts
 ├─ database/          Drizzle schema, migrations, catalog seed, and guarded lifecycle scripts
 ├─ docs/              Product documentation
 ├─ public/            Static assets
@@ -55,7 +54,7 @@ edunets/
 └─ package.json       Node.js scripts and dependencies
 ```
 
-The routing adapter in `src/lib/navigation.tsx` preserves the screens' existing navigation API while delegating routing to the Next.js App Router. Power Apps is initialized lazily in the browser so static generation does not execute browser-only SDK code.
+The routing adapter in `lib/navigation.tsx` preserves the screens' existing navigation API while delegating routing to the Next.js App Router. Power Apps is initialized lazily in the browser so static generation does not execute browser-only SDK code.
 
 ## Routes
 
@@ -82,4 +81,4 @@ EduNets supports Student and Teacher accounts. New Students complete a database-
 
 ## Power Apps deployment
 
-`power.config.json` points Power Apps to `out/index.html`. Keep the generated contents of `app-gen-sdk/`, `src/generated/`, `.power/`, and the Dataverse identifiers in `power.config.json` aligned with the target Power Platform environment. Browser/localhost authentication is the current validated target; embedded Power Apps cookie behaviour requires a later production-domain acceptance pass.
+`power.config.json` points Power Apps to `out/index.html`. Keep the generated contents of `app-gen-sdk/`, `generated/`, `.power/`, and the Dataverse identifiers in `power.config.json` aligned with the target Power Platform environment. Browser/localhost authentication is the current validated target; embedded Power Apps cookie behaviour requires a later production-domain acceptance pass.

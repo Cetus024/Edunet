@@ -25,12 +25,3 @@ export function formatPercentageValue(percentage: number): string {
 export function formatModelDays(days: number): string {
   return `${formatModelNumber(days)} days`;
 }
-
-export function formatModelValue(
-  value: number,
-  unit?: 'probability' | 'percent' | 'days' | 'count' | 'marks',
-): string {
-  if (unit === 'percent') return formatPercentageValue(value);
-  if (unit === 'days') return formatModelDays(value);
-  return formatModelNumber(value);
-}

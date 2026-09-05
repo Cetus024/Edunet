@@ -84,31 +84,3 @@ export const joinRevisionRoom = (roomId: string) => roomAction(roomId, 'join');
 export const heartbeatRevisionRoom = (roomId: string) => roomAction(roomId, 'heartbeat');
 export const startRevisionRoom = (roomId: string) => roomAction(roomId, 'start');
 export const endRevisionRoom = (roomId: string) => roomAction(roomId, 'end');
-
-export function addRevisionUtterance(roomId: string, input: {
-  submissionId: string;
-  text: string;
-  locale: string;
-  provider: 'browser' | 'huawei';
-  speakingMs: number;
-}) {
-  return apiRequest<RevisionRoomResponse>(
-    `/api/v1/me/revision-rooms/${encodeURIComponent(roomId)}/utterances`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    },
-  );
-}
-
-export function inviteRevisionParticipants(roomId: string, userIds: string[]) {
-  return apiRequest<RevisionRoomResponse>(
-    `/api/v1/me/revision-rooms/${encodeURIComponent(roomId)}/invitations`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userIds }),
-    },
-  );
-}

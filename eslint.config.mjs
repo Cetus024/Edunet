@@ -21,7 +21,7 @@ export default defineConfig([
     'out/**',
     'node_modules/**',
     'app-gen-sdk/**',
-    'src/generated/**',
+    'generated/**',
     '.internal/**',
     '.power/**',
     'services/edunets-api/dist/**',

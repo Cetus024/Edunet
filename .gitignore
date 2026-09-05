@@ -16,6 +16,9 @@ services/edunets-api/dist/
 # logs / debug output
 *.log
 full-tsc-output.txt
+trace.txt
+tsc-*.txt
+tsconfig-debug.json
 
 # misc
 .DS_Store

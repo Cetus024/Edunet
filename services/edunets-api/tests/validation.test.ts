@@ -25,7 +25,6 @@ import {
   squadQuizRoomIdSchema,
   studySquadInvitationIdSchema,
   studySquadInvitationTokenSchema,
-  submitSquadQuizAnswerSchema,
   updateTeachingScopesSchema,
 } from '../src/validation.js';
 
@@ -239,26 +238,24 @@ describe('notification validation', () => {
 describe('live Squad quiz validation', () => {
   const roomId = '4b375843-c273-4e7d-bfe7-ac20dbdaf47d';
 
-  it('accepts bounded room creation, join, answer, and invitation payloads', () => {
+  it('accepts bounded room creation, join, and invitation payloads', () => {
     expect(createSquadQuizRoomSchema.parse({
       topicId: 'chemistry-chemical-bonding-structure',
       invitedUserIds: ['student-2'],
       message: 'Quick rescue?',
     }).invitedUserIds).toEqual(['student-2']);
     expect(joinSquadQuizRoomSchema.safeParse({ avatarColor: 'LightBlue' }).success).toBe(true);
-    expect(submitSquadQuizAnswerSchema.safeParse({ questionIndex: 2, answer: 1 }).success).toBe(true);
     expect(inviteSquadQuizParticipantsSchema.safeParse({ userIds: ['student-2'] }).success).toBe(true);
     expect(squadQuizRoomIdSchema.safeParse(roomId).success).toBe(true);
   });
 
-  it('rejects spoofed identity fields and out-of-range answers', () => {
+  it('rejects spoofed identity fields and invalid join or invitation payloads', () => {
     expect(createSquadQuizRoomSchema.safeParse({
       topicId: 'chemistry-chemical-bonding-structure',
       invitedUserIds: [],
       hostUserId: 'someone-else',
     }).success).toBe(false);
     expect(joinSquadQuizRoomSchema.safeParse({ avatarColor: 'Red' }).success).toBe(false);
-    expect(submitSquadQuizAnswerSchema.safeParse({ questionIndex: 10, answer: 1 }).success).toBe(false);
     expect(inviteSquadQuizParticipantsSchema.safeParse({ userIds: [] }).success).toBe(false);
   });
 });

@@ -192,11 +192,6 @@ export const joinSquadQuizRoomSchema = z.strictObject({
   avatarColor: z.enum(['Yellow', 'LightBlue', 'White']),
 });
 
-export const submitSquadQuizAnswerSchema = z.strictObject({
-  questionIndex: z.number().int().min(0).max(9),
-  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(5)]),
-});
-
 export const inviteSquadQuizParticipantsSchema = z.strictObject({
   userIds: z.array(z.string().trim().min(1).max(255)).min(1).max(4),
 });
