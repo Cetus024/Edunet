@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
 import { quizQuestions } from '../../../../database/schema/catalog.js';
-import { topicRubricFacets } from '../../../../features/concept-web/content.js';
+import { CURRICULUM_TOPIC_BY_ID } from '../../../../lib/curriculum.js';
 
 /**
  * Judges a spoken explanation against the syllabus content this project already
@@ -41,8 +41,25 @@ export interface AnalysisModel {
   complete(prompt: string, options?: { maxTokens?: number; timeoutMs?: number }): Promise<string>;
 }
 
+export function buildTopicRubric(topicId: string): TopicGrounding['subconcepts'] | null {
+  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  if (!topic) return null;
+
+  if (topic.subtopics.length > 0) {
+    return topic.subtopics.map((subtopic) => ({
+      name: `${subtopic.syllabusCode} ${subtopic.name}`,
+      description: subtopic.description,
+    }));
+  }
+
+  return (topic.rubricFacets ?? []).map((name) => ({
+    name,
+    description: `${name} is assessed within ${topic.name} learning outcomes.`,
+  }));
+}
+
 export async function buildTopicGrounding(topicId: string): Promise<TopicGrounding | null> {
-  const subconcepts = topicRubricFacets[topicId];
+  const subconcepts = buildTopicRubric(topicId);
   if (!subconcepts) return null;
 
   const rows = await db
@@ -63,7 +80,7 @@ export async function buildTopicGrounding(topicId: string): Promise<TopicGroundi
 
   return {
     topicId,
-    subconcepts: subconcepts.map(({ name, description }) => ({ name, description })),
+    subconcepts,
     facts,
   };
 }

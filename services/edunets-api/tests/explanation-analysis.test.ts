@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   analyzeExplanation,
   buildAnalysisPrompt,
+  buildTopicRubric,
   parseAnalysis,
   type AnalysisModel,
   type TopicGrounding,
@@ -28,6 +29,32 @@ const WELL_FORMED = JSON.stringify({
 });
 
 const fakeModel = (reply: string): AnalysisModel => ({ complete: async () => reply });
+
+describe('buildTopicRubric', () => {
+  it('uses canonical Subtopics and preserves their syllabus labels', () => {
+    expect(buildTopicRubric('math-statistics-probability')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'S1 Data handling and analysis' }),
+      expect.objectContaining({ name: 'S2 Probability' }),
+    ]));
+  });
+
+  it('uses local rubric facets for an intentionally unsplit Topic', () => {
+    expect(buildTopicRubric('chemistry-qualitative-analysis')).toEqual([
+      {
+        name: 'Cation Tests',
+        description: 'Cation Tests is assessed within Qualitative Analysis learning outcomes.',
+      },
+      {
+        name: 'Anion Tests',
+        description: 'Anion Tests is assessed within Qualitative Analysis learning outcomes.',
+      },
+      {
+        name: 'Gas Tests',
+        description: 'Gas Tests is assessed within Qualitative Analysis learning outcomes.',
+      },
+    ]);
+  });
+});
 
 describe('buildAnalysisPrompt', () => {
   const prompt = buildAnalysisPrompt(GROUNDING, 'The proton number identifies the element');
