@@ -203,6 +203,7 @@ export const CURRICULUM_SUBTOPICS = CURRICULUM_TOPICS.flatMap((topic) => (
   topic.subtopics.map((child) => ({ ...child, topicId: topic.id }))
 ));
 
+export const CURRICULUM_TOPIC_BY_ID = new Map(CURRICULUM_TOPICS.map((topic) => [topic.id, topic]));
 export const CURRICULUM_SUBTOPIC_BY_ID = new Map(CURRICULUM_SUBTOPICS.map((child) => [child.id, child]));
 
 export function resolveCurriculumTopic(value: string): CurriculumTopic | undefined {

@@ -103,6 +103,17 @@ export function heartbeatSquadQuizRoom(roomId: string) {
   );
 }
 
+export function submitSquadQuizAnswer(roomId: string, questionIndex: number, answer: string | number) {
+  return apiRequest<SquadQuizRoomResponse>(
+    `/api/v1/me/squad-quiz-rooms/${encodeURIComponent(roomId)}/answers`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionIndex, answer }),
+    },
+  );
+}
+
 export function advanceSquadQuizRoom(roomId: string) {
   return apiRequest<SquadQuizRoomResponse>(
     `/api/v1/me/squad-quiz-rooms/${encodeURIComponent(roomId)}/advance`,

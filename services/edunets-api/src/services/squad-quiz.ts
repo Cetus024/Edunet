@@ -14,7 +14,7 @@ import {
 } from '../../../../database/schema/squad-quiz.js';
 import { studySquadMembers, studySquads } from '../../../../database/schema/study-squads.js';
 import { ApiError } from '../errors.js';
-import { getQuestionByKey, getQuestionsForTopic, type QuizQuestion } from '../lib/question-bank.js';
+import { getQuestionByKey, getQuestionsForTopic, gradeQuestion, type QuizQuestion } from '../lib/question-bank.js';
 import { buildNotificationValues } from './notifications.js';
 
 const QUESTION_SECONDS = 45;
@@ -315,6 +315,77 @@ export async function heartbeatSquadQuizRoom(userId: string, roomId: string) {
   )).returning({ userId: squadQuizRoomParticipants.userId });
   if (!participant) throw new ApiError(409, 'SQUAD_QUIZ_NOT_JOINED', 'Join the room before sending presence updates.');
   return { lastSeenAt: now };
+}
+
+export async function submitSquadQuizAnswer(input: {
+  userId: string;
+  roomId: string;
+  questionIndex: number;
+  answer: string | number;
+}) {
+  await requireRoomAccess(input.userId, input.roomId);
+  await db.transaction(async (transaction) => {
+    await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${`squad-quiz:${input.roomId}`}))`);
+    const [room] = await transaction.select({
+      status: squadQuizRooms.status,
+      currentQuestionIndex: squadQuizRooms.currentQuestionIndex,
+      questionStartedAt: squadQuizRooms.questionStartedAt,
+    }).from(squadQuizRooms).where(eq(squadQuizRooms.id, input.roomId)).limit(1);
+    if (!room || room.status !== 'active') throw new ApiError(409, 'SQUAD_QUIZ_FINISHED', 'This Rescue quiz has finished.');
+    if (room.currentQuestionIndex !== input.questionIndex) {
+      throw new ApiError(409, 'SQUAD_QUIZ_ROUND_CHANGED', 'The room has already moved to another question.');
+    }
+    if (Date.now() >= room.questionStartedAt.getTime() + QUESTION_SECONDS * 1_000) {
+      throw new ApiError(409, 'SQUAD_QUIZ_ROUND_CLOSED', 'Time is up for this question.');
+    }
+    const [participant] = await transaction.select({ status: squadQuizRoomParticipants.status })
+      .from(squadQuizRoomParticipants)
+      .where(and(
+        eq(squadQuizRoomParticipants.roomId, input.roomId),
+        eq(squadQuizRoomParticipants.userId, input.userId),
+      )).limit(1);
+    if (!participant || ['invited', 'left'].includes(participant.status)) {
+      throw new ApiError(409, 'SQUAD_QUIZ_NOT_JOINED', 'Join the room before answering.');
+    }
+    const [existing] = await transaction.select({ questionIndex: squadQuizRoomAnswers.questionIndex })
+      .from(squadQuizRoomAnswers)
+      .where(and(
+        eq(squadQuizRoomAnswers.roomId, input.roomId),
+        eq(squadQuizRoomAnswers.userId, input.userId),
+        eq(squadQuizRoomAnswers.questionIndex, input.questionIndex),
+      )).limit(1);
+    if (existing) return;
+    const [questionRow] = await transaction.select({ questionKey: squadQuizRoomQuestions.questionKey })
+      .from(squadQuizRoomQuestions)
+      .where(and(
+        eq(squadQuizRoomQuestions.roomId, input.roomId),
+        eq(squadQuizRoomQuestions.questionIndex, input.questionIndex),
+      )).limit(1);
+    const question = questionRow ? await getQuestionByKey(questionRow.questionKey) : null;
+    if (!question) throw new ApiError(500, 'SQUAD_QUIZ_QUESTION_MISSING', 'The room question is unavailable.');
+    const correct = gradeQuestion(question, input.answer);
+    const answeredAt = new Date();
+    await transaction.insert(squadQuizRoomAnswers).values({
+      roomId: input.roomId,
+      userId: input.userId,
+      questionIndex: input.questionIndex,
+      submittedAnswer: String(input.answer),
+      isCorrect: correct,
+      points: correct ? 10 : 0,
+      answeredAt,
+    });
+    await transaction.update(squadQuizRoomParticipants).set({
+      score: sql`${squadQuizRoomParticipants.score} + ${correct ? 10 : 0}`,
+      status: 'answered',
+      lastAnswerCorrect: correct,
+      lastSeenAt: answeredAt,
+      updatedAt: answeredAt,
+    }).where(and(
+      eq(squadQuizRoomParticipants.roomId, input.roomId),
+      eq(squadQuizRoomParticipants.userId, input.userId),
+    ));
+  });
+  return getSquadQuizRoom(input.userId, input.roomId);
 }
 
 export async function advanceSquadQuizRoom(userId: string, roomId: string) {

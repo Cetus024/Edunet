@@ -1,0 +1,72 @@
+drizzle.config.ts(4,10): error TS2724: '"./database/env"' has no exported member named 'loadDatabaseEnvironment'. Did you mean 'getDatabaseEnvironment'?
+generated/hooks/use-class-topic-mastery.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-concept-web.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-note-capture.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-quiz-history.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-quiz-question.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-quiz-room-participant.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-quiz-room.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-student.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-student.ts(5,34): error TS2307: Cannot find module '../../../app-gen-sdk/constants' or its corresponding type declarations.
+generated/hooks/use-teacher.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/hooks/use-topic-misconception.ts(4,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/models/common-models.ts(1,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/models/common-models.ts(3,37): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/class-topic-mastery-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/class-topic-mastery-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/concept-web-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/concept-web-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/note-capture-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/note-capture-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/quiz-history-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/quiz-history-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/quiz-question-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/quiz-question-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/quiz-room-participant-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/quiz-room-participant-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/quiz-room-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/quiz-room-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/student-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/student-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/teacher-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/teacher-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+generated/services/topic-misconception-service.ts(1,27): error TS2307: Cannot find module '../../../app-gen-sdk/data' or its corresponding type declarations.
+generated/services/topic-misconception-service.ts(3,40): error TS2307: Cannot find module '../../../app-gen-sdk/data/common/types' or its corresponding type declarations.
+services/edunets-api/src/lib/question-bank.ts(6,8): error TS2307: Cannot find module '../../../../src/lib/quiz-question-bank.js' or its corresponding type declarations.
+services/edunets-api/src/lib/question-bank.ts(28,25): error TS7006: Parameter 'question' implicitly has an 'any' type.
+services/edunets-api/src/lib/question-bank.ts(28,35): error TS7006: Parameter 'index' implicitly has an 'any' type.
+services/edunets-api/tests/database.test.ts(4,47): error TS2307: Cannot find module '../../../database/deleteDB.js' or its corresponding type declarations.
+services/edunets-api/tests/database.test.ts(5,46): error TS2307: Cannot find module '../../../database/schema-safety.js' or its corresponding type declarations.
+services/edunets-api/tests/database.test.ts(10,8): error TS2307: Cannot find module '../../../database/seed-data.js' or its corresponding type declarations.
+services/edunets-api/tests/database.test.ts(24,34): error TS7006: Parameter 'school' implicitly has an 'any' type.
+services/edunets-api/tests/database.test.ts(25,35): error TS7006: Parameter 'subject' implicitly has an 'any' type.
+services/edunets-api/tests/database.test.ts(26,33): error TS7006: Parameter 'topic' implicitly has an 'any' type.
+services/edunets-api/tests/database.test.ts(30,49): error TS7006: Parameter 'subject' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(8,3): error TS2305: Module '"../../../database/enquiry-demo-seed.js"' has no exported member 'buildDemoEnquiries'.
+services/edunets-api/tests/enquiries-database.test.ts(9,8): error TS2305: Module '"../../../database/enquiry-demo-seed.js"' has no exported member 'BuiltDemoEnquiry'.
+services/edunets-api/tests/enquiries-database.test.ts(10,8): error TS2305: Module '"../../../database/enquiry-demo-seed.js"' has no exported member 'EnquiryDemoExecutor'.
+services/edunets-api/tests/enquiries-database.test.ts(15,3): error TS2305: Module '"../../../database/schema/index.js"' has no exported member 'enquiryRecipientRoleEnum'.
+services/edunets-api/tests/enquiries-database.test.ts(16,3): error TS2305: Module '"../../../database/schema/index.js"' has no exported member 'enquiryRequesterRoleEnum'.
+services/edunets-api/tests/enquiries-database.test.ts(17,3): error TS2305: Module '"../../../database/schema/index.js"' has no exported member 'enquirySenderRoleEnum'.
+services/edunets-api/tests/enquiries-database.test.ts(109,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(114,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(119,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(120,24): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(121,24): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(122,24): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(123,24): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(124,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(125,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(126,30): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(127,30): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(140,24): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(141,18): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(143,32): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(144,18): error TS7006: Parameter 'row' implicitly has an 'any' type.
+services/edunets-api/tests/enquiries-database.test.ts(159,7): error TS2554: Expected 2 arguments, but got 3.
+services/edunets-api/tests/enquiries-database.test.ts(164,7): error TS2554: Expected 2 arguments, but got 3.
+services/edunets-api/tests/enquiries-database.test.ts(210,39): error TS2531: Object is possibly 'null'.
+services/edunets-api/tests/scoring.test.ts(2,40): error TS2307: Cannot find module '../../../database/seed-data.js' or its corresponding type declarations.
+services/edunets-api/tests/scoring.test.ts(46,51): error TS7006: Parameter 'subject' implicitly has an 'any' type.
+services/edunets-api/tests/scoring.test.ts(47,47): error TS7006: Parameter 'topic' implicitly has an 'any' type.
+services/edunets-api/tests/scoring.test.ts(48,53): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
