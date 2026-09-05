@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Camera,
@@ -368,7 +367,14 @@ export default function CaptureHubPage() {
   // from a phone or laptop without using voice transcription.
   const [activeMethod, setActiveMethod] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState('');
-  const [scannedPreview, setScannedPreview] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<Array<{
+    id: string;
+    name: string;
+    status: 'queued' | 'reading' | 'success' | 'error';
+    message?: string;
+  }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const uploadBusyRef = useRef(false);
   const [ocrTranscript, setOcrTranscript] = useState('');
   const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
@@ -462,41 +468,49 @@ export default function CaptureHubPage() {
   // File input refs
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const mimeType = file.type === 'image/jpeg' || file.type === 'image/webp' ? file.type : 'image/png';
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setScannedPreview(dataUrl);
-      setActiveMethod('scan');
-      setIsOcrRunning(true);
-      appendDebugLog('OCR', 'running', `Reading ${file.name || 'uploaded image'} with Microsoft Azure AI Vision.`);
-
-      // Handwriting recognition, not a canned string -- this used to return the
-      // same "Mitosis is the process of..." text regardless of what photo was
-      // uploaded. Most O-Level students have a phone camera and not a laptop
-      // microphone, which is why this path exists at all.
-      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
-      try {
-        const result = await ocrImage({ imageBase64: base64, mimeType });
-        if (!result.available) {
-          const message = result.failure
-            ? describeCaptureFailure(result.failure)
-            : 'OCR is unavailable and the server did not provide a diagnostic reason.';
-          appendDebugLog('OCR', 'error', message);
-          toast.error(message);
-        } else if (!result.text?.trim()) {
-          const message = result.failure
-            ? describeCaptureFailure(result.failure)
-            : 'OCR completed, but no readable text was returned.';
-          const isProviderError = result.failure?.reason === 'provider_error';
-          appendDebugLog('OCR', isProviderError ? 'error' : 'warning', message);
-          if (isProviderError) toast.error(message);
-          else toast.warning(message);
-        } else {
+  const handleImageUpload = async (files: File[]) => {
+    if (uploadBusyRef.current || isProcessing || files.length === 0) return;
+    uploadBusyRef.current = true;
+    setIsOcrRunning(true);
+    setActiveMethod('scan');
+    const batch = files.map((file) => ({ file, id: crypto.randomUUID() }));
+    setUploads((current) => [...current, ...batch.map(({ file, id }) => ({
+      id, name: file.name, status: 'queued' as const,
+    }))]);
+    const updateUpload = (id: string, status: 'reading' | 'success' | 'error', message?: string) => {
+      setUploads((current) => current.map((item) => item.id === id ? { ...item, status, message } : item));
+    };
+    let succeeded = 0;
+    try {
+      for (const { file, id } of batch) {
+        try {
+          const mimeType = file.type;
+          if (mimeType !== 'image/png' && mimeType !== 'image/jpeg' && mimeType !== 'image/webp') {
+            throw new Error('Use a PNG, JPEG, or WebP image.');
+          }
+          if (file.size === 0 || file.size > 8 * 1024 * 1024) {
+            throw new Error('Choose a non-empty image up to 8 MB.');
+          }
+          updateUpload(id, 'reading');
+          appendDebugLog('OCR', 'running', `Reading ${file.name} with Microsoft Azure AI Vision.`);
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Could not read this file. Try uploading it again.'));
+            reader.onabort = () => reject(new Error('File reading was interrupted.'));
+            reader.readAsDataURL(file);
+          });
+          let result;
+          try {
+            result = await ocrImage({ imageBase64: dataUrl.slice(dataUrl.indexOf(',') + 1), mimeType });
+          } catch (error: unknown) {
+            throw new Error(describeRequestError(error, 'OCR'));
+          }
+          if (!result.available || !result.text?.trim()) {
+            throw new Error(result.failure
+              ? describeCaptureFailure(result.failure)
+              : 'OCR returned no readable text. Try a clearer image.');
+          }
           const transcript = result.text.trim();
           setOcrTranscript((current) =>
             [current.trim(), transcript].filter(Boolean).join('\n\n--- Next scanned page ---\n\n')
@@ -504,18 +518,21 @@ export default function CaptureHubPage() {
           setExtractedContent((current) =>
             [current.trim(), transcript].filter(Boolean).join('\n\n')
           );
-          appendDebugLog('OCR', 'success', `OCR transcript received (${transcript.length} characters).`);
-          toast.success('OCR transcript received and shown below.');
+          updateUpload(id, 'success', `${transcript.length} characters extracted`);
+          appendDebugLog('OCR', 'success', `${file.name}: ${transcript.length} characters extracted.`);
+          succeeded += 1;
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Could not process this image.';
+          updateUpload(id, 'error', message);
+          appendDebugLog('OCR', 'error', `${file.name}: ${message}`);
         }
-      } catch (error: unknown) {
-        const message = describeRequestError(error, 'OCR');
-        appendDebugLog('Connection', 'error', message);
-        toast.error(message);
-      } finally {
-        setIsOcrRunning(false);
       }
-    };
-    reader.readAsDataURL(file);
+      if (succeeded) toast.success(`Extracted text from ${succeeded} of ${batch.length} images.`);
+      if (succeeded < batch.length) toast.error('Some images could not be read. See the file list for details.');
+    } finally {
+      uploadBusyRef.current = false;
+      setIsOcrRunning(false);
+    }
   };
 
   const handlePasteSubmit = () => {
@@ -640,7 +657,7 @@ export default function CaptureHubPage() {
     // Reset
     setExtractedContent('');
     setActiveMethod(null);
-    setScannedPreview(null);
+    setUploads([]);
     setOcrTranscript('');
     setPastedText('');
     setSelectedSubject('');
@@ -650,7 +667,7 @@ export default function CaptureHubPage() {
   const clearContent = () => {
     setExtractedContent('');
     setActiveMethod(null);
-    setScannedPreview(null);
+    setUploads([]);
     setOcrTranscript('');
     setPastedText('');
   };
@@ -718,76 +735,80 @@ export default function CaptureHubPage() {
         <UploadTile
           emoji="📷"
           title="Scan Handwritten Notes"
-          description="Take a photo on your phone or upload an image"
+          description="Upload or drop photos of your notes for OCR"
           isActive={activeMethod === 'scan'}
         >
-          <div className="space-y-4">
+          <div
+            className="space-y-4"
+            onDragEnter={(event) => {
+              event.preventDefault();
+              if (event.dataTransfer.types.includes('Files')) setIsDragging(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = isOcrRunning || isProcessing ? 'none' : 'copy';
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              void handleImageUpload(Array.from(event.dataTransfer.files));
+            }}
+          >
             <input
               ref={imageInputRef}
               type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              disabled={isOcrRunning || isProcessing}
+              aria-label="Upload images for OCR"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
+                void handleImageUpload(files);
+              }}
               className="hidden"
             />
-
-            {scannedPreview ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-                <div className="relative h-40 overflow-hidden rounded-xl border-2 border-[#EAA93C]/30">
-                  <Image
-                    src={scannedPreview}
-                    alt="Scanned notes"
-                    fill
-                    unoptimized
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover"
-                  />
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute top-2 right-2 h-8 w-8 rounded-lg"
-                    onClick={() => {
-                      setScannedPreview(null);
-                      setActiveMethod(null);
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                {isOcrRunning ? (
-                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
-                    />
-                    <span>Microsoft Azure AI Vision is reading your notes...</span>
-                  </div>
-                ) : ocrTranscript ? (
-                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
-                    <Check className="w-4 h-4" />
-                    <span>Text extracted with Microsoft Azure AI Vision</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No text was recognized yet. Try a clearer photo, or type your notes instead.
-                  </p>
-                )}
-              </motion.div>
-            ) : (
-              <motion.button
-                onClick={() => imageInputRef.current?.click()}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full h-40 border-2 border-dashed border-[#EAA93C]/40 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-[#EAA93C] hover:bg-[#EAA93C]/5 transition-all"
-              >
-                <div className="w-14 h-14 rounded-full bg-[#EAA93C]/20 flex items-center justify-center">
-                  <Camera className="w-7 h-7 text-[#EAA93C]" />
-                </div>
-                <div className="text-center">
-                  <p className="font-semibold text-studynow-dark">Click to upload image</p>
-                  <p className="text-xs text-muted-foreground">Microsoft Azure AI Vision OCR</p>
-                </div>
-              </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isOcrRunning || isProcessing}
+              whileTap={{ scale: 0.98 }}
+              className={`w-full min-h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 p-4 transition-all disabled:opacity-60 disabled:cursor-wait ${
+                isDragging ? 'border-[#6486B5] bg-[#6486B5]/10' : 'border-[#EAA93C]/40 hover:border-[#EAA93C] hover:bg-[#EAA93C]/5'
+              }`}
+            >
+              <Upload className="w-7 h-7 text-[#EAA93C]" />
+              <div className="text-center">
+                <p className="font-semibold text-studynow-dark">
+                  {isOcrRunning ? 'Reading your images...' : isDragging ? 'Drop images here' : 'Drag images here or click to upload'}
+                </p>
+                <p className="text-xs text-muted-foreground">Select multiple images · PNG, JPEG, WebP · Up to 8 MB each</p>
+              </div>
+            </motion.button>
+            {uploads.length > 0 && (
+              <div className="space-y-2" aria-live="polite" aria-atomic="false">
+                <p className="text-xs text-muted-foreground">
+                  {uploads.filter((item) => item.status === 'success' || item.status === 'error').length} of {uploads.length} files processed
+                </p>
+                <ul className="max-h-60 space-y-2 overflow-y-auto">
+                  {uploads.map((item) => (
+                    <li key={item.id} className="flex items-start gap-2 rounded-xl border p-3 text-sm">
+                      {item.status === 'success' ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        : item.status === 'error' ? <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                        : <RefreshCw className={`mt-0.5 h-4 w-4 shrink-0 ${item.status === 'reading' ? 'animate-spin' : ''}`} />}
+                      <div className="min-w-0">
+                        <p className="break-all font-medium">{item.name}</p>
+                        <p className={`text-xs ${item.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          {item.message ?? (item.status === 'reading' ? 'Extracting text...' : 'Waiting to scan')}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </UploadTile>
@@ -876,7 +897,7 @@ export default function CaptureHubPage() {
                 <span className="w-1.5 h-6 bg-[#EAA93C] rounded-full"></span>
                 Process My Material
               </h2>
-              <Button variant="ghost" size="sm" onClick={clearContent} className="text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={clearContent} disabled={isOcrRunning || isProcessing} className="text-muted-foreground">
                 <X className="w-4 h-4 mr-1" />
                 Clear
               </Button>
@@ -1072,7 +1093,7 @@ export default function CaptureHubPage() {
                       type="button"
                       variant="outline"
                       onClick={() => void handleEvaluate()}
-                      disabled={isEvaluating}
+                      disabled={isEvaluating || isOcrRunning}
                       className="w-full h-12 rounded-xl border-2 border-[#6486B5] font-bold text-[#6486B5] hover:bg-[#6486B5]/10"
                     >
                       {isEvaluating ? (
@@ -1095,7 +1116,7 @@ export default function CaptureHubPage() {
                 <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                   <Button
                     onClick={handleProcess}
-                    disabled={isProcessing || !selectedSubject}
+                    disabled={isProcessing || isOcrRunning || !selectedSubject}
                     className="w-full h-14 bg-[#EAA93C] hover:bg-[#EAA93C]/90 text-studynow-dark font-bold text-lg rounded-xl shadow-lg"
                   >
                     {isProcessing ? (
