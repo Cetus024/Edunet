@@ -12,6 +12,17 @@ type ServerlessHandlerOptions = {
 type InitializationStage =
   | 'configuration'
   | 'database-module'
+  | 'environment-module'
+  | 'auth-module'
+  | 'errors-module'
+  | 'request-context-module'
+  | 'api-v1-route'
+  | 'enquiries-route'
+  | 'study-squads-route'
+  | 'squad-quiz-route'
+  | 'notifications-route'
+  | 'revision-rooms-route'
+  | 'learning-work-route'
   | 'application-module'
   | 'pool-attachment';
 

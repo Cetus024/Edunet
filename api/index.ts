@@ -6,26 +6,64 @@ import {
 } from './serverless.js';
 import { findInvalidRuntimeVariables } from './runtime-environment.js';
 
+type InitializationStage = ConstructorParameters<typeof ServerlessInitializationError>[0];
+
+async function loadModule<T>(stage: InitializationStage, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader();
+  } catch (error) {
+    throw new ServerlessInitializationError(stage, [], { cause: error });
+  }
+}
+
 const handler = createServerlessHandler({
   initialize: async () => {
-    const invalidVariables = findInvalidRuntimeVariables(process.env);
-    if (invalidVariables.length > 0) {
-      throw new ServerlessInitializationError('configuration', invalidVariables);
-    }
+    const validateConfiguration = (): void => {
+      const invalidVariables = findInvalidRuntimeVariables(process.env);
+      if (invalidVariables.length > 0) {
+        throw new ServerlessInitializationError('configuration', invalidVariables);
+      }
+    };
 
-    let database: typeof import('../database/client.js');
-    try {
-      database = await import('../database/client.js');
-    } catch (error) {
-      throw new ServerlessInitializationError('database-module', [], { cause: error });
-    }
+    // Vercel injects runtime variables before module evaluation. Local commands
+    // load .env.local through the database module, so validate them afterward.
+    if (process.env.VERCEL === '1') validateConfiguration();
 
-    let application: typeof import('../services/edunets-api/src/app.js');
-    try {
-      application = await import('../services/edunets-api/src/app.js');
-    } catch (error) {
-      throw new ServerlessInitializationError('application-module', [], { cause: error });
-    }
+    const database = await loadModule('database-module', () => import('../database/client.js'));
+    if (process.env.VERCEL !== '1') validateConfiguration();
+    await loadModule('environment-module', () => import('../services/edunets-api/src/env.js'));
+    await loadModule('auth-module', () => import('../services/edunets-api/src/auth.js'));
+    await loadModule('errors-module', () => import('../services/edunets-api/src/errors.js'));
+    await loadModule(
+      'request-context-module',
+      () => import('../services/edunets-api/src/middleware/request-context.js'),
+    );
+    await loadModule('api-v1-route', () => import('../services/edunets-api/src/routes/api-v1.js'));
+    await loadModule('enquiries-route', () => import('../services/edunets-api/src/routes/enquiries.js'));
+    await loadModule(
+      'study-squads-route',
+      () => import('../services/edunets-api/src/routes/study-squads.js'),
+    );
+    await loadModule(
+      'squad-quiz-route',
+      () => import('../services/edunets-api/src/routes/squad-quiz.js'),
+    );
+    await loadModule(
+      'notifications-route',
+      () => import('../services/edunets-api/src/routes/notifications.js'),
+    );
+    await loadModule(
+      'revision-rooms-route',
+      () => import('../services/edunets-api/src/routes/revision-rooms.js'),
+    );
+    await loadModule(
+      'learning-work-route',
+      () => import('../services/edunets-api/src/routes/learning-work.js'),
+    );
+    const application = await loadModule(
+      'application-module',
+      () => import('../services/edunets-api/src/app.js'),
+    );
 
     try {
       attachDatabasePool(database.pool);
