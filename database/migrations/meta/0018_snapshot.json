@@ -1,6 +1,6 @@
 {
-  "id": "ba7ecf96-d387-4cb8-9d01-eb2a9dd5d805",
-  "prevId": "1acd5dcd-9987-4ee2-a541-de55eedef1d9",
+  "id": "1e7a4fe7-1bc2-4bc7-9062-f87088b410af",
+  "prevId": "ba7ecf96-d387-4cb8-9d01-eb2a9dd5d805",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -335,6 +335,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "subtopic_id": {
+          "name": "subtopic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -415,7 +421,23 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "quiz_questions_subtopic_idx": {
+          "name": "quiz_questions_subtopic_idx",
+          "columns": [
+            {
+              "expression": "subtopic_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "quiz_questions_topic_id_topics_id_fk": {
           "name": "quiz_questions_topic_id_topics_id_fk",
@@ -427,7 +449,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "quiz_questions_subtopic_id_subtopics_id_fk": {
+          "name": "quiz_questions_subtopic_id_subtopics_id_fk",
+          "tableFrom": "quiz_questions",
+          "tableTo": "subtopics",
+          "columnsFrom": [
+            "subtopic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -494,6 +529,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "syllabus_code": {
+          "name": "syllabus_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "icon": {
           "name": "icon",
           "type": "text",
@@ -510,6 +551,92 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.subtopics": {
+      "name": "subtopics",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "topic_id": {
+          "name": "topic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "syllabus_code": {
+          "name": "syllabus_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "subtopics_topic_syllabus_code_idx": {
+          "name": "subtopics_topic_syllabus_code_idx",
+          "columns": [
+            {
+              "expression": "topic_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "syllabus_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "subtopics_topic_id_topics_id_fk": {
+          "name": "subtopics_topic_id_topics_id_fk",
+          "tableFrom": "subtopics",
+          "tableTo": "topics",
+          "columnsFrom": [
+            "topic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -551,7 +678,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -577,8 +704,20 @@
           "primaryKey": false,
           "notNull": true
         },
+        "syllabus_code": {
+          "name": "syllabus_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -591,7 +730,29 @@
           "default": 0
         }
       },
-      "indexes": {},
+      "indexes": {
+        "topics_subject_syllabus_code_idx": {
+          "name": "topics_subject_syllabus_code_idx",
+          "columns": [
+            {
+              "expression": "subject_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "syllabus_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "topics_subject_id_subjects_id_fk": {
           "name": "topics_subject_id_subjects_id_fk",
@@ -603,7 +764,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1099,6 +1260,24 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "subtopic_id": {
+          "name": "subtopic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtopic_syllabus_code": {
+          "name": "subtopic_syllabus_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtopic_name": {
+          "name": "subtopic_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "text": {
           "name": "text",

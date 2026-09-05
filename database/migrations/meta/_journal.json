@@ -124,8 +124,15 @@
     {
       "idx": 17,
       "version": "7",
-      "when": 1788518724199,
-      "tag": "0017_naive_tusk",
+      "when": 1788595961233,
+      "tag": "0017_tearful_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788621224860,
+      "tag": "0018_curriculum_v2",
       "breakpoints": true
     }
   ]

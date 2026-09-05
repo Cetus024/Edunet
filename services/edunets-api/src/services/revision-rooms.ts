@@ -9,6 +9,7 @@ import {
   discussionRooms,
   discussionUtterances,
 } from '../../../../database/schema/discussion.js';
+import { learningWork } from '../../../../database/schema/learning-work.js';
 import { notifications } from '../../../../database/schema/notifications.js';
 import { studySquadMembers, studySquads } from '../../../../database/schema/study-squads.js';
 import { ApiError } from '../errors.js';
@@ -286,7 +287,9 @@ export async function endRevisionRoom(userId: string, roomId: string) {
     .from(discussionUtterances)
     .where(eq(discussionUtterances.roomId, roomId))
     .limit(1);
-  if (!utterance) throw new ApiError(409, 'REVISION_ROOM_EMPTY', 'Share at least one explanation before ending the room.');
+  const [work] = await db.select({ id: learningWork.id }).from(learningWork)
+    .where(and(eq(learningWork.roomKind, 'revision'), eq(learningWork.roomId, roomId))).limit(1);
+  if (!utterance && !work) throw new ApiError(409, 'REVISION_ROOM_EMPTY', 'Submit at least one handwritten solution before ending the room.');
   const endedAt = new Date();
   await db.update(discussionRooms).set({ status: 'ended', endedAt })
     .where(eq(discussionRooms.id, roomId));

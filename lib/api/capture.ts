@@ -10,8 +10,19 @@ export type NoteEvaluation = {
   summary: string;
 };
 
+export type CaptureFailure = {
+  stage: 'ocr' | 'summary' | 'grounding' | 'evaluation';
+  reason:
+    | 'not_configured'
+    | 'provider_error'
+    | 'no_text'
+    | 'no_summary'
+    | 'topic_not_found'
+    | 'invalid_evaluation';
+};
+
 export function ocrImage(input: { imageBase64: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp' }) {
-  return apiRequest<{ available: boolean; text: string | null }>('/api/v1/me/capture/ocr', {
+  return apiRequest<{ available: boolean; text: string | null; failure: CaptureFailure | null }>('/api/v1/me/capture/ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -19,7 +30,7 @@ export function ocrImage(input: { imageBase64: string; mimeType: 'image/png' | '
 }
 
 export function summarizeNotes(text: string) {
-  return apiRequest<{ available: boolean; points: string[] | null }>('/api/v1/me/capture/summarize', {
+  return apiRequest<{ available: boolean; points: string[] | null; failure: CaptureFailure | null }>('/api/v1/me/capture/summarize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
@@ -27,7 +38,7 @@ export function summarizeNotes(text: string) {
 }
 
 export function evaluateNotes(input: { topicId: string; text: string }) {
-  return apiRequest<{ available: boolean; evaluation: NoteEvaluation | null }>('/api/v1/me/capture/evaluate', {
+  return apiRequest<{ available: boolean; summaryPoints: string[] | null; evaluation: NoteEvaluation | null; failure: CaptureFailure | null }>('/api/v1/me/capture/evaluate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

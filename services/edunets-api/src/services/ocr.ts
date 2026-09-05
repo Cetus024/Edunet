@@ -80,7 +80,7 @@ export function createAzureVisionOcr(config: AzureVisionConfig): OcrProvider {
 
       try {
         const response = await fetch(
-          `${config.endpoint}/computervision/imageanalysis:analyze?api-version=2023-10-01&features=read`,
+          `${config.endpoint}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=read`,
           {
             method: 'POST',
             signal: abort.signal,

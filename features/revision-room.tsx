@@ -1,15 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CheckCircle2,
-  Circle,
   Clock3,
   Copy,
   Loader2,
-  Mic,
-  Square,
   Users,
   Wifi,
   WifiOff,
@@ -20,12 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Progress } from '@/components/ui/progress';
-import { useMicLevel } from '@/hooks/use-mic-level';
-import { useTranscription } from '@/hooks/use-transcription';
 import { useCurrentAccount } from '@/lib/api/me';
 import {
-  addRevisionUtterance,
   createRevisionRoom,
   endRevisionRoom,
   heartbeatRevisionRoom,
@@ -37,18 +29,15 @@ import {
 } from '@/lib/api/revision-rooms';
 import { useCatalog } from '@/lib/api/study';
 import { useStudySquad } from '@/lib/api/study-squads';
-import { reviewDiscussion, type CoverageVerdict } from '@/lib/discussion-rubric';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useSubjectName, useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
+import { SolutionWhiteboard, WorkReview } from '@/features/solution-whiteboard';
+import { submitLearningWork, useLearningWork } from '@/lib/api/learning-work';
 import type { RevisionRoomPresence } from '@/lib/api/revision-rooms';
 
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'SN';
-}
-
-function formatClock(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 const PRESENCE_KEYS: Record<RevisionRoomPresence, TranslationKey> = {
@@ -57,12 +46,6 @@ const PRESENCE_KEYS: Record<RevisionRoomPresence, TranslationKey> = {
   away: 'revision.presence.away',
   finished: 'revision.presence.finished',
   left: 'revision.presence.left',
-};
-
-const VERDICT_KEYS: Record<CoverageVerdict, TranslationKey> = {
-  covered: 'verdict.covered',
-  partial: 'verdict.partial',
-  missed: 'verdict.missed',
 };
 
 function setRoomCache(
@@ -78,7 +61,8 @@ export default function RevisionRoomPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const zh = locale === 'zh';
   const subjectName = useSubjectName();
   const roomId = searchParams.get('roomId');
   const requestedTopicId = searchParams.get('topicId');
@@ -92,30 +76,7 @@ export default function RevisionRoomPage() {
   const roomQuery = useRevisionRoom(roomId, userId);
   const room = roomQuery.data?.room ?? null;
   const [selectedInviteIds, setSelectedInviteIds] = useState<string[]>([]);
-  const [now, setNow] = useState(Date.now());
-  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
-  const transcriptRef = useRef('');
-  const {
-    status: transcriptionStatus,
-    finalTranscript,
-    interimTranscript,
-    error: transcriptionError,
-    provider,
-    start,
-    stop,
-    reset,
-  } = useTranscription();
-  const isRecording = transcriptionStatus === 'recording' || transcriptionStatus === 'connecting';
-  const { level: micLevel, available: micAvailable } = useMicLevel(isRecording);
-
-  useEffect(() => {
-    transcriptRef.current = finalTranscript;
-  }, [finalTranscript]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const workQuery = useLearningWork('revision', roomId ?? '', userId ?? '', Boolean(room?.hasJoined), room?.status === 'ended');
 
   useEffect(() => {
     if (!roomId || !room?.hasJoined || room.status === 'ended') return;
@@ -156,60 +117,6 @@ export default function RevisionRoomPage() {
       toast.success(t('revision.toast.reviewReady'));
     },
   });
-  const utteranceMutation = useMutation({
-    mutationFn: (input: { submissionId: string; text: string; speakingMs: number }) => (
-      addRevisionUtterance(roomId ?? '', {
-        ...input,
-        locale: navigator.language || 'en',
-        provider,
-      })
-    ),
-    onSuccess: (result) => {
-      if (roomId && userId) setRoomCache(queryClient, roomId, userId, result);
-      reset();
-      toast.success(t('revision.toast.explanationShared'));
-    },
-    onError: (error) => toast.error(t('revision.transcriptNotShared'), {
-      description: error instanceof Error ? error.message : t('revision.tryAgain'),
-    }),
-  });
-
-  const beginRecording = useCallback(async () => {
-    reset();
-    setRecordingStartedAt(Date.now());
-    await start();
-  }, [reset, start]);
-
-  const finishRecording = useCallback(async () => {
-    await stop();
-    const text = transcriptRef.current.trim();
-    if (!text) {
-      toast.error(t('revision.noSpeechCaptured'));
-      return;
-    }
-    const speakingMs = Math.min(1_800_000, Math.max(0, Date.now() - (recordingStartedAt ?? Date.now())));
-    utteranceMutation.mutate({ submissionId: crypto.randomUUID(), text, speakingMs });
-    setRecordingStartedAt(null);
-  }, [recordingStartedAt, stop, utteranceMutation]);
-
-  const secondsLeft = useMemo(() => {
-    if (!room?.startedAt) return room?.durationSeconds ?? 180;
-    const remainingAtFetch = new Date(room.startedAt).getTime()
-      + room.durationSeconds * 1_000
-      - new Date(room.serverNow).getTime();
-    const elapsedSinceFetch = now - roomQuery.dataUpdatedAt;
-    return Math.max(0, Math.ceil((remainingAtFetch - elapsedSinceFetch) / 1_000));
-  }, [now, room, roomQuery.dataUpdatedAt]);
-
-  const groupReview = useMemo(() => {
-    if (!room || room.status !== 'ended') return null;
-    return reviewDiscussion(room.topicId, room.utterances.map((utterance) => ({
-      speakerId: utterance.userId,
-      speakerName: utterance.displayName,
-      text: utterance.text,
-    })));
-  }, [room]);
-
   if (!roomId && !topicId) {
     return (
       <main className="pattern-overlay min-h-screen bg-background p-4 sm:p-8">
@@ -329,6 +236,11 @@ export default function RevisionRoomPage() {
                 <Button variant="outline" className="rounded-full" onClick={() => { void navigator.clipboard.writeText(window.location.href); toast.success(t('revision.toast.linkCopied')); }}><Copy className="mr-2 h-4 w-4" />{room.joinCode}</Button>
                 {room.status === 'lobby' && room.canManage && <Button className="rounded-full" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>{t('revision.start')}</Button>}
                 {room.status === 'live' && room.canManage && <Button variant="destructive" className="rounded-full" onClick={() => endMutation.mutate()} disabled={endMutation.isPending}>{t('revision.endAndReview')}</Button>}
+                {room.status === 'ended' && (
+                  <Button variant="destructive" className="rounded-full" onClick={() => navigate('/study-squad')}>
+                    {t('revision.endSession')}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -337,31 +249,19 @@ export default function RevisionRoomPage() {
             <Card className="rounded-[28px]"><CardContent className="p-8 text-center"><Clock3 className="mx-auto h-10 w-10 text-primary" /><h2 className="mt-4 text-2xl font-bold">{t('revision.waitingInLobby')}</h2><p className="mt-2 text-muted-foreground">{t('revision.inviteInstructions')}</p></CardContent></Card>
           )}
 
-          {room.status === 'live' && (
-            <Card className="rounded-[28px]"><CardContent className="space-y-6 p-6 sm:p-8">
-              <div className="flex items-center justify-between"><div><p className="text-sm font-bold text-muted-foreground">{t('revision.groupExplanation')}</p><h2 className="text-2xl font-bold">{t('revision.speakFromOwnMic')}</h2></div><div className="rounded-full bg-secondary px-4 py-2 font-mono font-bold">{formatClock(secondsLeft)}</div></div>
-              <Progress value={(secondsLeft / room.durationSeconds) * 100} />
-              <div className="rounded-[24px] bg-muted p-5">
-                <p className="min-h-20 leading-7">{finalTranscript} <span className="text-muted-foreground">{interimTranscript}</span>{!finalTranscript && !interimTranscript && t('revision.liveTranscriptHint')}</p>
-                {transcriptionError && <p className="mt-3 text-sm text-destructive">{transcriptionError}</p>}
-                <div className="mt-4 flex items-center gap-3">
-                  {!isRecording ? (
-                    <Button onClick={() => void beginRecording()} disabled={utteranceMutation.isPending} className="rounded-full"><Mic className="mr-2 h-4 w-4" />{t('revision.startMyExplanation')}</Button>
-                  ) : (
-                    <Button onClick={() => void finishRecording()} className="rounded-full"><Square className="mr-2 h-4 w-4" />{t('revision.finishAndShare')}</Button>
-                  )}
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-background"><div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(micLevel * 100)}%` }} /></div>
-                  <span className="text-xs text-muted-foreground">{micAvailable ? t('revision.micActive') : t('revision.micUnavailable')}</span>
-                </div>
-              </div>
-            </CardContent></Card>
-          )}
-
-          {room.status === 'ended' && groupReview && (
-            <Card className="rounded-[28px]"><CardContent className="space-y-5 p-6 sm:p-8"><div><Badge className="rounded-full">{t('revision.groupReview')}</Badge><h2 className="mt-2 text-2xl font-bold">{t('revision.whatSquadCovered')}</h2></div><div className="grid gap-3 sm:grid-cols-3">{groupReview.group.map((item) => <div key={item.id} className="rounded-2xl border p-4"><div className="flex items-center gap-2">{item.verdict === 'covered' ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Circle className="h-5 w-5 text-muted-foreground" />}<span className="font-bold">{item.name}</span></div><p className="mt-2 text-sm text-muted-foreground">{t(VERDICT_KEYS[item.verdict])}</p></div>)}</div></CardContent></Card>
-          )}
-
-          <Card className="rounded-[28px]"><CardHeader><CardTitle>{t('revision.sharedTranscript')}</CardTitle></CardHeader><CardContent className="space-y-3">{room.utterances.length === 0 ? <p className="text-sm text-muted-foreground">{t('revision.noExplanationsShared')}</p> : room.utterances.map((utterance) => <article key={utterance.id} className="rounded-2xl bg-muted p-4"><div className="mb-2 flex items-center justify-between gap-3"><strong>{utterance.displayName}</strong><span className="text-xs text-muted-foreground">{new Date(utterance.spokenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div><p className="leading-7">{utterance.text}</p></article>)}</CardContent></Card>
+          {room.status === 'live' && <SolutionWhiteboard
+            key={room.id} draftKey={`revision-work:${userId}:${room.id}`}
+            onSubmit={async (input) => {
+              await submitLearningWork('revision', room.id, input);
+              await workQuery.refetch();
+            }} />}
+          <Card className="rounded-[28px]"><CardHeader><CardTitle>{zh ? '小队解题与分析' : 'Squad solutions and analysis'}</CardTitle></CardHeader><CardContent className="space-y-4">
+            {workQuery.isPending && <Loader2 className="h-5 w-5 animate-spin" />}
+            {workQuery.isError && <p role="alert" className="text-sm text-destructive">{workQuery.error.message}<Button variant="outline" onClick={() => void workQuery.refetch()}>{zh ? '重试' : 'Retry'}</Button></p>}
+            {workQuery.data?.works.length === 0 && <p className="text-sm text-muted-foreground">{zh ? '还没有提交的解题过程。先在白板手写，再读取并分析。' : 'No solutions yet. Write on the board, read the text, and analyse.'}</p>}
+            {workQuery.data?.works.map((work) => <WorkReview key={work.id} work={work} />)}
+          </CardContent></Card>
+          {room.utterances.length > 0 && <Card><CardHeader><CardTitle>{zh ? '之前的语音记录' : 'Earlier voice transcripts'}</CardTitle></CardHeader><CardContent>{room.utterances.map((utterance) => <p key={utterance.id} className="mb-3 whitespace-pre-wrap text-sm"><strong>{utterance.displayName}: </strong>{utterance.text}</p>)}</CardContent></Card>}
         </section>
 
         <aside>

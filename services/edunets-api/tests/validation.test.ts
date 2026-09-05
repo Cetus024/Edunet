@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEnquirySchema,
+  captureOcrSchema,
   onboardingRequestSchema,
   placementSetRequestSchema,
   questionRecipientsQuerySchema,
@@ -27,6 +28,21 @@ import {
   submitSquadQuizAnswerSchema,
   updateTeachingScopesSchema,
 } from '../src/validation.js';
+
+describe('Capture Hub OCR validation', () => {
+  it('accepts the compressed Base64 ceiling and rejects payloads above it', () => {
+    const base = { mimeType: 'image/jpeg' as const };
+
+    expect(captureOcrSchema.safeParse({
+      ...base,
+      imageBase64: 'a'.repeat(4_194_304),
+    }).success).toBe(true);
+    expect(captureOcrSchema.safeParse({
+      ...base,
+      imageBase64: 'a'.repeat(4_200_001),
+    }).success).toBe(false);
+  });
+});
 
 describe('authentication extension validation', () => {
   it('normalizes a referral code and enforces its OAuth-safe limit', () => {

@@ -25,6 +25,7 @@ describe('createAzureVisionOcr', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain(CONFIG.endpoint);
     expect(url).toContain('features=read');
+    expect(url).toContain('api-version=2024-02-01');
     expect(init.headers['Ocp-Apim-Subscription-Key']).toBe('test-key');
     expect(init.headers['Content-Type']).toBe('image/png');
     expect(init.body).toBeInstanceOf(Uint8Array);

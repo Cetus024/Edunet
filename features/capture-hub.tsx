@@ -1,19 +1,16 @@
 'use client';
 
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Mic,
   Camera,
   Upload,
-  FileText,
   Pencil,
-  Square,
-  Cloud,
   Sparkles,
   Network,
   ClipboardList,
   ChevronRight,
+  ChevronDown,
   Check,
   X,
   Calendar,
@@ -25,6 +22,7 @@ import {
   RefreshCw,
   FileType,
   File,
+  BookOpen,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,10 +53,22 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { useTranscription } from '@/hooks/use-transcription';
-import { useMascotFeedback } from '@/features/mascot';
-import { evaluateNotes as evaluateNotesApi, ocrImage, summarizeNotes as summarizeNotesApi, type NoteEvaluation } from '@/lib/api/capture';
+import {
+  evaluateNotes as evaluateNotesApi,
+  ocrImage,
+  summarizeNotes as summarizeNotesApi,
+  type CaptureFailure,
+  type NoteEvaluation,
+} from '@/lib/api/capture';
+import { ApiConnectionError, isApiError } from '@/lib/api/client';
 import { useCatalog } from '@/lib/api/study';
+import {
+  formatImageBytes,
+  MAX_OCR_IMAGE_BYTES,
+  MAX_SOURCE_IMAGE_BYTES,
+  prepareImageForOcr,
+} from '@/lib/capture-image';
+import { CURRICULUM } from '@/lib/curriculum';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
 // Subject data
@@ -66,6 +76,67 @@ const subjects = [
   { id: 'e-math', name: 'Mathematics', icon: '🔢' },
   { id: 'chemistry', name: 'Chemistry', icon: '⚗️' },
 ];
+
+type DebugLogStatus = 'running' | 'success' | 'warning' | 'error';
+
+type DebugLogEntry = {
+  id: string;
+  time: string;
+  stage: string;
+  status: DebugLogStatus;
+  message: string;
+};
+
+function describeCaptureFailure(failure: CaptureFailure): string {
+  if (failure.reason === 'not_configured') {
+    return failure.stage === 'ocr'
+      ? 'OCR is not connected: Azure Vision server credentials are not configured.'
+      : 'Analysis is not connected: no Microsoft Foundry model is configured on the server.';
+  }
+  if (failure.reason === 'no_text') {
+    return 'Azure Vision connected, but it could not detect readable text in this image.';
+  }
+  if (failure.reason === 'no_summary') {
+    return 'The model connected, but it did not produce a usable summary from these notes.';
+  }
+  if (failure.reason === 'topic_not_found') {
+    return 'The summary was created, but the selected topic was not found in the backend syllabus database.';
+  }
+  if (failure.reason === 'invalid_evaluation') {
+    return 'The summary was created, but the model evaluation response could not be read safely.';
+  }
+  if (failure.stage === 'ocr') {
+    return 'Azure Vision is configured, but the OCR request failed or timed out.';
+  }
+  if (failure.stage === 'summary') {
+    return 'The analysis provider is configured, but summary generation failed or timed out.';
+  }
+  if (failure.stage === 'grounding') {
+    return 'The summary was created, but the syllabus database could not be read.';
+  }
+  return 'The summary was created, but evaluation failed or timed out.';
+}
+
+function describeRequestError(error: unknown, operation: string): string {
+  if (error instanceof ApiConnectionError) {
+    return `${operation} could not start because Capture Hub cannot connect to the EduNets API.`;
+  }
+  if (isApiError(error)) {
+    if (error.status === 413) {
+      return `${operation} failed because the prepared image was still too large for the online service. Try cropping it to the note page.`;
+    }
+    const requestId = error.requestId ? ` Request ID: ${error.requestId}.` : '';
+    return `${operation} failed: ${error.message}${requestId}`;
+  }
+  return `${operation} failed because of an unexpected client error.`;
+}
+
+function debugStatusClass(status: DebugLogStatus): string {
+  if (status === 'success') return 'bg-emerald-500';
+  if (status === 'warning') return 'bg-amber-500';
+  if (status === 'error') return 'bg-red-500';
+  return 'bg-blue-500 animate-pulse';
+}
 
 // Sample materials library
 const materialsSample = [
@@ -90,39 +161,6 @@ const materialsSample = [
   // Sample entries have no captured text of their own, so their summary
   // falls back to metadata-only bullets — see buildMaterialSummary below.
 ].map((material) => ({ ...material, content: null as string | null }));
-
-// Animated soundwave component
-function SoundWave({ isActive }: { isActive: boolean }) {
-  return (
-    <div className="flex items-center justify-center gap-1 h-16">
-      {Array.from({ length: 24 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="w-1 rounded-full bg-[#6486B5]"
-          initial={{ height: 8 }}
-          animate={
-            isActive
-              ? {
-                  height: [8, Math.random() * 48 + 16, 8],
-                  opacity: [0.4, 1, 0.4],
-                }
-              : { height: 8, opacity: 0.3 }
-          }
-          transition={
-            isActive
-              ? {
-                  duration: 0.4 + Math.random() * 0.3,
-                  repeat: Infinity,
-                  repeatType: 'reverse',
-                  delay: i * 0.03,
-                }
-              : { duration: 0.3 }
-          }
-        />
-      ))}
-    </div>
-  );
-}
 
 // Upload tile component
 function UploadTile({
@@ -242,8 +280,6 @@ function buildMaterialSummary(material: (typeof materialsSample)[number]): strin
 // Get type icon
 function getTypeIcon(type: string) {
   switch (type) {
-    case 'audio':
-      return Mic;
     case 'scan':
       return Camera;
     case 'document':
@@ -256,28 +292,24 @@ function getTypeIcon(type: string) {
 }
 
 export default function CaptureHubPage() {
-  const { notify } = useMascotFeedback();
   const { data: catalog } = useCatalog();
-  const {
-    status: transcriptionStatus,
-    finalTranscript,
-    interimTranscript,
-    elapsedSeconds: recordingTime,
-    error: transcriptionError,
-    start: startTranscription,
-    stop: stopTranscription,
-    reset: resetTranscription,
-  } = useTranscription();
-  const isRecording = transcriptionStatus === 'recording';
-  const isTranscriptionBusy =
-    transcriptionStatus === 'connecting' || transcriptionStatus === 'stopping';
 
-  // Upload states
+  // Note capture states. OCR and typed text are deliberately additive so a
+  // student can photograph a handwritten page, correct it, and add details
+  // from a phone or laptop without using voice transcription.
   const [activeMethod, setActiveMethod] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [pastedText, setPastedText] = useState('');
-  const [scannedPreview, setScannedPreview] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploads, setUploads] = useState<Array<{
+    id: string;
+    name: string;
+    status: 'queued' | 'preparing' | 'reading' | 'success' | 'error';
+    message?: string;
+  }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const uploadBusyRef = useRef(false);
+  const [ocrTranscript, setOcrTranscript] = useState('');
+  const [isTextReviewExpanded, setIsTextReviewExpanded] = useState(false);
+  const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
   // Processing state
   const [extractedContent, setExtractedContent] = useState('');
@@ -285,7 +317,7 @@ export default function CaptureHubPage() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [generateQuiz, setGenerateQuiz] = useState(true);
   const [addToWeb, setAddToWeb] = useState(false);
-  const [generateSummary, setGenerateSummary] = useState(false);
+  const [generateSummary, setGenerateSummary] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOcrRunning, setIsOcrRunning] = useState(false);
 
@@ -297,6 +329,7 @@ export default function CaptureHubPage() {
   // should stay hidden rather than open to a blank result.
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<NoteEvaluation | null>(null);
+  const [evaluationSummaryPoints, setEvaluationSummaryPoints] = useState<string[]>([]);
   const [evaluationUnavailable, setEvaluationUnavailable] = useState(false);
   const [evaluationOpen, setEvaluationOpen] = useState(false);
 
@@ -309,7 +342,25 @@ export default function CaptureHubPage() {
   // Materials library
   const [materials, setMaterials] = useState(materialsSample);
   const [libraryFilter, setLibraryFilter] = useState('all');
+  const [noteMaterial, setNoteMaterial] = useState<(typeof materialsSample)[number] | null>(null);
   const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
+
+  const appendDebugLog = useCallback(
+    (stage: string, status: DebugLogStatus, message: string) => {
+      const now = new Date();
+      setDebugLog((current) => [
+        {
+          id: `${now.getTime()}-${Math.random().toString(16).slice(2)}`,
+          time: format(now, 'HH:mm:ss'),
+          stage,
+          status,
+          message,
+        },
+        ...current,
+      ].slice(0, 20));
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!summaryMaterial?.content) {
@@ -319,153 +370,128 @@ export default function CaptureHubPage() {
     let cancelled = false;
     setIsSummarizing(true);
     setRealSummaryPoints(null);
+    appendDebugLog('Summary', 'running', 'Sending the captured notes to the configured analysis provider.');
     summarizeNotesApi(summaryMaterial.content)
       .then((result) => {
         if (cancelled) return;
         if (result.available && result.points && result.points.length > 0) {
           setRealSummaryPoints(result.points);
+          appendDebugLog('Summary', 'success', `Generated ${result.points.length} summary points.`);
+          return;
         }
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'The summary endpoint returned no usable points and no diagnostic reason.';
+        appendDebugLog('Summary', result.available ? 'warning' : 'error', message);
+        toast.error(message);
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = describeRequestError(error, 'Summary');
+        appendDebugLog('Connection', 'error', message);
+        toast.error(message);
+      })
       .finally(() => {
         if (!cancelled) setIsSummarizing(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [summaryMaterial]);
+  }, [appendDebugLog, summaryMaterial]);
 
   // File input refs
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const transcriptReadyNotifiedRef = useRef(false);
-  const transcriptionFailureNotifiedRef = useRef(false);
+  const processSectionRef = useRef<HTMLElement>(null);
 
-  const notifyTranscriptionError = useCallback(() => {
-    if (transcriptionFailureNotifiedRef.current) return;
-    transcriptionFailureNotifiedRef.current = true;
-    notify({ type: 'transcriptError' });
-  }, [notify]);
-
-  useEffect(() => {
-    if (transcriptionStatus === 'error' && transcriptionError) {
-      notifyTranscriptionError();
-    }
-  }, [notifyTranscriptionError, transcriptionError, transcriptionStatus]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const openTextReview = () => {
+    setIsTextReviewExpanded(true);
+    window.requestAnimationFrame(() => {
+      processSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
-  const handleStartRecording = useCallback(async () => {
-    setActiveMethod('audio');
-    transcriptReadyNotifiedRef.current = false;
-    transcriptionFailureNotifiedRef.current = false;
-    try {
-      await startTranscription();
-      toast.success('Live transcription started');
-    } catch (startError) {
-      notifyTranscriptionError();
-      toast.error(
-        startError instanceof Error ? startError.message : 'Unable to start live transcription.'
-      );
-    }
-  }, [notifyTranscriptionError, startTranscription]);
-
-  const handleStopRecording = useCallback(async () => {
-    try {
-      const transcript = (await stopTranscription()).trim();
-      if (transcript) {
-        setExtractedContent(transcript);
-        if (!transcriptReadyNotifiedRef.current) {
-          transcriptReadyNotifiedRef.current = true;
-          notify({ type: 'transcriptReady' });
-        }
-        toast.success('Recording stopped - transcript ready!');
-      } else {
-        setExtractedContent('');
-        toast.info('Recording stopped, but no speech was recognized.');
-      }
-    } catch (stopError) {
-      notifyTranscriptionError();
-      toast.error(
-        stopError instanceof Error ? stopError.message : 'Unable to stop live transcription.'
-      );
-    }
-  }, [notify, notifyTranscriptionError, stopTranscription]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileUpload(files[0]);
-    }
-  }, []);
-
-  const handleFileUpload = (file: File) => {
-    setUploadedFile(file);
-    setActiveMethod('document');
-    setExtractedContent(
-      `Content extracted from "${file.name}":\n\nThis is the simulated extracted content from your uploaded document. In a real implementation, this would contain the actual text content parsed from your PDF, Word document, or PowerPoint file.`
-    );
-    toast.success(`File uploaded: ${file.name}`);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const mimeType = file.type === 'image/jpeg' || file.type === 'image/webp' ? file.type : 'image/png';
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setScannedPreview(dataUrl);
-      setActiveMethod('scan');
-      setExtractedContent('');
-      setIsOcrRunning(true);
-
-      // Handwriting recognition, not a canned string -- this used to return the
-      // same "Mitosis is the process of..." text regardless of what photo was
-      // uploaded. Most O-Level students have a phone camera and not a laptop
-      // microphone, which is why this path exists at all.
-      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
-      try {
-        const result = await ocrImage({ imageBase64: base64, mimeType });
-        if (!result.available) {
-          toast.error('Handwriting recognition is not set up for this deployment yet.');
-        } else if (!result.text?.trim()) {
-          toast.error('No text was recognized in that photo. Try a clearer or closer shot.');
-        } else {
-          setExtractedContent(result.text);
-          toast.success('Text extracted from your photo!');
-        }
-      } catch {
-        toast.error('Could not process that photo. Try again.');
-      } finally {
-        setIsOcrRunning(false);
-      }
+  const handleImageUpload = async (files: File[]) => {
+    if (uploadBusyRef.current || isProcessing || files.length === 0) return;
+    uploadBusyRef.current = true;
+    setIsOcrRunning(true);
+    setActiveMethod('scan');
+    const batch = files.map((file) => ({ file, id: crypto.randomUUID() }));
+    setUploads((current) => [...current, ...batch.map(({ file, id }) => ({
+      id, name: file.name, status: 'queued' as const,
+    }))]);
+    const updateUpload = (
+      id: string,
+      status: 'preparing' | 'reading' | 'success' | 'error',
+      message?: string,
+    ) => {
+      setUploads((current) => current.map((item) => item.id === id ? { ...item, status, message } : item));
     };
-    reader.readAsDataURL(file);
+    let succeeded = 0;
+    try {
+      for (const { file, id } of batch) {
+        try {
+          updateUpload(
+            id,
+            'preparing',
+            file.size > MAX_OCR_IMAGE_BYTES ? 'Compressing this phone photo for upload...' : 'Preparing image...',
+          );
+          const prepared = await prepareImageForOcr(file);
+          const sizeMessage = prepared.optimized
+            ? `Compressed ${formatImageBytes(prepared.originalBytes)} → ${formatImageBytes(prepared.preparedBytes)}`
+            : `Prepared ${formatImageBytes(prepared.preparedBytes)}`;
+          updateUpload(id, 'reading', `${sizeMessage} · Extracting text...`);
+          if (prepared.optimized) {
+            appendDebugLog('Upload', 'success', `${file.name}: ${sizeMessage} before OCR.`);
+          }
+          appendDebugLog('OCR', 'running', `Reading ${file.name} with Microsoft Azure AI Vision.`);
+          let result;
+          try {
+            result = await ocrImage({ imageBase64: prepared.base64, mimeType: prepared.mimeType });
+          } catch (error: unknown) {
+            throw new Error(describeRequestError(error, 'OCR'));
+          }
+          if (!result.available || !result.text?.trim()) {
+            throw new Error(result.failure
+              ? describeCaptureFailure(result.failure)
+              : 'OCR returned no readable text. Try a clearer image.');
+          }
+          const transcript = result.text.trim();
+          setOcrTranscript((current) =>
+            [current.trim(), transcript].filter(Boolean).join('\n\n--- Next scanned page ---\n\n')
+          );
+          setExtractedContent((current) =>
+            [current.trim(), transcript].filter(Boolean).join('\n\n')
+          );
+          updateUpload(id, 'success', `${transcript.length} characters extracted · ${sizeMessage}`);
+          appendDebugLog('OCR', 'success', `${file.name}: ${transcript.length} characters extracted.`);
+          succeeded += 1;
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Could not process this image.';
+          updateUpload(id, 'error', message);
+          appendDebugLog('OCR', 'error', `${file.name}: ${message}`);
+        }
+      }
+      if (succeeded) {
+        setIsTextReviewExpanded(false);
+        toast.success(`Extracted text from ${succeeded} of ${batch.length} images.`);
+      }
+      if (succeeded < batch.length) toast.error('Some images could not be read. See the file list for details.');
+    } finally {
+      uploadBusyRef.current = false;
+      setIsOcrRunning(false);
+    }
   };
 
   const handlePasteSubmit = () => {
-    if (pastedText.trim()) {
-      setActiveMethod('paste');
-      setExtractedContent(pastedText);
-      toast.success('Text captured!');
-    }
+    const typedNotes = pastedText.trim();
+    if (!typedNotes) return;
+    setActiveMethod((current) => current ?? 'paste');
+    setExtractedContent((current) =>
+      [current.trim(), typedNotes].filter(Boolean).join('\n\n')
+    );
+    setPastedText('');
+    appendDebugLog('Input', 'success', `Added ${typedNotes.length} typed characters to the combined notes.`);
+    toast.success('Typed notes added!');
   };
 
   const resolvedTopicId = useMemo(() => {
@@ -474,25 +500,61 @@ export default function CaptureHubPage() {
     return resolveRubricTopicId(subjectName, selectedTopic);
   }, [selectedSubject, selectedTopic]);
 
+  const handleTopicSelect = (topic: string) => {
+    setSelectedTopic(topic);
+    const subjectName = subjects.find((subject) => subject.id === selectedSubject)?.name;
+    if (subjectName && !resolveRubricTopicId(subjectName, topic)) {
+      const message = `${subjectName} · ${topic} is not connected to backend syllabus grounding, so evaluation will not run.`;
+      appendDebugLog('Grounding', 'warning', message);
+      toast.warning(message);
+    }
+  };
+
   const handleEvaluate = async () => {
     if (!resolvedTopicId || !extractedContent) return;
     setIsEvaluating(true);
     setEvaluationUnavailable(false);
+    setEvaluationSummaryPoints([]);
+    appendDebugLog('Summary', 'running', 'Generating a summary before syllabus evaluation.');
     try {
       const result = await evaluateNotesApi({ topicId: resolvedTopicId, text: extractedContent });
+      if (result.summaryPoints?.length) {
+        setEvaluationSummaryPoints(result.summaryPoints);
+        appendDebugLog('Summary', 'success', `Generated ${result.summaryPoints.length} summary points.`);
+      }
       if (!result.available) {
         setEvaluationUnavailable(true);
-        toast.error('Evaluation is not set up for this deployment yet.');
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'Analysis is unavailable and the server did not provide a diagnostic reason.';
+        appendDebugLog(result.failure?.stage ?? 'Analysis', 'error', message);
+        toast.error(message);
+        return;
+      }
+      if (result.failure) {
+        const message = describeCaptureFailure(result.failure);
+        appendDebugLog(result.failure.stage, 'error', message);
+        toast.error(message);
         return;
       }
       if (!result.evaluation) {
-        toast.error('Could not evaluate these notes -- try adding more content.');
+        const message = 'No evaluation was returned and the server did not provide a diagnostic reason.';
+        appendDebugLog('Evaluation', 'error', message);
+        toast.error(message);
         return;
       }
       setEvaluation(result.evaluation);
       setEvaluationOpen(true);
-    } catch {
-      toast.error('Could not evaluate these notes. Try again.');
+      appendDebugLog(
+        'Evaluation',
+        'success',
+        `Compared the summary with the syllabus database: ${result.evaluation.percentage}% coverage.`,
+      );
+      toast.success('Summary and syllabus evaluation completed.');
+    } catch (error: unknown) {
+      const message = describeRequestError(error, 'Analysis');
+      appendDebugLog('Connection', 'error', message);
+      toast.error(message);
     } finally {
       setIsEvaluating(false);
     }
@@ -511,7 +573,7 @@ export default function CaptureHubPage() {
 
     const newMaterial = {
       id: Date.now().toString(),
-      name: uploadedFile?.name || 'New Material',
+      name: selectedTopic ? `${selectedTopic} Notes` : 'New Notes',
       subject: selectedSubject,
       topic: selectedTopic || 'General',
       dateUploaded: new Date().toISOString().split('T')[0],
@@ -542,8 +604,9 @@ export default function CaptureHubPage() {
     // Reset
     setExtractedContent('');
     setActiveMethod(null);
-    setUploadedFile(null);
-    setScannedPreview(null);
+    setUploads([]);
+    setOcrTranscript('');
+    setIsTextReviewExpanded(false);
     setPastedText('');
     setSelectedSubject('');
     setSelectedTopic('');
@@ -552,10 +615,10 @@ export default function CaptureHubPage() {
   const clearContent = () => {
     setExtractedContent('');
     setActiveMethod(null);
-    setUploadedFile(null);
-    setScannedPreview(null);
+    setUploads([]);
+    setOcrTranscript('');
+    setIsTextReviewExpanded(false);
     setPastedText('');
-    resetTranscription();
   };
 
   const filteredMaterials =
@@ -582,11 +645,16 @@ export default function CaptureHubPage() {
     },
   ];
 
-  // Real parent Topics for the selected 4052/6092 subject.
+  // Prefer the API catalog, while keeping the local canonical curriculum as
+  // the loading/error fallback so every option resolves to backend grounding.
   const availableTopics = useMemo(() => {
     const subjectName = subjects.find((candidate) => candidate.id === selectedSubject)?.name;
     const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);
-    return catalogSubject?.topics.map((topic) => topic.name) ?? [];
+    const catalogTopics = catalogSubject?.topics.map((topic) => topic.name);
+    const fallbackTopics = CURRICULUM
+      .find((subject) => subject.id === selectedSubject)
+      ?.topics.map((topic) => topic.name) ?? [];
+    return catalogTopics?.length ? catalogTopics : fallbackTopics;
   }, [catalog, selectedSubject]);
 
   return (
@@ -598,289 +666,131 @@ export default function CaptureHubPage() {
             <Upload className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">Capture Hub</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">Capture Hub 2.0</h1>
             <p className="text-muted-foreground text-sm">
-              Feed your own materials into the system
+              Turn handwritten and typed notes into a summary, then check them against your syllabus
             </p>
           </div>
         </div>
       </motion.div>
 
-      {/* 4 Upload Method Tiles - 2x2 Grid */}
+      {/* Phone-first capture: image OCR and typed notes, with no microphone dependency. */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
         className="grid md:grid-cols-2 gap-4 mb-8"
       >
-        {/* Tile 1: Live Audio Transcription */}
-        <UploadTile
-          emoji="🎙️"
-          title="Live Audio Transcription"
-          description="Record your lecture or Zoom class"
-          isActive={activeMethod === 'audio'}
-        >
-          <div className="space-y-4">
-            {/* Main microphone button */}
-            <div className="flex justify-center">
-              <motion.button
-                onClick={isRecording ? handleStopRecording : handleStartRecording}
-                disabled={isTranscriptionBusy}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all ${
-                  isRecording
-                    ? 'bg-[#D9534F] shadow-[0_0_30px_rgba(217,83,79,0.5)]'
-                    : 'bg-[#6486B5] hover:shadow-[0_0_20px_rgba(100,134,181,0.4)] disabled:cursor-not-allowed disabled:opacity-70'
-                }`}
-              >
-                {isRecording ? (
-                  <Square className="w-10 h-10 text-white" />
-                ) : isTranscriptionBusy ? (
-                  <RefreshCw className="w-10 h-10 text-white animate-spin" />
-                ) : (
-                  <Mic className="w-10 h-10 text-white" />
-                )}
-                {isRecording && (
-                  <motion.div
-                    className="absolute inset-0 rounded-full border-4 border-[#D9534F]"
-                    initial={{ scale: 1, opacity: 1 }}
-                    animate={{ scale: 1.5, opacity: 0 }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                )}
-              </motion.button>
-            </div>
-
-            {/* Recording indicator */}
-            {(isRecording || isTranscriptionBusy) && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center"
-              >
-                {isRecording ? (
-                  <div className="flex items-center justify-center gap-2 text-[#D9534F] font-bold">
-                    <motion.div
-                      className="w-3 h-3 rounded-full bg-[#D9534F]"
-                      animate={{ opacity: [1, 0.3, 1] }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                    />
-                    Recording {formatTime(recordingTime)}
-                  </div>
-                ) : (
-                  <div className="text-sm font-medium text-[#6486B5]">
-                    {transcriptionStatus === 'connecting'
-                      ? 'Connecting to Huawei Cloud SIS...'
-                      : 'Finishing transcript...'}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* Soundwave visualization */}
-            <SoundWave isActive={isRecording} />
-
-            {transcriptionError && (
-              <p className="text-center text-sm text-destructive" role="alert">
-                {transcriptionError}
-              </p>
-            )}
-
-            {/* Live transcript preview */}
-            <AnimatePresence>
-              {(finalTranscript || interimTranscript) && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-[#6486B5]/5 rounded-xl p-3 max-h-32 overflow-y-auto"
-                >
-                  <p className="text-xs text-muted-foreground mb-1 font-medium">
-                    Live transcript:
-                  </p>
-                  <p className="text-sm text-studynow-dark leading-relaxed">
-                    {finalTranscript}
-                    {interimTranscript && (
-                      <span className="text-muted-foreground italic">
-                        {finalTranscript ? ' ' : ''}{interimTranscript}
-                      </span>
-                    )}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Teams integration */}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-              <Cloud className="w-4 h-4 text-[#6264A7]" />
-              <span>Or import directly from a Teams meeting recording</span>
-            </div>
-          </div>
-        </UploadTile>
-
-        {/* Tile 2: Scan Handwritten Notes */}
+        {/* Scan handwritten notes with Microsoft Azure AI Vision OCR. */}
         <UploadTile
           emoji="📷"
           title="Scan Handwritten Notes"
-          description="Photo or scan your handwritten notes"
+          description="Upload or drop photos of your notes for OCR"
           isActive={activeMethod === 'scan'}
         >
-          <div className="space-y-4">
+          <div
+            className="space-y-4"
+            onDragEnter={(event) => {
+              event.preventDefault();
+              if (event.dataTransfer.types.includes('Files')) setIsDragging(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = isOcrRunning || isProcessing ? 'none' : 'copy';
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              void handleImageUpload(Array.from(event.dataTransfer.files));
+            }}
+          >
             <input
               ref={imageInputRef}
               type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              disabled={isOcrRunning || isProcessing}
+              aria-label="Upload images for OCR"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
+                void handleImageUpload(files);
+              }}
               className="hidden"
             />
-
-            {scannedPreview ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-                <div className="relative rounded-xl overflow-hidden border-2 border-[#EAA93C]/30">
-                  <img
-                    src={scannedPreview}
-                    alt="Scanned notes"
-                    className="w-full h-40 object-cover"
-                  />
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute top-2 right-2 h-8 w-8 rounded-lg"
-                    onClick={() => {
-                      setScannedPreview(null);
-                      setActiveMethod(null);
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                {isOcrRunning ? (
-                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
-                    />
-                    <span>Recognizing handwriting...</span>
-                  </div>
-                ) : extractedContent ? (
-                  <div className="flex items-center gap-2 text-sm text-[#6486B5]">
-                    <Check className="w-4 h-4" />
-                    <span>Text extracted with OCR</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No text was recognized yet. Try a clearer photo, or type your notes instead.
-                  </p>
-                )}
-              </motion.div>
-            ) : (
-              <motion.button
-                onClick={() => imageInputRef.current?.click()}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full h-40 border-2 border-dashed border-[#EAA93C]/40 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-[#EAA93C] hover:bg-[#EAA93C]/5 transition-all"
-              >
-                <div className="w-14 h-14 rounded-full bg-[#EAA93C]/20 flex items-center justify-center">
-                  <Camera className="w-7 h-7 text-[#EAA93C]" />
-                </div>
-                <div className="text-center">
-                  <p className="font-semibold text-studynow-dark">Click to upload image</p>
-                  <p className="text-xs text-muted-foreground">Uses OCR to extract text</p>
-                </div>
-              </motion.button>
-            )}
-          </div>
-        </UploadTile>
-
-        {/* Tile 3: Upload Document */}
-        <UploadTile
-          emoji="📄"
-          title="Upload Document"
-          description="Upload notes, textbooks, or past papers"
-          isActive={activeMethod === 'document'}
-        >
-          <div className="space-y-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.ppt,.pptx"
-              onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-              className="hidden"
-            />
-
-            {uploadedFile ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-3 p-3 bg-[#6486B5]/5 rounded-xl"
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#6486B5]/20 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-[#6486B5]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-studynow-dark truncate">{uploadedFile.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(uploadedFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  onClick={() => {
-                    setUploadedFile(null);
-                    setActiveMethod(null);
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                whileHover={{ scale: 1.01 }}
-                className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  isDragging
-                    ? 'border-[#6486B5] bg-[#6486B5]/10'
-                    : 'border-border hover:border-[#6486B5]/50 hover:bg-muted/30'
-                }`}
-              >
-                <Upload
-                  className={`w-8 h-8 ${isDragging ? 'text-[#6486B5]' : 'text-muted-foreground'}`}
-                />
-                <p className="text-sm font-medium text-studynow-dark">Drag & drop or click</p>
-                <p className="text-xs text-muted-foreground">PDF, Word, PowerPoint, OneNote</p>
-              </motion.div>
-            )}
-
-            {/* OneDrive button */}
-            <Button
-              variant="outline"
-              className="w-full rounded-xl border-[#0078D4] text-[#0078D4] hover:bg-[#0078D4]/10"
+            <motion.button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isOcrRunning || isProcessing}
+              whileTap={{ scale: 0.98 }}
+              className={`w-full min-h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 p-4 transition-all disabled:opacity-60 disabled:cursor-wait ${
+                isDragging ? 'border-[#6486B5] bg-[#6486B5]/10' : 'border-[#EAA93C]/40 hover:border-[#EAA93C] hover:bg-[#EAA93C]/5'
+              }`}
             >
-              <Cloud className="w-4 h-4 mr-2" />
-              Import from OneDrive
-            </Button>
+              <Upload className="w-7 h-7 text-[#EAA93C]" />
+              <div className="text-center">
+                <p className="font-semibold text-studynow-dark">
+                  {isOcrRunning ? 'Reading your images...' : isDragging ? 'Drop images here' : 'Drag images here or click to upload'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPEG or WebP · Up to {formatImageBytes(MAX_SOURCE_IMAGE_BYTES)} · Large phone photos compress automatically
+                </p>
+              </div>
+            </motion.button>
+            {uploads.length > 0 && (
+              <div className="space-y-2" aria-live="polite" aria-atomic="false">
+                <p className="text-xs text-muted-foreground">
+                  {uploads.filter((item) => item.status === 'success' || item.status === 'error').length} of {uploads.length} files processed
+                </p>
+                <ul className="max-h-60 space-y-2 overflow-y-auto">
+                  {uploads.map((item) => (
+                    <li key={item.id} className="flex items-start gap-2 rounded-xl border p-3 text-sm">
+                      {item.status === 'success' ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        : item.status === 'error' ? <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                        : <RefreshCw className={`mt-0.5 h-4 w-4 shrink-0 ${item.status === 'reading' || item.status === 'preparing' ? 'animate-spin' : ''}`} />}
+                      <div className="min-w-0">
+                        <p className="break-all font-medium">{item.name}</p>
+                        <p className={`text-xs ${item.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          {item.message ?? (item.status === 'reading'
+                            ? 'Extracting text...'
+                            : item.status === 'preparing' ? 'Preparing image...' : 'Waiting to scan')}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {ocrTranscript && !isOcrRunning && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={openTextReview}
+                className="w-full rounded-xl border-[#EAA93C]/50 bg-white/70 font-bold text-studynow-dark hover:bg-[#EAA93C]/10"
+              >
+                <ClipboardList className="mr-2 h-4 w-4 text-[#EAA93C]" />
+                Review scanned text
+                <ChevronRight className="ml-auto h-4 w-4" />
+              </Button>
+            )}
           </div>
         </UploadTile>
 
-        {/* Tile 4: Paste Text */}
+        {/* Type or paste notes, including additions to OCR text. */}
         <UploadTile
           emoji="✏️"
-          title="Paste Text"
-          description="Paste any text, notes, or content directly"
+          title="Type or Paste Notes"
+          description="Add typed notes to the same summary"
           isActive={activeMethod === 'paste'}
         >
           <div className="space-y-3">
             <Textarea
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
-              placeholder="Paste your notes, text excerpts, or any content here..."
+              placeholder="Type or paste your notes here. They will be combined with any OCR text..."
               className="min-h-[140px] rounded-xl resize-none"
             />
             <Button
@@ -889,16 +799,61 @@ export default function CaptureHubPage() {
               className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
             >
               <Check className="w-4 h-4 mr-2" />
-              Capture Text
+              Add to Notes
             </Button>
           </div>
         </UploadTile>
       </motion.div>
 
+      <Card className="mb-8 overflow-hidden rounded-2xl border border-[#6486B5]/25 bg-white/80 card-shadow">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-studynow-dark">Capture Debug Log</h2>
+              <p className="text-xs text-muted-foreground">
+                Live connection, OCR, summary, and syllabus-analysis status. No credentials are shown.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDebugLog([])}
+              disabled={debugLog.length === 0}
+            >
+              Clear log
+            </Button>
+          </div>
+
+          <div className="mt-4 max-h-52 space-y-2 overflow-y-auto" aria-live="polite">
+            {debugLog.length === 0 ? (
+              <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                No capture or analysis request has run yet.
+              </p>
+            ) : (
+              debugLog.map((entry) => (
+                <div key={entry.id} className="flex gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
+                  <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${debugStatusClass(entry.status)}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2">
+                      <span className="font-bold text-studynow-dark">{entry.stage}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{entry.status}</span>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground">{entry.time}</span>
+                    </div>
+                    <p className="mt-0.5 break-words text-muted-foreground">{entry.message}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Process My Material Section */}
       <AnimatePresence>
         {extractedContent && (
           <motion.section
+            ref={processSectionRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -909,7 +864,7 @@ export default function CaptureHubPage() {
                 <span className="w-1.5 h-6 bg-[#EAA93C] rounded-full"></span>
                 Process My Material
               </h2>
-              <Button variant="ghost" size="sm" onClick={clearContent} className="text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={clearContent} disabled={isOcrRunning || isProcessing} className="text-muted-foreground">
                 <X className="w-4 h-4 mr-1" />
                 Clear
               </Button>
@@ -917,17 +872,83 @@ export default function CaptureHubPage() {
 
             <Card className="border-0 rounded-2xl card-shadow overflow-hidden">
               <CardContent className="p-6">
-                {/* Preview panel */}
-                <div className="mb-6">
-                  <Label className="text-sm font-semibold text-studynow-dark mb-2 block">
-                    Extracted Content Preview
-                  </Label>
-                  <div className="bg-muted/30 rounded-xl p-4 max-h-48 overflow-y-auto border border-border">
-                    <p className="text-sm text-studynow-dark whitespace-pre-wrap leading-relaxed">
-                      {extractedContent}
-                    </p>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  aria-expanded={isTextReviewExpanded}
+                  aria-controls="captured-text-review"
+                  onClick={() => setIsTextReviewExpanded((current) => !current)}
+                  className="mb-6 flex w-full items-center gap-3 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 px-4 py-3 text-left transition-colors hover:bg-[#EAA93C]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAA93C] focus-visible:ring-offset-2"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EAA93C]/15">
+                    <ClipboardList className="h-4 w-4 text-[#C98618]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-bold text-studynow-dark">Scanned text &amp; transcript</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {ocrTranscript
+                        ? `${ocrTranscript.length} OCR characters · ${extractedContent.length} combined characters`
+                        : `${extractedContent.length} typed characters`}
+                    </span>
+                  </span>
+                  <Badge variant="outline" className="hidden shrink-0 border-[#EAA93C]/40 text-studynow-dark sm:inline-flex">
+                    {isTextReviewExpanded ? 'Hide' : 'Review'}
+                  </Badge>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isTextReviewExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isTextReviewExpanded && (
+                    <motion.div
+                      id="captured-text-review"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mb-6 overflow-hidden"
+                    >
+                      {ocrTranscript && (
+                        <div className="mb-4 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 p-4">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <Label className="text-sm font-semibold text-studynow-dark">
+                              OCR Transcript (raw)
+                            </Label>
+                            <Badge variant="outline" className="border-[#EAA93C]/40 text-studynow-dark">
+                              {ocrTranscript.length} characters
+                            </Badge>
+                          </div>
+                          <Textarea
+                            value={ocrTranscript}
+                            readOnly
+                            aria-label="Raw OCR transcript"
+                            className="min-h-32 resize-y rounded-xl bg-white/80 font-mono text-xs leading-relaxed"
+                          />
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            This is exactly what Azure Vision returned. Make corrections in the combined notes below.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Editable combined OCR + typed notes. */}
+                      <div>
+                        <Label className="mb-2 block text-sm font-semibold text-studynow-dark">
+                          Review Combined Notes
+                        </Label>
+                        <Textarea
+                          value={extractedContent}
+                          onChange={(event) => setExtractedContent(event.target.value)}
+                          aria-label="Review combined OCR and typed notes"
+                          className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
+                        />
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Fix any handwriting-recognition mistakes or add missing details before summarizing.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Subject & Topic Selection */}
                 <div className="grid sm:grid-cols-2 gap-4 mb-6">
@@ -957,9 +978,9 @@ export default function CaptureHubPage() {
                       <Folder className="w-4 h-4 inline mr-1" />
                       Topic
                     </Label>
-                    <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedSubject || !catalog}>
+                    <Select value={selectedTopic} onValueChange={handleTopicSelect} disabled={!selectedSubject}>
                       <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder={!selectedSubject ? 'Select subject first' : !catalog ? 'Loading topics...' : 'Select topic'} />
+                        <SelectValue placeholder={!selectedSubject ? 'Select subject first' : 'Select topic'} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableTopics.map((t) => (
@@ -971,6 +992,13 @@ export default function CaptureHubPage() {
                     </Select>
                   </div>
                 </div>
+
+                {selectedTopic && !resolvedTopicId && (
+                  <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    This topic is not connected to backend syllabus data. You can still save and summarize the notes,
+                    but syllabus evaluation will be skipped.
+                  </div>
+                )}
 
                 {/* Action buttons - checkboxes */}
                 <div className="mb-6">
@@ -1064,16 +1092,15 @@ export default function CaptureHubPage() {
                   </div>
                 </div>
 
-                {/* Evaluate: judges the captured notes against the syllabus, separate
-                    from saving the material below. Hidden rather than shown
-                    disabled when the topic has no rubric -- see resolvedTopicId. */}
+                {/* Evaluation always summarizes first, then compares that exact
+                    summary with the selected topic's database grounding. */}
                 {resolvedTopicId && extractedContent && (
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => void handleEvaluate()}
-                      disabled={isEvaluating}
+                      disabled={isEvaluating || isOcrRunning}
                       className="w-full h-12 rounded-xl border-2 border-[#6486B5] font-bold text-[#6486B5] hover:bg-[#6486B5]/10"
                     >
                       {isEvaluating ? (
@@ -1083,10 +1110,10 @@ export default function CaptureHubPage() {
                             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                             className="mr-2 h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
                           />
-                          Evaluating against the syllabus...
+                          Summarizing and checking the database...
                         </>
                       ) : (
-                        <>📊 Evaluate against the syllabus</>
+                        <>📊 Evaluate summary against the syllabus</>
                       )}
                     </Button>
                   </motion.div>
@@ -1096,7 +1123,7 @@ export default function CaptureHubPage() {
                 <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                   <Button
                     onClick={handleProcess}
-                    disabled={isProcessing || !selectedSubject}
+                    disabled={isProcessing || isOcrRunning || !selectedSubject}
                     className="w-full h-14 bg-[#EAA93C] hover:bg-[#EAA93C]/90 text-studynow-dark font-bold text-lg rounded-xl shadow-lg"
                   >
                     {isProcessing ? (
@@ -1176,7 +1203,7 @@ export default function CaptureHubPage() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <Card className="border-0 rounded-2xl card-shadow hover:shadow-lg transition-shadow cursor-pointer group">
+                    <Card className="border-0 rounded-2xl card-shadow hover:shadow-lg transition-shadow group">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
                           {/* Type icon */}
@@ -1213,6 +1240,18 @@ export default function CaptureHubPage() {
                                 ))}
                               </div>
                             </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setNoteMaterial(material)}
+                              className="mt-4 w-full rounded-xl border-[#6486B5]/40 text-[#6486B5] hover:bg-[#6486B5]/10"
+                              aria-label={`Read ${material.name}`}
+                            >
+                              <BookOpen className="mr-2 h-4 w-4" />
+                              Read note
+                            </Button>
                           </div>
 
                           {/* Menu */}
@@ -1227,6 +1266,10 @@ export default function CaptureHubPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-xl">
+                              <DropdownMenuItem onClick={() => setNoteMaterial(material)}>
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                Read note
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Summary
@@ -1274,6 +1317,36 @@ export default function CaptureHubPage() {
         )}
       </motion.section>
 
+      <Dialog open={noteMaterial !== null} onOpenChange={(open) => !open && setNoteMaterial(null)}>
+        <DialogContent className="max-w-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-[#6486B5]" />
+              {noteMaterial?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.icon}{' '}
+              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.name}
+              {noteMaterial ? ` · ${noteMaterial.topic}` : ''}
+              {noteMaterial ? ` · ${format(new Date(noteMaterial.dateUploaded), 'dd MMM yyyy')}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {noteMaterial?.content ? (
+            <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-[#6486B5]/20 bg-[#6486B5]/5 p-4 text-sm leading-7 text-studynow-dark">
+              {noteMaterial.content}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed p-6 text-center">
+              <p className="font-semibold text-studynow-dark">Original note text is unavailable</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This is a demo library item. Notes you capture and process will show their full OCR or typed text here.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={summaryMaterial !== null} onOpenChange={(open) => !open && setSummaryMaterial(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -1303,14 +1376,38 @@ export default function CaptureHubPage() {
           reference point was contradicted or never mentioned, not whether the
           notes were merely worded differently -- so the copy says covered /
           missing, never a grade on writing quality. */}
-      <Dialog open={evaluationOpen} onOpenChange={(open) => { setEvaluationOpen(open); if (!open) setEvaluation(null); }}>
+      <Dialog
+        open={evaluationOpen}
+        onOpenChange={(open) => {
+          setEvaluationOpen(open);
+          if (!open) {
+            setEvaluation(null);
+            setEvaluationSummaryPoints([]);
+          }
+        }}
+      >
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Evaluation</DialogTitle>
-            <DialogDescription>How your notes compare to the syllabus for this topic.</DialogDescription>
+            <DialogDescription>Your generated summary compared with the syllabus data for this topic.</DialogDescription>
           </DialogHeader>
           {evaluation && (
             <div className="space-y-4">
+              {evaluationSummaryPoints.length > 0 && (
+                <div className="rounded-xl border border-[#6486B5]/30 bg-[#6486B5]/5 p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-[#6486B5]">
+                    Summary used for this evaluation
+                  </p>
+                  <ul className="mt-2 space-y-1.5 text-sm text-studynow-dark">
+                    {evaluationSummaryPoints.map((point) => (
+                      <li key={point} className="flex gap-2">
+                        <span aria-hidden="true">•</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex items-center justify-center">
                 <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#6486B5] text-2xl font-black text-[#6486B5]">
                   {evaluation.percentage}%

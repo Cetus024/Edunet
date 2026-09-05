@@ -250,9 +250,28 @@ describe('Phase 1 dual-memory migration', () => {
 
 describe('curriculum v2 migration', () => {
   const migration = readFileSync(fileURLToPath(new URL(
-    '../../../database/migrations/0017_naive_tusk.sql',
+    '../../../database/migrations/0018_curriculum_v2.sql',
     import.meta.url,
   )), 'utf8');
+
+  it('runs the first-time conversion only when curriculum v2 is absent', () => {
+    const installedGuardAt = migration.indexOf("IF to_regclass('public.subtopics') IS NOT NULL THEN");
+    const reconciledReturnAt = migration.indexOf('RETURN;', installedGuardAt);
+    const destructiveCleanupAt = migration.indexOf('DELETE FROM "user_topic_mode_progress"');
+
+    expect(installedGuardAt).toBeGreaterThanOrEqual(0);
+    expect(reconciledReturnAt).toBeGreaterThan(installedGuardAt);
+    expect(destructiveCleanupAt).toBeGreaterThan(reconciledReturnAt);
+    expect(migration).toContain('without changing learning data');
+  });
+
+  it('rejects a partial former installation instead of rerunning cleanup', () => {
+    expect(migration).toContain('installed_columns <> 7');
+    expect(migration).toContain('installed_subtopic_columns <> 6');
+    expect(migration).toContain('installed_constraints <> 5');
+    expect(migration).toContain("to_regclass('public.subtopics_topic_syllabus_code_idx') IS NULL");
+    expect(migration).toContain('curriculum-v2 partial installation detected');
+  });
 
   it('cleans Topic-dependent evidence before deleting retired catalog rows', () => {
     const quizCleanupAt = migration.indexOf('DELETE FROM "quiz_attempt"');
@@ -266,7 +285,7 @@ describe('curriculum v2 migration', () => {
     expect(migration).toContain('DELETE FROM "user_topic_mode_progress"');
     expect(migration).toContain('DELETE FROM "discussion_room"');
     expect(migration).toContain('DELETE FROM "edunets"."squad_quiz_rooms"');
-    expect(migration).toContain('NOT EXISTS (\n    SELECT 1 FROM "edunets"."enquiry_threads"');
+    expect(migration).toMatch(/NOT EXISTS \(\s+SELECT 1 FROM "edunets"\."enquiry_threads"/);
   });
 
   it('preserves identity, school and Study Squad tables and resets learning onboarding', () => {

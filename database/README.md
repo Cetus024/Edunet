@@ -28,7 +28,7 @@ Run the same command again to verify migration and seed idempotency. The ownersh
 
 ## Curriculum v2 migration
 
-Migration `0017_naive_tusk.sql` deliberately removes the retired six-subject catalog and all evidence tied to the old Topic model. It preserves authentication records, profile roles and schools, plus Study Squads, memberships, invitations and streak restores. Students are returned to onboarding; teachers keep only Mathematics/Chemistry scopes.
+Migration `0018_curriculum_v2.sql` deliberately removes the retired six-subject catalog and all evidence tied to the old Topic model. It preserves authentication records, profile roles and schools, plus Study Squads, memberships, invitations and streak restores. Students are returned to onboarding; teachers keep only Mathematics/Chemistry scopes. The migration also recognizes a complete installation of the former local-only `0017` curriculum migration and refuses to run over a partial installation.
 
 Before applying it to an existing Supabase project, create a recoverable project snapshot and record the counts printed by the migration. Apply the migration and immediately run `npm run db:initialize`, followed by `npm run db:verify`; the initializer is repeatable and both commands verify the exact 15/41/225 catalog plus question coverage. The cleanup can only be rolled back by restoring that snapshot.
 
