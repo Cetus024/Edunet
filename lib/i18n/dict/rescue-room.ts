@@ -7,7 +7,7 @@ export const rescueRoomDict = {
     zh: '请从通知里打开一个救援邀请。',
   },
   'rescue.loadingRoom': { en: 'Loading live room…', zh: '正在加载实时房间…' },
-  'rescue.syncing': { en: 'Syncing the quiz and participants.', zh: '正在同步测验和参与者。' },
+  'rescue.syncing': { en: 'Syncing the shared question and participants.', zh: '正在同步共同题目和参与者。' },
   'rescue.unavailable': { en: 'Room unavailable', zh: '房间不可用' },
   'rescue.couldNotOpen': { en: 'This room could not be opened.', zh: '这个房间无法打开。' },
   'rescue.joinBeforeAnswering': { en: 'Join before answering', zh: '答题前请先加入' },
@@ -74,13 +74,13 @@ export const rescueRoomDict = {
   'rescue.toast.invitationsNotSent': { en: 'Invitations not sent', zh: '邀请未发送成功' },
   'rescue.toast.streakDay': { en: '+1 group streak day', zh: '小队连续记录 +1 天' },
   'rescue.toast.savedAsActivity': {
-    en: 'This completed Rescue quiz is saved as squad activity.',
-    zh: '这次完成的救援测验已记录为小队活动。',
+    en: 'This completed drawing session is saved as squad activity.',
+    zh: '这次完成的手写解题练习已记录为小队活动。',
   },
 
   // ParticipantList status line, in priority order: finished view, answered,
   // then the raw presence enum (invited/online/away/finished/left — shared
   // with revision.presence.*, same values on the wire).
   'rescue.status.finished': { en: 'Finished', zh: '已完成' },
-  'rescue.status.answerLocked': { en: 'Answer locked', zh: '答案已锁定' },
+  'rescue.status.answerLocked': { en: 'Solution submitted', zh: '解题过程已提交' },
 } satisfies Dictionary;

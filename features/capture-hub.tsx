@@ -10,6 +10,7 @@ import {
   Network,
   ClipboardList,
   ChevronRight,
+  ChevronDown,
   Check,
   X,
   Calendar,
@@ -61,6 +62,12 @@ import {
 } from '@/lib/api/capture';
 import { ApiConnectionError, isApiError } from '@/lib/api/client';
 import { useCatalog } from '@/lib/api/study';
+import {
+  formatImageBytes,
+  MAX_OCR_IMAGE_BYTES,
+  MAX_SOURCE_IMAGE_BYTES,
+  prepareImageForOcr,
+} from '@/lib/capture-image';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 
 // Subject data
@@ -120,6 +127,9 @@ function describeRequestError(error: unknown, operation: string): string {
     return `${operation} could not start because Capture Hub cannot connect to the EduNets API.`;
   }
   if (isApiError(error)) {
+    if (error.status === 413) {
+      return `${operation} failed because the prepared image was still too large for the online service. Try cropping it to the note page.`;
+    }
     const requestId = error.requestId ? ` Request ID: ${error.requestId}.` : '';
     return `${operation} failed: ${error.message}${requestId}`;
   }
@@ -371,12 +381,13 @@ export default function CaptureHubPage() {
   const [uploads, setUploads] = useState<Array<{
     id: string;
     name: string;
-    status: 'queued' | 'reading' | 'success' | 'error';
+    status: 'queued' | 'preparing' | 'reading' | 'success' | 'error';
     message?: string;
   }>>([]);
   const [isDragging, setIsDragging] = useState(false);
   const uploadBusyRef = useRef(false);
   const [ocrTranscript, setOcrTranscript] = useState('');
+  const [isTextReviewExpanded, setIsTextReviewExpanded] = useState(false);
   const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
   // Processing state
@@ -469,6 +480,14 @@ export default function CaptureHubPage() {
 
   // File input refs
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const processSectionRef = useRef<HTMLElement>(null);
+
+  const openTextReview = () => {
+    setIsTextReviewExpanded(true);
+    window.requestAnimationFrame(() => {
+      processSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const handleImageUpload = async (files: File[]) => {
     if (uploadBusyRef.current || isProcessing || files.length === 0) return;
@@ -479,32 +498,34 @@ export default function CaptureHubPage() {
     setUploads((current) => [...current, ...batch.map(({ file, id }) => ({
       id, name: file.name, status: 'queued' as const,
     }))]);
-    const updateUpload = (id: string, status: 'reading' | 'success' | 'error', message?: string) => {
+    const updateUpload = (
+      id: string,
+      status: 'preparing' | 'reading' | 'success' | 'error',
+      message?: string,
+    ) => {
       setUploads((current) => current.map((item) => item.id === id ? { ...item, status, message } : item));
     };
     let succeeded = 0;
     try {
       for (const { file, id } of batch) {
         try {
-          const mimeType = file.type;
-          if (mimeType !== 'image/png' && mimeType !== 'image/jpeg' && mimeType !== 'image/webp') {
-            throw new Error('Use a PNG, JPEG, or WebP image.');
+          updateUpload(
+            id,
+            'preparing',
+            file.size > MAX_OCR_IMAGE_BYTES ? 'Compressing this phone photo for upload...' : 'Preparing image...',
+          );
+          const prepared = await prepareImageForOcr(file);
+          const sizeMessage = prepared.optimized
+            ? `Compressed ${formatImageBytes(prepared.originalBytes)} → ${formatImageBytes(prepared.preparedBytes)}`
+            : `Prepared ${formatImageBytes(prepared.preparedBytes)}`;
+          updateUpload(id, 'reading', `${sizeMessage} · Extracting text...`);
+          if (prepared.optimized) {
+            appendDebugLog('Upload', 'success', `${file.name}: ${sizeMessage} before OCR.`);
           }
-          if (file.size === 0 || file.size > 8 * 1024 * 1024) {
-            throw new Error('Choose a non-empty image up to 8 MB.');
-          }
-          updateUpload(id, 'reading');
           appendDebugLog('OCR', 'running', `Reading ${file.name} with Microsoft Azure AI Vision.`);
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Could not read this file. Try uploading it again.'));
-            reader.onabort = () => reject(new Error('File reading was interrupted.'));
-            reader.readAsDataURL(file);
-          });
           let result;
           try {
-            result = await ocrImage({ imageBase64: dataUrl.slice(dataUrl.indexOf(',') + 1), mimeType });
+            result = await ocrImage({ imageBase64: prepared.base64, mimeType: prepared.mimeType });
           } catch (error: unknown) {
             throw new Error(describeRequestError(error, 'OCR'));
           }
@@ -520,7 +541,7 @@ export default function CaptureHubPage() {
           setExtractedContent((current) =>
             [current.trim(), transcript].filter(Boolean).join('\n\n')
           );
-          updateUpload(id, 'success', `${transcript.length} characters extracted`);
+          updateUpload(id, 'success', `${transcript.length} characters extracted · ${sizeMessage}`);
           appendDebugLog('OCR', 'success', `${file.name}: ${transcript.length} characters extracted.`);
           succeeded += 1;
         } catch (error: unknown) {
@@ -529,7 +550,10 @@ export default function CaptureHubPage() {
           appendDebugLog('OCR', 'error', `${file.name}: ${message}`);
         }
       }
-      if (succeeded) toast.success(`Extracted text from ${succeeded} of ${batch.length} images.`);
+      if (succeeded) {
+        setIsTextReviewExpanded(false);
+        toast.success(`Extracted text from ${succeeded} of ${batch.length} images.`);
+      }
       if (succeeded < batch.length) toast.error('Some images could not be read. See the file list for details.');
     } finally {
       uploadBusyRef.current = false;
@@ -661,6 +685,7 @@ export default function CaptureHubPage() {
     setActiveMethod(null);
     setUploads([]);
     setOcrTranscript('');
+    setIsTextReviewExpanded(false);
     setPastedText('');
     setSelectedSubject('');
     setSelectedTopic('');
@@ -671,6 +696,7 @@ export default function CaptureHubPage() {
     setActiveMethod(null);
     setUploads([]);
     setOcrTranscript('');
+    setIsTextReviewExpanded(false);
     setPastedText('');
   };
 
@@ -787,7 +813,9 @@ export default function CaptureHubPage() {
                 <p className="font-semibold text-studynow-dark">
                   {isOcrRunning ? 'Reading your images...' : isDragging ? 'Drop images here' : 'Drag images here or click to upload'}
                 </p>
-                <p className="text-xs text-muted-foreground">Select multiple images · PNG, JPEG, WebP · Up to 8 MB each</p>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPEG or WebP · Up to {formatImageBytes(MAX_SOURCE_IMAGE_BYTES)} · Large phone photos compress automatically
+                </p>
               </div>
             </motion.button>
             {uploads.length > 0 && (
@@ -800,17 +828,31 @@ export default function CaptureHubPage() {
                     <li key={item.id} className="flex items-start gap-2 rounded-xl border p-3 text-sm">
                       {item.status === 'success' ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                         : item.status === 'error' ? <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                        : <RefreshCw className={`mt-0.5 h-4 w-4 shrink-0 ${item.status === 'reading' ? 'animate-spin' : ''}`} />}
+                        : <RefreshCw className={`mt-0.5 h-4 w-4 shrink-0 ${item.status === 'reading' || item.status === 'preparing' ? 'animate-spin' : ''}`} />}
                       <div className="min-w-0">
                         <p className="break-all font-medium">{item.name}</p>
                         <p className={`text-xs ${item.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                          {item.message ?? (item.status === 'reading' ? 'Extracting text...' : 'Waiting to scan')}
+                          {item.message ?? (item.status === 'reading'
+                            ? 'Extracting text...'
+                            : item.status === 'preparing' ? 'Preparing image...' : 'Waiting to scan')}
                         </p>
                       </div>
                     </li>
                   ))}
                 </ul>
               </div>
+            )}
+            {ocrTranscript && !isOcrRunning && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={openTextReview}
+                className="w-full rounded-xl border-[#EAA93C]/50 bg-white/70 font-bold text-studynow-dark hover:bg-[#EAA93C]/10"
+              >
+                <ClipboardList className="mr-2 h-4 w-4 text-[#EAA93C]" />
+                Review scanned text
+                <ChevronRight className="ml-auto h-4 w-4" />
+              </Button>
             )}
           </div>
         </UploadTile>
@@ -889,6 +931,7 @@ export default function CaptureHubPage() {
       <AnimatePresence>
         {extractedContent && (
           <motion.section
+            ref={processSectionRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -907,43 +950,83 @@ export default function CaptureHubPage() {
 
             <Card className="border-0 rounded-2xl card-shadow overflow-hidden">
               <CardContent className="p-6">
-                {ocrTranscript && (
-                  <div className="mb-6 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 p-4">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <Label className="text-sm font-semibold text-studynow-dark">
-                        OCR Transcript (raw)
-                      </Label>
-                      <Badge variant="outline" className="border-[#EAA93C]/40 text-studynow-dark">
-                        {ocrTranscript.length} characters
-                      </Badge>
-                    </div>
-                    <Textarea
-                      value={ocrTranscript}
-                      readOnly
-                      aria-label="Raw OCR transcript"
-                      className="min-h-32 resize-y rounded-xl bg-white/80 font-mono text-xs leading-relaxed"
-                    />
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      This is exactly what Azure Vision returned. Make corrections in Review Combined Notes below.
-                    </p>
-                  </div>
-                )}
-
-                {/* Editable combined OCR + typed notes. */}
-                <div className="mb-6">
-                  <Label className="text-sm font-semibold text-studynow-dark mb-2 block">
-                    Review Combined Notes
-                  </Label>
-                  <Textarea
-                    value={extractedContent}
-                    onChange={(event) => setExtractedContent(event.target.value)}
-                    aria-label="Review combined OCR and typed notes"
-                    className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
+                <button
+                  type="button"
+                  aria-expanded={isTextReviewExpanded}
+                  aria-controls="captured-text-review"
+                  onClick={() => setIsTextReviewExpanded((current) => !current)}
+                  className="mb-6 flex w-full items-center gap-3 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 px-4 py-3 text-left transition-colors hover:bg-[#EAA93C]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAA93C] focus-visible:ring-offset-2"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EAA93C]/15">
+                    <ClipboardList className="h-4 w-4 text-[#C98618]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-bold text-studynow-dark">Scanned text &amp; transcript</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {ocrTranscript
+                        ? `${ocrTranscript.length} OCR characters · ${extractedContent.length} combined characters`
+                        : `${extractedContent.length} typed characters`}
+                    </span>
+                  </span>
+                  <Badge variant="outline" className="hidden shrink-0 border-[#EAA93C]/40 text-studynow-dark sm:inline-flex">
+                    {isTextReviewExpanded ? 'Hide' : 'Review'}
+                  </Badge>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isTextReviewExpanded ? 'rotate-180' : ''}`}
                   />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Fix any handwriting-recognition mistakes or add missing details before summarizing.
-                  </p>
-                </div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isTextReviewExpanded && (
+                    <motion.div
+                      id="captured-text-review"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mb-6 overflow-hidden"
+                    >
+                      {ocrTranscript && (
+                        <div className="mb-4 rounded-xl border border-[#EAA93C]/30 bg-[#EAA93C]/5 p-4">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <Label className="text-sm font-semibold text-studynow-dark">
+                              OCR Transcript (raw)
+                            </Label>
+                            <Badge variant="outline" className="border-[#EAA93C]/40 text-studynow-dark">
+                              {ocrTranscript.length} characters
+                            </Badge>
+                          </div>
+                          <Textarea
+                            value={ocrTranscript}
+                            readOnly
+                            aria-label="Raw OCR transcript"
+                            className="min-h-32 resize-y rounded-xl bg-white/80 font-mono text-xs leading-relaxed"
+                          />
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            This is exactly what Azure Vision returned. Make corrections in the combined notes below.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Editable combined OCR + typed notes. */}
+                      <div>
+                        <Label className="mb-2 block text-sm font-semibold text-studynow-dark">
+                          Review Combined Notes
+                        </Label>
+                        <Textarea
+                          value={extractedContent}
+                          onChange={(event) => setExtractedContent(event.target.value)}
+                          aria-label="Review combined OCR and typed notes"
+                          className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
+                        />
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Fix any handwriting-recognition mistakes or add missing details before summarizing.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Subject & Topic Selection */}
                 <div className="grid sm:grid-cols-2 gap-4 mb-6">

@@ -10,7 +10,6 @@ import {
   inviteSquadQuizParticipants,
   joinSquadQuizRoom,
   restartSquadQuizRoom,
-  submitSquadQuizAnswer,
 } from '../services/squad-quiz.js';
 import type { AppEnv } from '../types.js';
 import {
@@ -18,7 +17,6 @@ import {
   inviteSquadQuizParticipantsSchema,
   joinSquadQuizRoomSchema,
   squadQuizRoomIdSchema,
-  submitSquadQuizAnswerSchema,
 } from '../validation.js';
 
 const api = new Hono<AppEnv>();
@@ -60,11 +58,8 @@ api.post('/me/squad-quiz-rooms/:roomId/heartbeat', loadSession, requireSession, 
   return context.json(await heartbeatSquadQuizRoom(user.id, roomId));
 });
 
-api.post('/me/squad-quiz-rooms/:roomId/answers', loadSession, requireSession, async (context) => {
-  const user = requireUser(context);
-  const roomId = squadQuizRoomIdSchema.parse(context.req.param('roomId'));
-  const input = submitSquadQuizAnswerSchema.parse(await readJson(context));
-  return context.json(await submitSquadQuizAnswer({ userId: user.id, roomId, ...input }));
+api.post('/me/squad-quiz-rooms/:roomId/answers', loadSession, requireSession, () => {
+  throw new ApiError(410, 'USE_HANDWRITTEN_SOLUTION', 'Submit your handwritten solution through the drawing board.');
 });
 
 api.post('/me/squad-quiz-rooms/:roomId/advance', loadSession, requireSession, async (context) => {

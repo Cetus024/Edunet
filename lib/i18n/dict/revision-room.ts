@@ -1,17 +1,14 @@
 import type { Dictionary } from '../types';
 
-/**
- * The multiplayer Revision Room: each squad member records their own
- * explanation independently (no live voice mesh — see discussion-room.tsx for
- * why speaker attribution requires this), and the room merges the transcripts
- * into one group review via reviewDiscussion().
+/** Revision Room now uses handwritten solutions, OCR confirmation, and step-by-step feedback.
+ * Legacy transcript labels remain for saved voice-session history.
  */
 export const revisionRoomDict = {
   'revision.title': { en: 'Revision Room', zh: '复习房间' },
   'revision.chooseTopic': { en: 'Choose a Revision Room topic', zh: '选择一个复习房间的课题' },
   'revision.everyoneJoins': {
-    en: 'Everyone joins with their own account and microphone.',
-    zh: '每个人用自己的账号和麦克风加入。',
+    en: 'Everyone joins with their own account and writes on a personal solution board.',
+    zh: '每个人用自己的账号加入，在个人白板上手写解题。',
   },
   'revision.createRoomBadge': { en: 'Create multiplayer room', zh: '创建多人房间' },
   'revision.createRoom': { en: 'Create room', zh: '创建房间' },

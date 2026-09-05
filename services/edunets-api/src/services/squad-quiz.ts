@@ -159,7 +159,7 @@ export async function getSquadQuizRoom(userId: string, roomId: string) {
 
 function selectRoomQuestions(questions: QuizQuestion[], seed: string): QuizQuestion[] {
   return questions
-    .filter((question) => question.type === 'mcq' && question.options && question.options.length >= 2)
+    .filter((question) => question.type !== 'diagram' && !question.diagramUrl)
     .sort((left, right) => (
       createHash('sha256').update(`${seed}:${left.questionKey}`).digest('hex')
         .localeCompare(createHash('sha256').update(`${seed}:${right.questionKey}`).digest('hex'))
@@ -187,7 +187,7 @@ export async function createSquadQuizRoom(input: {
   if (!topicRows[0]) throw new ApiError(404, 'TOPIC_NOT_FOUND', 'That quiz topic was not found.');
   const questions = selectRoomQuestions(questionPool, roomId);
   if (questions.length < QUESTION_COUNT) {
-    throw new ApiError(409, 'SQUAD_QUIZ_UNAVAILABLE', 'This topic does not have three Kahoot-ready MCQs yet.');
+    throw new ApiError(409, 'SQUAD_QUIZ_UNAVAILABLE', 'This topic needs three self-contained questions for handwritten practice.');
   }
 
   const invitedIds = [...new Set(input.invitedUserIds)].filter((candidate) => candidate !== input.userId);
@@ -252,8 +252,8 @@ export async function createSquadQuizRoom(input: {
         actorUserId: input.userId,
         channel: 'study_squad',
         type: 'squad_quiz_invitation',
-        title: `${input.userName} started a live Rescue quiz`,
-        body: input.message?.trim() || `Join ${membership.squadName} for a three-round live quiz.`,
+        title: `${input.userName} started a Rescue drawing room`,
+        body: input.message?.trim() || `Join ${membership.squadName} for a three-round handwritten solution session.`,
         href: `/rescue-join?roomId=${encodeURIComponent(roomId)}`,
         resourceId: roomId,
         dedupeKey: `squad-quiz-invitation:${roomId}:${member.userId}`,
@@ -389,7 +389,8 @@ export async function submitSquadQuizAnswer(input: {
 }
 
 export async function advanceSquadQuizRoom(userId: string, roomId: string) {
-  await requireRoomAccess(userId, roomId);
+  const { room: accessibleRoom } = await requireRoomAccess(userId, roomId);
+  if (accessibleRoom.hostUserId !== userId) throw new ApiError(403, 'SQUAD_QUIZ_HOST_ONLY', 'Only the host can advance after everyone reviews their work.');
   await db.transaction(async (transaction) => {
     await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${`squad-quiz:${roomId}`}))`);
     const [room] = await transaction.select()
@@ -400,6 +401,7 @@ export async function advanceSquadQuizRoom(userId: string, roomId: string) {
     const activeParticipants = await transaction.select({
       userId: squadQuizRoomParticipants.userId,
       status: squadQuizRoomParticipants.status,
+      lastSeenAt: squadQuizRoomParticipants.lastSeenAt,
     })
       .from(squadQuizRoomParticipants)
       .where(and(
@@ -407,11 +409,12 @@ export async function advanceSquadQuizRoom(userId: string, roomId: string) {
         ne(squadQuizRoomParticipants.status, 'invited'),
         ne(squadQuizRoomParticipants.status, 'left'),
       ));
-    const allAnswered = activeParticipants.length > 0
-      && activeParticipants.every((participant) => participant.status === 'answered');
-    const timeExpired = Date.now() >= room.questionStartedAt.getTime() + QUESTION_SECONDS * 1_000;
-    if (!allAnswered && !timeExpired) {
-      throw new ApiError(409, 'SQUAD_QUIZ_ROUND_ACTIVE', 'The round is still active.');
+    const onlineCutoff = Date.now() - ONLINE_WINDOW_MS;
+    const allAnswered = activeParticipants.some((participant) => participant.status === 'answered')
+      && activeParticipants.every((participant) => participant.status === 'answered'
+        || !participant.lastSeenAt || participant.lastSeenAt.getTime() < onlineCutoff);
+    if (!allAnswered) {
+      throw new ApiError(409, 'SQUAD_QUIZ_ROUND_ACTIVE', 'Wait for online participants to submit their handwritten solutions.');
     }
     const changedAt = new Date();
     if (room.currentQuestionIndex >= room.totalRounds - 1) {
@@ -442,8 +445,8 @@ export async function advanceSquadQuizRoom(userId: string, roomId: string) {
           actorUserId: room.hostUserId,
           channel: 'study_squad',
           type: 'squad_quiz_finished',
-          title: 'Your live Rescue quiz finished',
-          body: 'Open the room to see the final leaderboard.',
+          title: 'Your Rescue drawing room finished',
+          body: 'Open the room to see the solutions and feedback.',
           href: `/rescue-room?roomId=${encodeURIComponent(roomId)}`,
           resourceId: roomId,
           dedupeKey: `squad-quiz-finished:${roomId}:${room.restartCount}:${recipientUserId}`,
@@ -536,7 +539,7 @@ export async function inviteSquadQuizParticipants(
       actorUserId: userId,
       channel: 'study_squad',
       type: 'squad_quiz_invitation',
-      title: `${userName} invited you to a live Rescue quiz`,
+      title: `${userName} invited you to a Rescue drawing room`,
       body: `${room.subjectName} · ${room.topicName}`,
       href: `/rescue-join?roomId=${encodeURIComponent(roomId)}`,
       resourceId: roomId,

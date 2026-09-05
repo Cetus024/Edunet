@@ -37,9 +37,9 @@ export function isAzureFoundryConfigured(): boolean {
 
 export function createAzureFoundryModel(config: AzureFoundryConfig): AnalysisModel {
   return {
-    async complete(prompt: string): Promise<string> {
+    async complete(prompt: string, options): Promise<string> {
       const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => abort.abort(), Math.min(options?.timeoutMs ?? REQUEST_TIMEOUT_MS, 45_000));
 
       try {
         const response = await fetch(chatCompletionsUrl(config.endpoint), {
@@ -52,7 +52,7 @@ export function createAzureFoundryModel(config: AzureFoundryConfig): AnalysisMod
           body: JSON.stringify({
             model: config.model,
             temperature: 0,
-            max_tokens: 900,
+            max_tokens: Math.min(options?.maxTokens ?? 900, 4000),
             messages: [{ role: 'user', content: prompt }],
           }),
         });

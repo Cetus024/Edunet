@@ -139,13 +139,13 @@ export const discussionAnalysisSchema = z.strictObject({
 
 // Capture Hub: OCR, summarize, and evaluate a page of notes.
 //
-// captureOcrSchema takes base64 image bytes rather than a multipart upload --
-// the whole request/response cycle here is small JSON like every other route,
-// and a phone photo compressed client-side comfortably fits the cap. 12MB of
-// base64 is roughly 9MB of image, generous for a compressed photo of a page of
-// handwriting and still far under typical serverless body limits.
+// captureOcrSchema takes Base64 image bytes rather than a multipart upload.
+// Vercel Functions cap the complete request body at 4.5MB, so the browser
+// compresses the binary image to at most 3MiB (at most 4,194,304 Base64
+// characters) before sending it. Keep this validation boundary aligned with
+// that client cap and leave a little room for the JSON envelope.
 export const captureOcrSchema = z.strictObject({
-  imageBase64: z.string().min(1).max(12_000_000),
+  imageBase64: z.string().min(1).max(4_200_000),
   mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
 });
 

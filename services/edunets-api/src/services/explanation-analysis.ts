@@ -38,7 +38,7 @@ export type TopicGrounding = {
 
 /** Anything that can turn a prompt into text. Keeps the provider swappable and the service testable. */
 export interface AnalysisModel {
-  complete(prompt: string): Promise<string>;
+  complete(prompt: string, options?: { maxTokens?: number; timeoutMs?: number }): Promise<string>;
 }
 
 export async function buildTopicGrounding(topicId: string): Promise<TopicGrounding | null> {

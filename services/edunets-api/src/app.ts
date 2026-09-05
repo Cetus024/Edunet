@@ -18,6 +18,7 @@ import { studySquadsApi } from './routes/study-squads.js';
 import { squadQuizApi } from './routes/squad-quiz.js';
 import { notificationsApi } from './routes/notifications.js';
 import { revisionRoomsApi } from './routes/revision-rooms.js';
+import { learningWorkApi } from './routes/learning-work.js';
 
 const app = new Hono<AppEnv>({ strict: false });
 
@@ -93,6 +94,7 @@ app.route('/api/v1', enquiriesApi);
   app.route('/api/v1', squadQuizApi);
 app.route('/api/v1', notificationsApi);
 app.route('/api/v1', revisionRoomsApi);
+app.route('/api/v1', learningWorkApi);
 
 app.notFound((context) => errorResponse(context, 404, 'NOT_FOUND', 'Route not found.'));
 app.onError(handleError);

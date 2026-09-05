@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 import { useTranslation } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Mic, Orbit, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Pencil, Orbit, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -449,7 +449,7 @@ export default function StudySquadPage() {
                       onClick={() => navigate('/revision-room')}
                       className="rounded-full bg-primary text-primary-foreground hover:bg-accent"
                     >
-                      <Mic className="mr-2 h-4 w-4" /> Start a Revision Room
+                      <Pencil className="mr-2 h-4 w-4" /> Start a Revision Room
                     </Button>
                     <Button
                       variant="outline"
@@ -724,7 +724,7 @@ export default function StudySquadPage() {
                             variant="outline"
                             className="rounded-full border-primary text-foreground hover:bg-secondary"
                           >
-                            <Mic className="mr-2 h-4 w-4" /> Discuss
+                            <Pencil className="mr-2 h-4 w-4" /> Discuss
                           </Button>
                         )}
                         <Button
@@ -875,7 +875,7 @@ export default function StudySquadPage() {
                       </div>
                       <div className="rounded-full bg-secondary px-3 py-2 text-sm font-black text-secondary-foreground">Day {(squad?.streak.currentDays ?? 0) + 1}</div>
                     </div>
-                    <p className="mt-3 text-sm font-bold text-primary-foreground">Complete this Rescue quiz to protect today&apos;s streak.</p>
+                    <p className="mt-3 text-sm font-bold text-primary-foreground">Complete this handwritten Rescue session to protect today&apos;s streak.</p>
                   </div>
 
                   <div className="rounded-[1.25rem] border border-border bg-background p-4 text-foreground">
@@ -924,7 +924,7 @@ export default function StudySquadPage() {
                     </Button>
 
                     {/* The second way out of this dialog: instead of nudging
-                        someone else to revise, explain the topic yourself and
+                        someone else to revise, write out your solution and
                         get it checked. Hidden rather than disabled when the
                         topic has no rubric -- a room that cannot score anything
                         would return a blank review with no error. */}
@@ -935,7 +935,7 @@ export default function StudySquadPage() {
                         onClick={openDiscussionRoom}
                         className="w-full rounded-full border-primary text-foreground hover:bg-secondary"
                       >
-                        <Mic className="mr-2 h-4 w-4" />
+                        <Pencil className="mr-2 h-4 w-4" />
                         Start a {rescueTarget.topic.topic} Revision Room
                       </Button>
                     )}
@@ -949,7 +949,7 @@ export default function StudySquadPage() {
                       {t('squad.viewTopicInConceptWeb', { topic: rescueTarget.topic.topic })}
                     </Button>
                     <p className="text-center text-xs font-semibold text-muted-foreground">
-                      Send a 10-minute rescue, or explain the topic out loud yourself.
+                      Start a shared drawing challenge, or write and analyse a solution in Revision Room.
                     </p>
                   </div>
                 </div>

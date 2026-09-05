@@ -37,12 +37,12 @@ export function isAnalysisConfigured(): boolean {
 
 export function createModelArtsModel(config: ModelArtsConfig): AnalysisModel {
   return {
-    async complete(prompt: string): Promise<string> {
+    async complete(prompt: string, options): Promise<string> {
       // Serverless invocations have a wall clock. An inference call that hangs
       // has to fail fast enough for the caller to fall back to the rubric
       // rather than taking the whole request down with it.
       const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => abort.abort(), Math.min(options?.timeoutMs ?? REQUEST_TIMEOUT_MS, 45_000));
 
       try {
         const response = await fetch(`${config.endpoint}/chat/completions`, {
@@ -56,7 +56,7 @@ export function createModelArtsModel(config: ModelArtsConfig): AnalysisModel {
             model: config.model,
             // Marking should not vary run to run for the same transcript.
             temperature: 0,
-            max_tokens: 900,
+            max_tokens: Math.min(options?.maxTokens ?? 900, 4000),
             messages: [{ role: 'user', content: prompt }],
           }),
         });

@@ -49,7 +49,7 @@ export default function RescueJoinPage() {
           result,
         );
       }
-      toast.success('Joined Rescue quiz');
+      toast.success('Joined Rescue drawing room');
       navigate(`/rescue-room?roomId=${encodeURIComponent(result.room.id)}`);
     },
     onError: (error) => {
@@ -73,16 +73,16 @@ export default function RescueJoinPage() {
     return <RoomMessage title="Missing room link" body="Open the invitation from Notifications and try again." />;
   }
   if (roomQuery.isPending || !account) {
-    return <RoomMessage title="Loading Rescue quiz…" body="Checking your squad access and room status." loading />;
+    return <RoomMessage title="Loading Rescue drawing room…" body="Checking your squad access and room status." loading />;
   }
   if (roomQuery.isError || !room) {
     return <RoomMessage title="Room unavailable" body={roomQuery.error instanceof Error ? roomQuery.error.message : 'This room could not be opened.'} />;
   }
   if (room.status === 'finished') {
-    return <RoomMessage title="This Rescue quiz has finished" body="Open the final leaderboard to see the results." action={() => navigate(`/rescue-room?roomId=${encodeURIComponent(room.id)}`)} />;
+    return <RoomMessage title="This Rescue drawing session has finished" body="Open the solution review to see the feedback." action={() => navigate(`/rescue-room?roomId=${encodeURIComponent(room.id)}`)} />;
   }
   if (room.hasJoined) {
-    return <RoomMessage title="Opening your room…" body="You already joined this Rescue quiz." loading />;
+    return <RoomMessage title="Opening your room…" body="You already joined this Rescue drawing room." loading />;
   }
 
   const displayName = account.user.name;
@@ -91,7 +91,7 @@ export default function RescueJoinPage() {
       <Card className="card-shadow w-full max-w-[460px] rounded-[20px] border-border bg-card text-card-foreground">
         <CardContent className="space-y-6 p-6 sm:p-8">
           <div className="text-center">
-            <Badge className="mb-4 rounded-full border-0 bg-secondary text-secondary-foreground">Live Rescue Quiz</Badge>
+            <Badge className="mb-4 rounded-full border-0 bg-secondary text-secondary-foreground">Rescue Drawing Room</Badge>
             <h1 className="text-2xl font-bold">Join {room.hostName}&apos;s Rescue</h1>
             <p className="mt-2 text-muted-foreground">{room.subjectName} · {room.topicName}</p>
           </div>
@@ -127,7 +127,7 @@ function RoomMessage({ title, body, loading = false, action }: {
           {loading && <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />}
           <h1 className="text-2xl font-black">{title}</h1>
           <p className="text-muted-foreground">{body}</p>
-          {action && <Button onClick={action} className="rounded-full">Open leaderboard</Button>}
+          {action && <Button onClick={action} className="rounded-full">Open solution review</Button>}
         </CardContent>
       </Card>
     </div>

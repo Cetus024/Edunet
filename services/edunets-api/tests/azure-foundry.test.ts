@@ -64,4 +64,13 @@ describe('Microsoft Foundry analysis model', () => {
     expect(isAzureFoundryConfigured()).toBe(true);
     expect(getAzureFoundryModel()).not.toBeNull();
   });
+
+  it('allows a bounded longer response for step-by-step handwritten analysis', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await createAzureFoundryModel(CONFIG).complete('Review solution steps', { maxTokens: 2400, timeoutMs: 45000 });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(2400);
+    await createAzureFoundryModel(CONFIG).complete('Bound the output', { maxTokens: 100000 });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).max_tokens).toBe(4000);
+  });
 });
