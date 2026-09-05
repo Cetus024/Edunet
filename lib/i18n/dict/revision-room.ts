@@ -26,6 +26,7 @@ export const revisionRoomDict = {
 
   'revision.start': { en: 'Start room', zh: '开始房间' },
   'revision.endAndReview': { en: 'End & review', zh: '结束并查看点评' },
+  'revision.endSession': { en: 'End session', zh: '结束会话' },
   'revision.waitingInLobby': { en: 'Waiting in the lobby', zh: '在等候室等待中' },
   'revision.inviteInstructions': {
     en: 'Each invited member opens their notification and joins with their own account.',

@@ -232,6 +232,11 @@ export default function RevisionRoomPage() {
                 <Button variant="outline" className="rounded-full" onClick={() => { void navigator.clipboard.writeText(window.location.href); toast.success(t('revision.toast.linkCopied')); }}><Copy className="mr-2 h-4 w-4" />{room.joinCode}</Button>
                 {room.status === 'lobby' && room.canManage && <Button className="rounded-full" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>{t('revision.start')}</Button>}
                 {room.status === 'live' && room.canManage && <Button variant="destructive" className="rounded-full" onClick={() => endMutation.mutate()} disabled={endMutation.isPending}>{t('revision.endAndReview')}</Button>}
+                {room.status === 'ended' && (
+                  <Button variant="destructive" className="rounded-full" onClick={() => navigate('/study-squad')}>
+                    {t('revision.endSession')}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
