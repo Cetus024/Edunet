@@ -21,6 +21,7 @@ import {
   RefreshCw,
   FileType,
   File,
+  BookOpen,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -409,6 +410,7 @@ export default function CaptureHubPage() {
   // Materials library
   const [materials, setMaterials] = useState(materialsSample);
   const [libraryFilter, setLibraryFilter] = useState('all');
+  const [noteMaterial, setNoteMaterial] = useState<(typeof materialsSample)[number] | null>(null);
   const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
 
   const appendDebugLog = useCallback(
@@ -1196,7 +1198,7 @@ export default function CaptureHubPage() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <Card className="border-0 rounded-2xl card-shadow hover:shadow-lg transition-shadow cursor-pointer group">
+                    <Card className="border-0 rounded-2xl card-shadow hover:shadow-lg transition-shadow group">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
                           {/* Type icon */}
@@ -1233,6 +1235,18 @@ export default function CaptureHubPage() {
                                 ))}
                               </div>
                             </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setNoteMaterial(material)}
+                              className="mt-4 w-full rounded-xl border-[#6486B5]/40 text-[#6486B5] hover:bg-[#6486B5]/10"
+                              aria-label={`Read ${material.name}`}
+                            >
+                              <BookOpen className="mr-2 h-4 w-4" />
+                              Read note
+                            </Button>
                           </div>
 
                           {/* Menu */}
@@ -1247,6 +1261,10 @@ export default function CaptureHubPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-xl">
+                              <DropdownMenuItem onClick={() => setNoteMaterial(material)}>
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                Read note
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Summary
@@ -1293,6 +1311,36 @@ export default function CaptureHubPage() {
           </motion.div>
         )}
       </motion.section>
+
+      <Dialog open={noteMaterial !== null} onOpenChange={(open) => !open && setNoteMaterial(null)}>
+        <DialogContent className="max-w-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-[#6486B5]" />
+              {noteMaterial?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.icon}{' '}
+              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.name}
+              {noteMaterial ? ` · ${noteMaterial.topic}` : ''}
+              {noteMaterial ? ` · ${format(new Date(noteMaterial.dateUploaded), 'dd MMM yyyy')}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {noteMaterial?.content ? (
+            <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-[#6486B5]/20 bg-[#6486B5]/5 p-4 text-sm leading-7 text-studynow-dark">
+              {noteMaterial.content}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed p-6 text-center">
+              <p className="font-semibold text-studynow-dark">Original note text is unavailable</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This is a demo library item. Notes you capture and process will show their full OCR or typed text here.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={summaryMaterial !== null} onOpenChange={(open) => !open && setSummaryMaterial(null)}>
         <DialogContent className="rounded-2xl">
