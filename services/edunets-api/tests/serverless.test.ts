@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createServerlessHandler } from '../../../api/serverless.js';
+import {
+  createServerlessHandler,
+  ServerlessInitializationError,
+} from '../../../api/serverless.js';
 
 describe('Vercel serverless entry', () => {
   it('answers health checks without initializing the API', async () => {
@@ -17,7 +20,11 @@ describe('Vercel serverless entry', () => {
   it('returns a stable configuration error when initialization fails', async () => {
     const reportInitializationFailure = vi.fn();
     const handler = createServerlessHandler({
-      initialize: vi.fn().mockRejectedValue(new Error('secret connection detail')),
+      initialize: vi.fn().mockRejectedValue(new ServerlessInitializationError(
+        'configuration',
+        ['DATABASE_URL'],
+        { cause: new Error('secret connection detail') },
+      )),
       reportInitializationFailure,
     });
 
@@ -31,6 +38,8 @@ describe('Vercel serverless entry', () => {
       },
     });
     expect(reportInitializationFailure).toHaveBeenCalledOnce();
+    expect(response.headers.get('x-edunets-initialization-stage')).toBe('configuration');
+    expect(response.headers.get('x-edunets-invalid-variables')).toBe('DATABASE_URL');
   });
 
   it('returns NOT_READY when the database readiness check fails', async () => {

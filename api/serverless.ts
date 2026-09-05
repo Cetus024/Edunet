@@ -9,6 +9,23 @@ type ServerlessHandlerOptions = {
   reportInitializationFailure?: () => void;
 };
 
+type InitializationStage =
+  | 'configuration'
+  | 'database-module'
+  | 'application-module'
+  | 'pool-attachment';
+
+export class ServerlessInitializationError extends Error {
+  constructor(
+    readonly stage: InitializationStage,
+    readonly invalidVariables: readonly string[],
+    options?: ErrorOptions,
+  ) {
+    super('The serverless API could not initialize.', options);
+    this.name = 'ServerlessInitializationError';
+  }
+}
+
 const JSON_HEADERS = {
   'cache-control': 'no-store',
   'content-type': 'application/json; charset=UTF-8',
@@ -21,8 +38,22 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function errorResponse(code: 'API_CONFIGURATION_INVALID' | 'NOT_READY', message: string): Response {
-  return jsonResponse({ error: { code, message } }, 503);
+function errorResponse(
+  code: 'API_CONFIGURATION_INVALID' | 'NOT_READY',
+  message: string,
+  initializationError?: ServerlessInitializationError,
+): Response {
+  const response = jsonResponse({ error: { code, message } }, 503);
+  if (initializationError) {
+    response.headers.set('x-edunets-initialization-stage', initializationError.stage);
+    if (initializationError.invalidVariables.length > 0) {
+      response.headers.set(
+        'x-edunets-invalid-variables',
+        initializationError.invalidVariables.join(','),
+      );
+    }
+  }
+  return response;
 }
 
 function isEndpoint(request: Request, endpoint: 'health' | 'ready'): boolean {
@@ -54,10 +85,14 @@ export function createServerlessHandler(options: ServerlessHandlerOptions): {
 } {
   const readinessTimeoutMilliseconds = options.readinessTimeoutMilliseconds ?? 3_000;
   let runtimePromise: Promise<ServerlessRuntime> | undefined;
+  let initializationError: ServerlessInitializationError | undefined;
 
   const initialize = (): Promise<ServerlessRuntime> => {
     if (!runtimePromise) {
       runtimePromise = options.initialize().catch((error: unknown) => {
+        initializationError = error instanceof ServerlessInitializationError
+          ? error
+          : undefined;
         (options.reportInitializationFailure ?? (() => {
           console.error(JSON.stringify({
             level: 'error',
@@ -84,6 +119,7 @@ export function createServerlessHandler(options: ServerlessHandlerOptions): {
         return errorResponse(
           'API_CONFIGURATION_INVALID',
           'The API is not configured correctly.',
+          initializationError,
         );
       }
 
