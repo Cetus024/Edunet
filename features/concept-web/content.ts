@@ -1,4 +1,4 @@
-import { CURRICULUM_TOPICS } from '../../lib/curriculum.js';
+import { CURRICULUM_TOPICS } from '../../lib/curriculum';
 
 export type SubconceptSeed = {
   id: string;
