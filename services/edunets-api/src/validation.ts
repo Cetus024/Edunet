@@ -13,7 +13,7 @@ const onboardingSchoolFields = {
 } as const;
 
 const placementAnswerSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
   answer: z.number().int().min(0).max(3),
 });
 
@@ -58,7 +58,7 @@ export const updateTeachingScopesSchema = z.strictObject({
 });
 
 export const updateQuestionReviewSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
   explanation: z.string().trim().min(1).max(2_000),
 });
 
@@ -78,7 +78,7 @@ export const quizSetRequestSchema = z.strictObject({
 });
 
 export const assessmentAnswerSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
   questionIndex: z.number().int().min(0).max(9),
   answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(3)]),
   marksObtained: z.number().min(0).max(10).multipleOf(0.01).optional(),

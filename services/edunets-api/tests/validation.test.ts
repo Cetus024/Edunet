@@ -38,14 +38,14 @@ describe('authentication extension validation', () => {
 
 describe('onboarding validation', () => {
   const answers = Array.from({ length: 10 }, (_, index) => ({
-    questionKey: `amath-trig:v1:q${String(index + 1).padStart(2, '0')}`,
+    questionKey: `math-number-algebra:v2:q${String(index + 1).padStart(2, '0')}`,
     answer: index % 4,
   }));
   const valid = {
     role: 'student',
     schoolId: 'example-school',
-    subjectId: 'amath',
-    topicId: 'amath-trig',
+    subjectId: 'e-math',
+    topicId: 'math-number-algebra',
     placement: {
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
       startedAt: '2026-08-24T10:00:00.000Z',
@@ -83,49 +83,49 @@ describe('onboarding validation', () => {
 
 describe('quiz submission validation', () => {
   it('accepts only MCQ and Essay assessment-set requests', () => {
-    expect(quizOptionsQuerySchema.safeParse({ subjectId: 'biology', topicId: 'biology-ecology' }).success).toBe(true);
+    expect(quizOptionsQuerySchema.safeParse({ subjectId: 'chemistry', topicId: 'chemistry-organic-chemistry' }).success).toBe(true);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'biology-ecology',
+      topicId: 'chemistry-organic-chemistry',
       mode: 'mcq',
     }).success).toBe(true);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'biology-ecology',
+      topicId: 'chemistry-organic-chemistry',
       mode: 'essay',
     }).success).toBe(true);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'biology-ecology',
+      topicId: 'chemistry-organic-chemistry',
       mode: 'past-paper',
     }).success).toBe(false);
     expect(quizSetRequestSchema.safeParse({
       submissionId: '4b375843-c273-4e7d-bfe7-ac20dbdaf47d',
-      topicId: 'biology-ecology',
+      topicId: 'chemistry-organic-chemistry',
       mode: 'speed-round',
     }).success).toBe(false);
   });
 
   it('accepts typed answers and enforces Essay mark precision and range', () => {
     expect(assessmentAnswerSchema.safeParse({
-      questionKey: 'biology-ecology:v1:q01',
+      questionKey: 'chemistry-organic-chemistry:v2:q01',
       questionIndex: 0,
       answer: 2,
     }).success).toBe(true);
     expect(assessmentAnswerSchema.safeParse({
-      questionKey: 'biology-ecology:v1:q13',
+      questionKey: 'chemistry-organic-chemistry:v2:q13',
       questionIndex: 0,
       answer: 'A supported written response.',
       marksObtained: 7.25,
     }).success).toBe(true);
     for (const marksObtained of [-0.01, 10.01, 7.123, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(assessmentAnswerSchema.safeParse({
-        questionKey: 'biology-ecology:v1:q13', questionIndex: 0,
+        questionKey: 'chemistry-organic-chemistry:v2:q13', questionIndex: 0,
         answer: 'A supported written response.', marksObtained,
       }).success).toBe(false);
     }
     expect(assessmentAnswerSchema.safeParse({
-      questionKey: 'biology-ecology:q1', questionIndex: 0, answer: 2,
+      questionKey: 'chemistry-organic-chemistry:q1', questionIndex: 0, answer: 2,
     }).success).toBe(false);
   });
 });
@@ -136,7 +136,7 @@ describe('teaching context validation', () => {
       role: 'teacher',
       schoolId: 'example-school',
       teachingScopes: [
-        { subjectId: 'biology', classroomName: 'Biology 4A' },
+        { subjectId: 'e-math', classroomName: 'Mathematics 4A' },
         { subjectId: 'chemistry', classroomName: 'Chemistry 4B' },
       ],
     }).success).toBe(true);
@@ -146,9 +146,9 @@ describe('teaching context validation', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'student',
       schoolId: 'example-school',
-      subjectId: 'amath',
-      topicId: 'amath-trig',
-      teachingScopes: [{ subjectId: 'amath', classroomName: '4A' }],
+      subjectId: 'e-math',
+      topicId: 'math-number-algebra',
+      teachingScopes: [{ subjectId: 'e-math', classroomName: '4A' }],
     }).success).toBe(false);
     expect(updateTeachingScopesSchema.safeParse({ scopes: [] }).success).toBe(false);
   });
@@ -158,7 +158,7 @@ describe('enquiry validation', () => {
   const submissionId = '4b375843-c273-4e7d-bfe7-ac20dbdaf47d';
 
   it('requires a subject for the recipient directory', () => {
-    expect(questionRecipientsQuerySchema.safeParse({ subjectId: 'amath' }).success).toBe(true);
+    expect(questionRecipientsQuerySchema.safeParse({ subjectId: 'e-math' }).success).toBe(true);
     expect(questionRecipientsQuerySchema.safeParse({}).success).toBe(false);
   });
 
@@ -174,7 +174,7 @@ describe('enquiry validation', () => {
     expect(createEnquirySchema.safeParse({
       submissionId,
       recipientUserId: 'teacher-1',
-      subjectId: 'amath',
+      subjectId: 'e-math',
       topicId: null,
       body: 'How do I start this question?',
     }).success).toBe(true);
@@ -182,7 +182,7 @@ describe('enquiry validation', () => {
     expect(createEnquirySchema.safeParse({
       submissionId,
       recipientUserId: 'teacher-1',
-      subjectId: 'amath',
+      subjectId: 'e-math',
       body: 'Question',
       userId: 'someone-else',
     }).success).toBe(false);
@@ -225,7 +225,7 @@ describe('live Squad quiz validation', () => {
 
   it('accepts bounded room creation, join, answer, and invitation payloads', () => {
     expect(createSquadQuizRoomSchema.parse({
-      topicId: 'chemistry-covalent-bonding',
+      topicId: 'chemistry-chemical-bonding-structure',
       invitedUserIds: ['student-2'],
       message: 'Quick rescue?',
     }).invitedUserIds).toEqual(['student-2']);
@@ -237,7 +237,7 @@ describe('live Squad quiz validation', () => {
 
   it('rejects spoofed identity fields and out-of-range answers', () => {
     expect(createSquadQuizRoomSchema.safeParse({
-      topicId: 'chemistry-covalent-bonding',
+      topicId: 'chemistry-chemical-bonding-structure',
       invitedUserIds: [],
       hostUserId: 'someone-else',
     }).success).toBe(false);
@@ -252,20 +252,20 @@ describe('multiplayer Revision Room validation', () => {
 
   it('accepts bounded room, invitation, and attributed transcript payloads', () => {
     expect(createRevisionRoomSchema.parse({
-      topicId: 'biology-cell-division',
+      topicId: 'chemistry-redox-chemistry',
       invitedUserIds: ['student-2'],
     }).invitedUserIds).toEqual(['student-2']);
     expect(revisionRoomInviteSchema.safeParse({ userIds: ['student-2'] }).success).toBe(true);
     expect(revisionUtteranceSchema.parse({
       submissionId: roomId,
-      text: 'Mitosis creates two genetically identical daughter cells.',
+      text: 'Oxidation is electron loss while reduction is electron gain.',
     })).toMatchObject({ locale: 'en', provider: 'browser', speakingMs: 0 });
     expect(revisionRoomIdSchema.safeParse(roomId).success).toBe(true);
   });
 
   it('rejects spoofed identity fields and empty transcripts', () => {
     expect(createRevisionRoomSchema.safeParse({
-      topicId: 'biology-cell-division',
+      topicId: 'chemistry-redox-chemistry',
       invitedUserIds: [],
       hostUserId: 'someone-else',
     }).success).toBe(false);

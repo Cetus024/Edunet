@@ -152,7 +152,7 @@ grounding already contains those terms.*
 **The rubric scores generic words.** A transcript that explained nothing scored
 *partial* on all three subconcepts, matching only `River`, `Landforms` and
 `Management`.
-*Fix: embedding similarity instead of keyword match — 51 topics × 3 = 153
+*Fix: embedding similarity instead of keyword match — 41 formal Subtopics plus internal learning-outcome facets
 vectors, computable at build time, and robust to mishearing.*
 
 **No category for "named but not explained".** The same transcript produced an

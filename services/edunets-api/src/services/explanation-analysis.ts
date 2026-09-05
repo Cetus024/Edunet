@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
 import { quizQuestions } from '../../../../database/schema/catalog.js';
-import { topicSubconcepts } from '../../../../features/concept-web/content.js';
+import { topicRubricFacets } from '../../../../features/concept-web/content.js';
 
 /**
  * Judges a spoken explanation against the syllabus content this project already
@@ -11,10 +11,10 @@ import { topicSubconcepts } from '../../../../features/concept-web/content.js';
  * The keyword rubric on the client answers "was this subconcept talked about".
  * It cannot answer "was what you said right", which is the half a student
  * revising actually needs. That requires a model — but a model asked to grade
- * O-Level biology from memory will invent syllabus, so everything it judges
- * against is supplied in the prompt: the three subconcept descriptions the
- * concept web defines for the topic, plus the distinct explanation sentences
- * from that topic's question bank.
+ * an O-Level response from memory can invent syllabus detail, so everything it
+ * judges against is supplied in the prompt: formal Subtopic descriptions (or
+ * internal outcome facets for an unsplit Topic), plus the distinct explanation
+ * sentences from that Topic's authored question bank.
  *
  * A whole topic's authoritative content is 1.5-2KB, so it fits in one prompt
  * and needs no retrieval layer.
@@ -42,7 +42,7 @@ export interface AnalysisModel {
 }
 
 export async function buildTopicGrounding(topicId: string): Promise<TopicGrounding | null> {
-  const subconcepts = topicSubconcepts[topicId];
+  const subconcepts = topicRubricFacets[topicId];
   if (!subconcepts) return null;
 
   const rows = await db
@@ -50,8 +50,8 @@ export async function buildTopicGrounding(topicId: string): Promise<TopicGroundi
     .from(quizQuestions)
     .where(eq(quizQuestions.topicId, topicId));
 
-  // The template-generated questions reuse one explanation many times over, so
-  // the raw rows are mostly duplicates. Dedupe on the sentence itself.
+  // Dedupe on the explanation sentence so repeated supporting facts do not
+  // over-weight one learning outcome in the grounding prompt.
   const seen = new Set<string>();
   const facts: { concept: string; statement: string }[] = [];
   for (const row of rows) {

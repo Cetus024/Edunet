@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
+import { realisticTopicConnections, type SubconceptSeed } from '@/features/concept-web/content';
 import { ConceptNodeFriendMarkers } from '@/features/concept-web/friend-markers';
-import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
+import { alignedOuterRingStart, clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
 import {
   getStrugglingFriendsForTopic,
   getWeakestTopicForMember,
@@ -22,6 +22,7 @@ import {
 } from '@/lib/squad-data';
 import { subjectsAtom, type SubjectData, type TopicData } from '@/lib/study-data';
 import { getKnowledgeScoreColor } from '@/lib/score-color';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 
 type KeyConnection = { topic: string; explanation: string };
 type SubConcept = { id: string; name: string; memoryScore: number | null; description: string; keyConnection: KeyConnection; recommendedMode?: 'mcq' | 'essay' | null; reviewNow?: boolean; modeScores?: TopicData['modeScores'] };
@@ -50,7 +51,13 @@ export default function StudentConceptWebView() {
   const subjectsData = useMemo<Record<string, SubjectEntry>>(() => {
     return Object.fromEntries(authenticatedSubjects.map((subjectData: SubjectData) => {
       const topics = subjectData.topics.map((topicData: TopicData, topicIndex: number): Topic => {
-        const subconceptSeeds = topicSubconcepts[topicData.id] ?? [];
+        const subconceptSeeds: SubconceptSeed[] = topicData.subtopics.map((child, index) => ({
+          id: child.id,
+          syllabusCode: child.syllabusCode,
+          name: `${child.syllabusCode} ${child.name}`,
+          description: child.description,
+          keyConnectionTopic: topicData.subtopics[(index + 1) % topicData.subtopics.length]?.name ?? topicData.name,
+        }));
         const nextTopic = subjectData.topics[(topicIndex + 1) % subjectData.topics.length] ?? topicData;
 
         return {
@@ -120,32 +127,28 @@ export default function StudentConceptWebView() {
       : null;
     const firstTopic = entry.topics[0];
     // Every real topic sits on an even ring around the subject, and topics
-    // with real curated subtopics (see topicSubconcepts above) fan out a
-    // second ring of 3 branch nodes — every topic that has subtopic data
-    // gets the same treatment, not just whichever ones happened to share a
-    // name with an old template.
+    // with official syllabus subtopics fan out a second ring of branch nodes.
     const nodes: GraphNode[] = [{ id: normalize(subject), name: subject, memoryScore: average, description: `${subject} concept map built from your authenticated O-Level learning progress.`, keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` }, kind: 'subject', subject, x: 500, y: 400, r: 60, index: 0 }];
     const links: GraphLink[] = [];
+    const childCounts = entry.topics.map((topic) => topic.subConcepts.length);
+    const outerSlotCount = childCounts.reduce((sum, count) => sum + Math.max(1, count), 0);
+    const outerStartAngle = alignedOuterRingStart(childCounts);
+    let outerSlotCursor = 0;
     entry.topics.forEach((topic: Topic, topicIndex: number) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / entry.topics.length);
-      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 170), y: roundCoordinate(400 + Math.sin(angle) * 170), r: 42, index: nodes.length };
+      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 190), y: roundCoordinate(400 + Math.sin(angle) * 190), r: 42, index: nodes.length };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
-      // The subtopic fan's angular width used to be a fixed constant, tuned
-      // for the old 5-topics-per-subject template. Real subjects now have
-      // 6-7 topics each, shrinking the angular slice available per topic —
-      // a fixed-width fan then spills into the neighbouring topic's fan and
-      // the bubbles visibly overlap. Scaling the spread to the actual
-      // per-topic slice (with margin to spare) keeps every subject's fans
-      // clear of each other regardless of topic count.
-      const perTopicSlice = (Math.PI * 2) / entry.topics.length;
-      const spread = Math.min(perTopicSlice * 0.62, Math.PI / 3.2);
+      // Reserve consecutive positions on one global outer ring. This keeps
+      // all 18 Mathematics and 23 Chemistry subtopic bubbles separated even
+      // though their parent topics have very different numbers of children.
       topic.subConcepts.forEach((concept: SubConcept, conceptIndex: number) => {
-        const subAngle = angle - spread / 2 + (spread / Math.max(1, topic.subConcepts.length - 1)) * conceptIndex;
-        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 330), y: roundCoordinate(400 + Math.sin(subAngle) * 330), r: 28, index: nodes.length };
+        const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
+        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 365), y: roundCoordinate(400 + Math.sin(subAngle) * 365), r: 28, index: nodes.length };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
+      outerSlotCursor += Math.max(1, topic.subConcepts.length);
     });
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator: Record<string, GraphNode>, node: GraphNode) => ({ ...accumulator, [node.id]: node }), {});
     const curatedConnections = realisticTopicConnections[subject];
@@ -254,15 +257,22 @@ export default function StudentConceptWebView() {
   useEffect(() => {
     const requestedSubject = searchParams.get('subject');
     const requestedTopic = searchParams.get('topic');
+    const resolvedTopic = requestedTopic ? resolveCurriculumTopic(requestedTopic) : undefined;
     const matchingSubject = authenticatedSubjects.find((candidate: SubjectData) => (
       requestedSubject
       && (normalize(candidate.name) === normalize(requestedSubject)
         || normalize(candidate.id) === normalize(requestedSubject))
+    )) ?? authenticatedSubjects.find((candidate: SubjectData) => (
+      candidate.topics.some((topic) => topic.id === resolvedTopic?.id)
     ));
     if (matchingSubject) setSubject(matchingSubject.name);
     if (!requestedTopic) return;
     const timer = window.setTimeout(() => {
-      const target = graph.nodes.find((node: GraphNode) => normalize(node.name) === normalize(requestedTopic) || normalize(node.id) === normalize(requestedTopic));
+      const target = graph.nodes.find((node: GraphNode) => (
+        normalize(node.name) === normalize(requestedTopic)
+        || normalize(node.id) === normalize(requestedTopic)
+        || node.id === resolvedTopic?.id
+      ));
       if (!target) return;
       setHighlightedId(target.id);
       setPan({ x: 500 - target.x * 1.3, y: 400 - target.y * 1.3, zoom: 1.3 });
@@ -334,9 +344,8 @@ export default function StudentConceptWebView() {
   // (see dashboard.tsx's callers of the same param), not its id — but a
   // topic node's own id doubles as its quiz-selection key here, so only
   // subconcept popups need resolving back to their parent topic's name.
-  // Passing a subconcept's own id/name (e.g. an id like
-  // "biology-cell-division-mitosis") used to work by accident only for
-  // single-word topics whose id happened to contain the name as a
+  // Passing a subconcept's own id/name used to work by accident only for
+  // single-word legacy topics whose id happened to contain the name as a
   // substring, and silently failed for every multi-word one.
   const quizTopicName = popup
     ? (popup.node.kind === 'subconcept'

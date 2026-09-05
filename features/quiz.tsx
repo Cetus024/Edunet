@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Brain, CalendarClock, CheckCircle2, FileText, LoaderCircle, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -141,7 +142,7 @@ function SetupPanel({ subjectName, topicId, mode, loading, onSubject, onTopic, o
       <div className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#186636]/10"><Brain className="h-6 w-6 text-[#186636]" /></span><div><h2 className="text-xl font-black">Smart Assessment</h2><p className="text-sm text-muted-foreground">Choose one topic and evidence mode</p></div></div>
       <div className="mt-7 space-y-5">
         <label className="block space-y-2"><span className="text-xs font-black uppercase text-muted-foreground">Subject</span><Select value={subjectName} onValueChange={onSubject}><SelectTrigger className="h-12"><SelectValue placeholder="Select subject" /></SelectTrigger><SelectContent>{subjects.map((entry) => <SelectItem key={entry.id} value={entry.name}>{entry.name}</SelectItem>)}</SelectContent></Select></label>
-        <label className="block space-y-2"><span className="text-xs font-black uppercase text-muted-foreground">Topic</span><Select value={topicId} onValueChange={onTopic} disabled={!subject}><SelectTrigger className="h-12"><SelectValue placeholder="Select topic" /></SelectTrigger><SelectContent>{subject?.topics.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>)}</SelectContent></Select></label>
+        <label className="block space-y-2"><span className="text-xs font-black uppercase text-muted-foreground">Topic</span><Select value={topicId} onValueChange={onTopic} disabled={!subject}><SelectTrigger className="h-12"><SelectValue placeholder="Select topic" /></SelectTrigger><SelectContent>{subject?.topics.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.syllabusCode} · {entry.name}</SelectItem>)}</SelectContent></Select></label>
         <div><span className="text-xs font-black uppercase text-muted-foreground">Assessment mode</span><div className="mt-2 grid grid-cols-2 gap-3">{([
           ['mcq', 'MCQ', '10 questions'], ['essay', 'Essay', '5 × 10 marks'],
         ] as const).map(([id, label, detail]) => <button key={id} type="button" onClick={() => onMode(id)} className={`rounded-2xl border-2 p-4 text-left ${mode === id ? 'border-[#186636] bg-[#186636]/5' : 'border-border'}`}><strong>{label}</strong><span className="mt-1 block text-xs text-muted-foreground">{detail}</span></button>)}</div></div>
@@ -181,7 +182,8 @@ function QuestionPanel({ session, index, answerText, marks, busy, onAnswerText, 
     <Card className="h-full rounded-3xl border-0 card-shadow"><CardContent className="flex h-full flex-col p-6 lg:p-8">
       <div className="flex items-center justify-between"><Badge className="bg-[#186636]/10 text-[#186636]">{session.mode.toUpperCase()} · Question {index + 1}/{session.questions.length}</Badge><span className="text-xs font-bold text-muted-foreground">{session.session.answered}/{session.session.total} answered</span></div>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-[#186636]" style={{ width: `${((index + 1) / session.questions.length) * 100}%` }} /></div>
-      <h2 className="mt-7 text-2xl font-black leading-9">{question.text}</h2>
+      {question.subtopic && <p className="mt-5 text-xs font-black uppercase tracking-wide text-[#186636]">{question.subtopic.syllabusCode} · {question.subtopic.name}</p>}
+      <h2 className={question.subtopic ? 'mt-3 text-2xl font-black leading-9' : 'mt-7 text-2xl font-black leading-9'}>{question.text}</h2>
       {session.mode === 'mcq' ? <div className="mt-6 space-y-3">{question.options?.map((option, optionIndex) => {
         const selected = selectedOption === optionIndex;
         const correct = saved && saved.correctAnswer === optionIndex;
@@ -272,8 +274,16 @@ function StudentQuizPage() {
     const requestedSubject = searchParams.get('subject');
     const requestedTopic = searchParams.get('topic');
     if (!requestedSubject || !requestedTopic || autoStarted.current) return;
-    const matchedSubject = subjects.find((entry) => entry.name === requestedSubject || entry.id === requestedSubject);
-    const matchedTopic = matchedSubject?.topics.find((entry) => entry.id === requestedTopic || entry.name.toLowerCase() === requestedTopic.toLowerCase());
+    const resolvedTopic = resolveCurriculumTopic(requestedTopic);
+    const matchedSubject = subjects.find((entry) => (
+      entry.name.toLowerCase() === requestedSubject.toLowerCase()
+      || entry.id.toLowerCase() === requestedSubject.toLowerCase()
+    )) ?? subjects.find((entry) => entry.topics.some((topic) => topic.id === resolvedTopic?.id));
+    const matchedTopic = matchedSubject?.topics.find((entry) => (
+      entry.id === requestedTopic
+      || entry.name.toLowerCase() === requestedTopic.toLowerCase()
+      || entry.id === resolvedTopic?.id
+    ));
     if (!matchedSubject || !matchedTopic) return;
     const requestedMode: AssessmentMode = searchParams.get('mode') === 'essay' ? 'essay' : (matchedTopic.recommendedMode ?? 'mcq');
     autoStarted.current = true;

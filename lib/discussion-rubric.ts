@@ -1,8 +1,9 @@
-import { topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
+import { topicRubricFacets, type SubconceptSeed } from '@/features/concept-web/content';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 
 /**
- * Scores what a student actually said about a topic against the three
- * subconcepts the syllabus already defines for it.
+ * Scores what a student actually said about a topic against the formal
+ * syllabus Subtopics, or internal outcome facets for an unsplit Topic.
  *
  * **What this measures, and what it does not.** It detects whether a subconcept
  * was *talked about*, by looking for its distinctive vocabulary. It cannot tell
@@ -15,37 +16,37 @@ import { topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/co
  * says *covered*, never *correct*.
  *
  * Coverage is still the useful signal for a study group: the common failure in
- * a three-minute group explanation is a whole branch of the topic going
+ * a short group explanation is a whole branch of the topic going
  * untouched, and that is exactly what this catches.
  *
  * No model is involved, which is deliberate. It is deterministic, unit
  * testable, needs no credentials, runs offline, and reuses the rubric the
- * concept web already ships for all 51 catalog topics.
+ * concept web already ships for all 15 catalog Topics.
  */
 
 /**
  * Resolves a squad topic to the catalog id the rubric is keyed by.
  *
- * Study Squad carries two kinds of weak topic. The signed-in student's own come
- * from study state and already hold a catalog id; the demo roster's hold short
- * slugs like `genetics` that do not. Both, however, carry a subject and a topic
- * name, and `squad-data.ts` keeps those names deliberately in step with the
- * seeded catalog — so deriving the id from the pair covers both. All 50
- * distinct squad topics resolve this way.
+ * Study Squad carries both catalog ids and human-readable topic names.
+ * Resolving the pair here keeps current and legacy links aligned with the 15
+ * canonical parent Topics without creating per-Subtopic progress.
  *
  * Returns null when nothing matches, so a caller can hide the entry point
  * instead of opening a room that would score against an empty rubric and
  * produce a blank review with no error.
  */
 export function resolveRubricTopicId(subject: string, topicName: string): string | null {
-  const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const subjectSlug = slug(subject) === 'mathematics' ? 'e-math' : slug(subject);
-  const candidate = `${subjectSlug}-${slug(topicName)}`;
-  return topicSubconcepts[candidate] ? candidate : null;
+  const topic = resolveCurriculumTopic(topicName);
+  if (!topic) return null;
+  const normalizedSubject = subject.trim().toLowerCase();
+  const subjectMatches = normalizedSubject === topic.subjectId
+    || (topic.subjectId === 'e-math' && normalizedSubject === 'mathematics')
+    || (topic.subjectId === 'chemistry' && normalizedSubject === 'chemistry');
+  return subjectMatches ? topic.id : null;
 }
 
 export function getSubconcepts(topicId: string): readonly SubconceptSeed[] {
-  return topicSubconcepts[topicId] ?? [];
+  return topicRubricFacets[topicId] ?? [];
 }
 
 export type CoverageVerdict = 'covered' | 'partial' | 'missed';
@@ -92,14 +93,13 @@ const STOPWORDS = new Set([
 ]);
 
 // Endings that look plural but are not, and are common in exactly this
-// vocabulary: mitosis, meiosis, osmosis, photosynthesis, analysis, nucleus,
-// menisc­us. Stripping their final s produced "mitosi", which then matched
-// nothing and showed up as noise in the evidence a student reads.
+// vocabulary: analysis, nucleus and meniscus. Stripping their final s produces
+// invalid stems that show up as noise in the evidence a student reads.
 const NOT_PLURAL_ENDINGS = ['sis', 'ses', 'us', 'is', 'ss', 'ics'];
 
 function normalizeWord(word: string): string {
   const lower = word.toLowerCase().replace(/[^a-z0-9]/g, '');
-  // Crude singularisation so "chromosomes" matches "chromosome". Stemming
+  // Crude singularisation so ordinary plural nouns match their singular form. Stemming
   // properly would need a library; this covers the plural-vs-singular case that
   // actually shows up in spoken science and leaves everything else alone.
   if (NOT_PLURAL_ENDINGS.some((ending) => lower.endsWith(ending))) return lower;
@@ -117,7 +117,7 @@ function contentWords(text: string): string[] {
  * Content words paired with the form they were written in.
  *
  * Matching runs on the normalized stem, but the evidence shown back to a
- * student has to read as English — "chromosomes", not "chromosom".
+ * student has to read as English rather than as a machine-produced stem.
  */
 function contentTerms(text: string): { normalized: string; display: string }[] {
   return text
@@ -135,8 +135,8 @@ function uniqueByNormalized(terms: { normalized: string; display: string }[]) {
 /**
  * The terms that stand for a subconcept.
  *
- * Words from the name are weighted as required — saying "mitochondria" is the
- * clearest evidence someone addressed Mitochondria. Words from the description
+ * Words from the name are weighted as required because they are the clearest
+ * evidence that someone addressed the Subtopic. Words from the description
  * are supporting evidence, and only those unique to this subconcept within the
  * topic count, so a term shared by all three cannot make every one look covered.
  */
@@ -165,7 +165,7 @@ function verdictFor(requiredHits: number, requiredTotal: number, supportingHits:
 }
 
 export function scoreTranscript(topicId: string, text: string): SubconceptCoverage[] {
-  const subconcepts = topicSubconcepts[topicId];
+  const subconcepts = topicRubricFacets[topicId];
   if (!subconcepts) return [];
 
   const spoken = new Set(contentWords(text));

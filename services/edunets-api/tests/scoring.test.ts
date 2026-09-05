@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { quizQuestionSeed, topicSeed } from '../../../database/seed-data.js';
+import { quizQuestionSeed, subtopicSeed, topicSeed } from '../../../database/seed-data.js';
 import {
   PHASE1_PARAMETERS,
   calculateConceptMemory,
@@ -28,9 +28,17 @@ import {
 import { calculatePercentCorrect } from '../src/lib/scoring.js';
 
 const topicById = new Map(topicSeed.map((topic) => [topic.id, topic]));
+const subtopicById = new Map(subtopicSeed.map((subtopic) => [subtopic.id, subtopic]));
 const questionRows: QuestionPoolRow[] = quizQuestionSeed.map((question) => {
   const topic = topicById.get(question.topicId)!;
-  return { ...question, topicName: topic.name, topicPosition: topic.position };
+  const child = question.subtopicId ? subtopicById.get(question.subtopicId) : null;
+  return {
+    ...question,
+    topicName: topic.name,
+    topicPosition: topic.position,
+    subtopicSyllabusCode: child?.syllabusCode ?? null,
+    subtopicName: child?.name ?? null,
+  };
 });
 
 describe('Phase 1 knowledge model', () => {
@@ -147,7 +155,7 @@ describe('quiz scoring and Phase 1 question sets', () => {
 
   it('grades database MCQ answers without trusting client scores', () => {
     const mcq: QuizQuestion = {
-      questionKey: 'biology-ecology:v1:q01', type: 'mcq', topic: 'Ecology', text: 'Question',
+      questionKey: 'chemistry-qualitative-analysis:v2:q01', type: 'mcq', topic: 'Qualitative Analysis', subtopic: null, text: 'Question',
       options: ['A', 'B'], correctAnswer: 0, explanation: 'Explanation', linkedConcept: 'Ecology',
     };
     expect(gradeQuestion(mcq, 0)).toBe(true);
@@ -156,7 +164,7 @@ describe('quiz scoring and Phase 1 question sets', () => {
 
   it('never exposes placement answers before submission', () => {
     const question: QuizQuestion = {
-      questionKey: 'biology-ecology:v1:q01', type: 'mcq', topic: 'Ecology', text: 'Question',
+      questionKey: 'chemistry-qualitative-analysis:v2:q01', type: 'mcq', topic: 'Qualitative Analysis', subtopic: null, text: 'Question',
       options: ['A', 'B'], correctAnswer: 0, explanation: 'Secret', linkedConcept: 'Ecology',
     };
     const [publicQuestion] = serializePlacementQuestions([question]);
@@ -167,14 +175,14 @@ describe('quiz scoring and Phase 1 question sets', () => {
 
   it('selects deterministic ten-question MCQ and five-question Essay sets', () => {
     const chemistryRows = questionRows.filter((row) => row.topicId.startsWith('chemistry-'));
-    const atomicStructure = topicById.get('chemistry-atomic-structure')!;
-    const mcq = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'mcq', 'attempt')!;
-    const repeated = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'mcq', 'attempt')!;
-    const essay = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'essay', 'attempt')!;
-    const placement = selectQuestionRows(chemistryRows, atomicStructure.id, atomicStructure.position, 'placement', 'attempt')!;
+    const particulateNature = topicById.get('chemistry-particulate-nature-matter')!;
+    const mcq = selectQuestionRows(chemistryRows, particulateNature.id, particulateNature.position, 'mcq', 'attempt')!;
+    const repeated = selectQuestionRows(chemistryRows, particulateNature.id, particulateNature.position, 'mcq', 'attempt')!;
+    const essay = selectQuestionRows(chemistryRows, particulateNature.id, particulateNature.position, 'essay', 'attempt')!;
+    const placement = selectQuestionRows(chemistryRows, particulateNature.id, particulateNature.position, 'placement', 'attempt')!;
 
     expect(mcq).toHaveLength(10);
-    expect(mcq.every((question) => question.topicId === atomicStructure.id && question.type === 'mcq')).toBe(true);
+    expect(mcq.every((question) => question.topicId === particulateNature.id && question.type === 'mcq')).toBe(true);
     expect(mcq.map((question) => question.id)).toEqual(repeated.map((question) => question.id));
     expect(essay).toHaveLength(5);
     expect(essay.every((question) => question.type === 'structured' && question.maxMarks === 10)).toBe(true);
@@ -183,8 +191,9 @@ describe('quiz scoring and Phase 1 question sets', () => {
 
   it('maps all fixture questions to unique stable keys', () => {
     const keys = questionRows.map((question) => questionKeyFromDatabaseId(question.id, question.topicId));
-    expect(topicSeed).toHaveLength(13);
-    expect(questionRows).toHaveLength(208);
-    expect(new Set(keys).size).toBe(208);
+    expect(topicSeed).toHaveLength(15);
+    expect(questionRows).toHaveLength(225);
+    expect(new Set(keys).size).toBe(225);
+    expect(keys.every((key) => key.includes(':v2:'))).toBe(true);
   });
 });

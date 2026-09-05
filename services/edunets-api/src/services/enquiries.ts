@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
-import { ensureDemoEnquiryThreads } from '../../../../database/enquiry-demo-seed.js';
 import { users } from '../../../../database/schema/auth.js';
 import { subjects, topics } from '../../../../database/schema/catalog.js';
 import { enquiryMessages, enquiryThreads } from '../../../../database/schema/enquiries.js';
@@ -183,20 +182,9 @@ async function loadMessageRecords(threadIds: readonly string[]): Promise<Message
     .orderBy(asc(enquiryMessages.createdAt), asc(enquiryMessages.id));
 }
 
-async function ensureRecipientDemos(actor: EnquiryActorWithEmail): Promise<void> {
-  if (!isRecipientRole(actor.role)) return;
-  await ensureDemoEnquiryThreads(db, {
-    userId: actor.userId,
-    displayName: actor.name,
-    email: actor.email,
-    role: actor.role,
-  });
-}
-
 export async function listEnquiries(
   actor: EnquiryActorWithEmail,
 ): Promise<EnquiryThreadResponse[]> {
-  await ensureRecipientDemos(actor);
   const threads = await loadVisibleThreadRecords(actor);
   const messages = await loadMessageRecords(threads.map((thread) => thread.id));
   const messagesByThread = new Map<string, MessageRecord[]>();

@@ -28,12 +28,6 @@ export const commonDict = {
   'verdict.partial': { en: 'Partly', zh: '部分覆盖' },
   'verdict.missed': { en: 'Not mentioned', zh: '未提及' },
 
-  'subject.biology': { en: 'Biology', zh: '生物' },
   'subject.chemistry': { en: 'Chemistry', zh: '化学' },
-  'subject.physics': { en: 'Physics', zh: '物理' },
-  'subject.english': { en: 'English', zh: '英文' },
-  'subject.history': { en: 'History', zh: '历史' },
-  'subject.geography': { en: 'Geography', zh: '地理' },
-  'subject.aMath': { en: 'A-Math', zh: '高级数学' },
   'subject.eMath': { en: 'Mathematics', zh: '数学' },
 } satisfies Dictionary;

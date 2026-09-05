@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
-import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
+import { alignedOuterRingStart, clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
 import {
   useClassConceptWeb,
   useStudentConceptWeb,
@@ -170,6 +170,10 @@ export default function TeacherConceptWebView() {
       index: 0,
     }];
     const links: GraphLink[] = [];
+    const childCounts = normalizedTopics.map((topic) => (topicSubconcepts[topic.id] ?? []).length);
+    const outerSlotCount = childCounts.reduce((sum, count) => sum + Math.max(1, count), 0);
+    const outerStartAngle = alignedOuterRingStart(childCounts);
+    let outerSlotCursor = 0;
 
     normalizedTopics.forEach((topic, topicIndex) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / normalizedTopics.length);
@@ -190,18 +194,16 @@ export default function TeacherConceptWebView() {
           explanation: `${topic.name} and ${normalizedTopics[(topicIndex + 1) % normalizedTopics.length].name} are neighbouring branches in this subject map.`,
         },
         kind: 'topic',
-        x: roundCoordinate(500 + Math.cos(angle) * 170),
-        y: roundCoordinate(400 + Math.sin(angle) * 170),
+        x: roundCoordinate(500 + Math.cos(angle) * 190),
+        y: roundCoordinate(400 + Math.sin(angle) * 190),
         r: 42,
         index: nodes.length,
       };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
 
-      const perTopicSlice = (Math.PI * 2) / normalizedTopics.length;
-      const spread = Math.min(perTopicSlice * 0.62, Math.PI / 3.2);
       subconceptSeeds.forEach((seed: SubconceptSeed, conceptIndex: number) => {
-        const subAngle = angle - spread / 2 + (spread / Math.max(1, subconceptSeeds.length - 1)) * conceptIndex;
+        const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
         // Subconcept nodes inherit their parent topic's real stats - there is
         // no separate per-subtopic score/quiz history tracked in the data
         // model, same approach the student concept web uses.
@@ -217,14 +219,15 @@ export default function TeacherConceptWebView() {
           keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topic.name}.` },
           kind: 'subconcept',
           parentId: topic.id,
-          x: roundCoordinate(500 + Math.cos(subAngle) * 330),
-          y: roundCoordinate(400 + Math.sin(subAngle) * 330),
+          x: roundCoordinate(500 + Math.cos(subAngle) * 365),
+          y: roundCoordinate(400 + Math.sin(subAngle) * 365),
           r: 28,
           index: nodes.length,
         };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
+      outerSlotCursor += Math.max(1, subconceptSeeds.length);
     });
 
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator, node) => ({ ...accumulator, [node.id]: node }), {});

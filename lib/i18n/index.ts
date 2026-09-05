@@ -56,18 +56,11 @@ export function useTranslation() {
  * Catalog subject names arrive from the database in English and are matched on
  * by value elsewhere, so they are translated for display only — never replaced
  * at the source. An unrecognised name falls through unchanged, which is what
- * should happen if the catalog ever grows a ninth subject before this map does.
+ * should happen if the catalog ever grows another subject before this map does.
  */
 const SUBJECT_KEYS: Record<string, TranslationKey> = {
-  Biology: 'subject.biology',
   Chemistry: 'subject.chemistry',
-  Physics: 'subject.physics',
-  English: 'subject.english',
-  History: 'subject.history',
-  Geography: 'subject.geography',
-  'A-Math': 'subject.aMath',
   Mathematics: 'subject.eMath',
-  'E-Math': 'subject.eMath',
 };
 
 export function localizeSubject(locale: Locale, name: string): string {

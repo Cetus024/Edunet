@@ -48,7 +48,7 @@ Public endpoints:
 
 - `GET /health` — process liveness.
 - `GET /ready` — PostgreSQL readiness; returns `503` while unavailable.
-- `GET /api/v1/catalog` — fixed schools plus nested subjects, topics, and aliases.
+- `GET /api/v1/catalog` — 151 schools plus the nested 4052/6092 subjects, Topics, Subtopics, and aliases.
 - `GET|POST /api/auth/*` — Better Auth Google OAuth, email/password registration and login, password reset, session, and sign-out endpoints.
 
 Authenticated endpoints require the Better Auth HttpOnly cookie and browser requests must use `credentials: "include"`:
@@ -56,11 +56,11 @@ Authenticated endpoints require the Better Auth HttpOnly cookie and browser requ
 - `GET /api/v1/me`
 - `PUT /api/v1/me/onboarding`
 - `GET /api/v1/me/study-state`
-- `GET /api/v1/me/quiz-options?subjectId=biology&topicId=biology-ecology`
+- `GET /api/v1/me/quiz-options?subjectId=chemistry&topicId=chemistry-organic-chemistry`
 - `POST /api/v1/me/quiz-sets`
 - `POST /api/v1/me/quiz-attempts`
-- `GET /api/v1/me/quiz-attempts?topicId=amath-trig&limit=20`
-- `GET /api/v1/me/question-recipients?subjectId=amath`
+- `GET /api/v1/me/quiz-attempts?topicId=math-number-algebra&limit=20`
+- `GET /api/v1/me/question-recipients?subjectId=e-math`
 - `GET|POST /api/v1/me/enquiries`
 - `POST /api/v1/me/enquiries/:threadId/messages`
 - `PUT /api/v1/me/enquiries/:threadId/read`
@@ -98,13 +98,13 @@ Student onboarding first requests a placement set with a UUID, subject, and topi
 {
   "role": "student",
   "schoolId": "admiralty-secondary-school",
-  "subjectId": "amath",
-  "topicId": "amath-trig",
+  "subjectId": "e-math",
+  "topicId": "math-number-algebra",
   "placement": {
     "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
     "startedAt": "2026-08-24T10:00:00.000Z",
     "answers": [
-      { "questionKey": "amath-trig:v1:q01", "answer": 1 }
+      { "questionKey": "math-number-algebra:v2:q01", "answer": 1 }
     ]
   }
 }
@@ -117,7 +117,7 @@ A Phase 1 assessment starts with:
 ```json
 {
   "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
-  "topicId": "amath-trig",
+  "topicId": "math-number-algebra",
   "mode": "mcq"
 }
 ```
@@ -130,7 +130,7 @@ Study Squad membership, invitations, school-directory results, member Memory Sco
 
 Live Squad Rescue quizzes persist their room, selected question keys, participants, presence heartbeat, one answer per participant per round, server-graded scores, round transitions, restarts, and immutable completion records. Only members of the room's Study Squad can read or join it, and only the host can invite more members or restart a finished room. Clients poll the authoritative room projection every two seconds and send a heartbeat every ten seconds; the API derives online/away presence without exposing correct answers before the signed-in participant submits. A completed run counts as qualifying Group Streak activity.
 
-The first Teacher inbox request lazily creates three recipient-specific, clearly marked demo threads without creating fake auth users. Demo replies are normal persisted messages. Thread requesters include nullable `className`; it is `null` for real users until a future profile field captures class information.
+Demo enquiry seeding is disabled. The curriculum-v2 migration removes existing demo threads while retaining real Mathematics and Chemistry enquiry bodies; thread requesters include nullable `className`, which remains `null` until a future profile field captures class information.
 
 All service-generated failures use:
 

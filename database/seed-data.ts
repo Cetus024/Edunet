@@ -1,5 +1,5 @@
-import quizCatalogFixtureJson from './fixtures/quiz-catalog.json';
-import { ACTIVE_SUBJECT_IDS } from './constants.js';
+import { CURRICULUM, CURRICULUM_SUBTOPIC_BY_ID } from '../lib/curriculum.js';
+import { AUTHORED_QUESTION_TOPICS } from './fixtures/active-question-bank.js';
 
 function slugify(value: string): string {
   return value
@@ -7,54 +7,6 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
-
-type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
-type QuizQuestionUsage = 'practice' | 'placement' | 'both';
-
-type QuizCatalogFixture = {
-  version: number;
-  subjects: Array<{
-    id: string;
-    name: string;
-    icon: string | null;
-    position: number;
-    topics: Array<{
-      id: string;
-      name: string;
-      position: number;
-      questions: Array<{
-        id: string;
-        type: QuizQuestionType;
-        text: string;
-        correctAnswer: string;
-        explanation: string;
-        linkedConcept: string;
-        options: string[] | null;
-        blankWord: string | null;
-        wordLimit: number | null;
-        source: string | null;
-        resourceNumber: string | null;
-        diagramUrl: string | null;
-      }>;
-    }>;
-  }>;
-};
-
-const completeQuizCatalogFixture = quizCatalogFixtureJson as QuizCatalogFixture;
-
-export const quizCatalogFixture: QuizCatalogFixture = {
-  ...completeQuizCatalogFixture,
-  version: 2,
-  subjects: ACTIVE_SUBJECT_IDS.map((subjectId, position) => {
-    const subject = completeQuizCatalogFixture.subjects.find((candidate) => candidate.id === subjectId);
-    if (!subject) throw new Error(`Active subject ${subjectId} is missing from quiz-catalog.json.`);
-    return {
-      ...subject,
-      name: subjectId === 'e-math' ? 'Mathematics' : subject.name,
-      position,
-    };
-  }),
-};
 
 // Singapore secondary schools (mainstream, religious, madrasah, and NT/special-needs
 // secondary schools), sourced from https://en.wikipedia.org/wiki/List_of_secondary_schools_in_Singapore.
@@ -219,123 +171,98 @@ export const schoolSeed = REAL_SCHOOL_NAMES.map((name, index) => ({
   position: index,
 }));
 
-export const subjectSeed = quizCatalogFixture.subjects.map((subject) => ({
+export const subjectSeed = CURRICULUM.map((subject, position) => ({
   id: subject.id,
   name: subject.name,
+  syllabusCode: subject.syllabusCode,
   icon: subject.icon,
-  position: subject.position,
+  position,
 }));
 
-export const topicSeed = quizCatalogFixture.subjects.flatMap((subject) => (
-  subject.topics.map((topic) => ({
+export const topicSeed = CURRICULUM.flatMap((subject) => (
+  subject.topics.map((topic, position) => ({
     id: topic.id,
     subjectId: subject.id,
+    syllabusCode: topic.syllabusCode,
     name: topic.name,
-    position: topic.position,
+    description: topic.description,
+    position,
   }))
 ));
 
-const practiceQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
-  subject.topics.flatMap((topic) => (
-    topic.questions.map((question) => ({
-      id: question.id,
-      topicId: topic.id,
-      type: question.type,
-      usage: (question.type === 'mcq' ? 'both' : 'practice') as QuizQuestionUsage,
-      text: question.text,
-      correctAnswer: question.correctAnswer,
-      explanation: question.explanation,
-      linkedConcept: question.linkedConcept,
-      options: question.options ? JSON.stringify(question.options) : null,
-      blankWord: question.blankWord,
-      wordLimit: question.wordLimit,
-      maxMarks: question.type === 'structured' ? 10 : null,
-      source: question.source,
-      resourceNumber: question.resourceNumber,
-      diagramUrl: question.diagramUrl,
-    }))
-  ))
-));
+export const subtopicSeed = CURRICULUM.flatMap((subject) => subject.topics.flatMap((topic) => (
+  topic.subtopics.map((child, position) => ({
+    id: child.id,
+    topicId: topic.id,
+    syllabusCode: child.syllabusCode,
+    name: child.name,
+    description: child.description,
+    position,
+  }))
+)));
 
-/**
- * Placement needs ten MCQs for every selectable topic, while the existing
- * practice modes must retain their original five-question concept checks and
- * paper sizes. The fixed fixture supplies three MCQs per topic. These seven
- * additional, placement-only concept-recognition questions are derived from
- * the fixture's reviewed explanations and are still persisted as ordinary DB
- * question rows by initializeDB.ts.
- */
-const placementQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => {
-  const subjectExplanationPool = subject.topics.flatMap((topic) => (
-    topic.questions.map((question) => question.explanation)
-  ));
+export const topicAliasSeed = CURRICULUM.flatMap((subject) => subject.topics.flatMap((topic) => (
+  [...new Set([topic.id, topic.name, ...topic.aliases])].map((alias, index) => ({
+    id: `${topic.id}-alias-${String(index + 1).padStart(2, '0')}`,
+    topicId: topic.id,
+    alias,
+  }))
+)));
 
-  return subject.topics.flatMap((topic) => Array.from({ length: 7 }, (_, index) => {
-    const sourceQuestion = topic.questions[index % topic.questions.length]!;
-    const correctExplanation = sourceQuestion.explanation;
-    const offset = (topic.position * 7 + index) % subjectExplanationPool.length;
-    const rotatedPool = [
-      ...subjectExplanationPool.slice(offset),
-      ...subjectExplanationPool.slice(0, offset),
-    ];
-    const distractors = [...new Set(rotatedPool)]
-      .filter((candidate) => candidate !== correctExplanation)
-      .slice(0, 3);
-    if (distractors.length !== 3) {
-      throw new Error(`Topic ${topic.id} does not have enough distinct placement distractors.`);
+const subjectSource = new Map(CURRICULUM.map((subject) => [
+  subject.id,
+  `Singapore-Cambridge GCE O-Level ${subject.name} ${subject.syllabusCode} Syllabus (2026)`,
+]));
+const topicSubject = new Map(topicSeed.map((topic) => [topic.id, topic.subjectId]));
+
+export const quizQuestionSeed = AUTHORED_QUESTION_TOPICS.flatMap((topic) => {
+  const subjectId = topicSubject.get(topic.topicId);
+  if (!subjectId) throw new Error(`Question topic ${topic.topicId} is not in the curriculum.`);
+  if (topic.mcqs.length !== 10 || topic.essays.length !== 5) {
+    throw new Error(`Question topic ${topic.topicId} must contain exactly 10 MCQs and 5 Essays.`);
+  }
+  const source = subjectSource.get(subjectId)!;
+  const makeShared = (subtopicId: string | null, index: number) => {
+    const child = subtopicId ? CURRICULUM_SUBTOPIC_BY_ID.get(subtopicId) : undefined;
+    if (subtopicId && (!child || child.topicId !== topic.topicId)) {
+      throw new Error(`Question subtopic ${subtopicId} does not belong to ${topic.topicId}.`);
     }
-
-    const correctIndex = (topic.position + index) % 4;
-    const options = [...distractors];
-    options.splice(correctIndex, 0, correctExplanation);
-    const variant = index < topic.questions.length
-      ? `Which statement best explains "${sourceQuestion.linkedConcept}" in ${topic.name}?`
-      : `Which statement gives the most accurate account of "${sourceQuestion.linkedConcept}" when revising ${topic.name}?`;
-
     return {
-      id: `${topic.id}-q${String(index + 6).padStart(3, '0')}`,
-      topicId: topic.id,
+      id: `${topic.topicId}-q${String(index + 1).padStart(3, '0')}`,
+      topicId: topic.topicId,
+      subtopicId,
+      source,
+      resourceNumber: child?.syllabusCode ?? topicSeed.find((item) => item.id === topic.topicId)!.syllabusCode,
+      diagramUrl: null,
+    };
+  };
+
+  return [
+    ...topic.mcqs.map(([subtopicId, text, options, correctIndex, explanation, linkedConcept], index) => ({
+      ...makeShared(subtopicId, index),
       type: 'mcq' as const,
-      usage: 'placement' as const,
-      text: variant,
+      usage: 'both' as const,
+      text,
       correctAnswer: String(correctIndex),
-      explanation: correctExplanation,
-      linkedConcept: sourceQuestion.linkedConcept,
+      explanation,
+      linkedConcept,
       options: JSON.stringify(options),
       blankWord: null,
       wordLimit: null,
       maxMarks: null,
-      source: 'EduNets placement bank',
-      resourceNumber: null,
-      diagramUrl: null,
-    };
-  }));
-});
-
-const essayQuestionSeed = quizCatalogFixture.subjects.flatMap((subject) => (
-  subject.topics.flatMap((topic) => {
-    const sourceQuestions = topic.questions.filter((question) => question.type !== 'structured').slice(0, 4);
-    if (sourceQuestions.length !== 4) {
-      throw new Error(`Topic ${topic.id} does not have four source questions for Essay derivation.`);
-    }
-    return sourceQuestions.map((question, index) => ({
-      id: `${topic.id}-q${String(index + 13).padStart(3, '0')}`,
-      topicId: topic.id,
+    })),
+    ...topic.essays.map(([subtopicId, text, markingGuide, linkedConcept], index) => ({
+      ...makeShared(subtopicId, index + 10),
       type: 'structured' as const,
       usage: 'practice' as const,
-      text: `Explain "${question.linkedConcept}" in ${topic.name}. Include the relevant reasoning and key details.`,
-      correctAnswer: question.explanation,
-      explanation: question.explanation,
-      linkedConcept: question.linkedConcept,
+      text,
+      correctAnswer: markingGuide,
+      explanation: markingGuide,
+      linkedConcept,
       options: null,
       blankWord: null,
-      wordLimit: 120,
+      wordLimit: 180,
       maxMarks: 10,
-      source: 'EduNets Phase 1 Essay test bank',
-      resourceNumber: null,
-      diagramUrl: null,
-    }));
-  })
-));
-
-export const quizQuestionSeed = [...practiceQuestionSeed, ...placementQuestionSeed, ...essayQuestionSeed];
+    })),
+  ];
+});

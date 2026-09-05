@@ -10,14 +10,14 @@ type LandingHeroProps = {
 };
 
 const networkNodes = [
-  { label: 'Biology', x: 88, y: 150, color: '#FFE38F' },
-  { label: 'Cell Division', x: 286, y: 76, color: '#E8735F' },
+  { label: 'Mathematics', x: 88, y: 150, color: '#FFE38F' },
+  { label: 'Number & Algebra', x: 286, y: 76, color: '#E8735F' },
   { label: 'Chemistry', x: 500, y: 148, color: '#6486B5' },
-  { label: 'Physics', x: 858, y: 86, color: '#1D3A62' },
-  { label: 'A-Math', x: 1098, y: 188, color: '#E8735F' },
-  { label: 'Tourism', x: 1080, y: 506, color: '#6486B5' },
-  { label: 'English', x: 814, y: 642, color: '#1D3A62' },
-  { label: 'History', x: 406, y: 626, color: '#E8735F' },
+  { label: 'Chemical Bonding', x: 858, y: 86, color: '#1D3A62' },
+  { label: 'Organic Chemistry', x: 1098, y: 188, color: '#E8735F' },
+  { label: 'Air Quality', x: 1080, y: 506, color: '#6486B5' },
+  { label: 'Probability', x: 814, y: 642, color: '#1D3A62' },
+  { label: 'Reaction Rates', x: 406, y: 626, color: '#E8735F' },
   { label: 'Memory', x: 112, y: 480, color: '#6486B5' },
 ] as const;
 
@@ -37,8 +37,8 @@ const networkConnections = [
 ] as const;
 
 const productScope = [
-  { icon: BookOpenCheck, number: '8', label: 'O-Level subjects' },
-  { icon: Network, number: '51', label: 'mapped topics' },
+  { icon: BookOpenCheck, number: '2', label: 'O-Level subjects' },
+  { icon: Network, number: '15', label: 'mapped topics' },
 ] as const;
 
 function useDesktopViewport() {
@@ -168,7 +168,7 @@ export function LandingHero({ onGetStarted, onLogin }: LandingHeroProps) {
             transition={{ delay: 0.08, duration: 0.62, ease: 'easeOut' }}
             className="mx-auto max-w-4xl text-4xl font-black leading-[1.02] tracking-[-0.045em] text-[var(--edunets-ink)] sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            You knew Cell Division in March.
+            You knew Chemical Bonding in March.
             <span className="mt-1 block text-[var(--edunets-dark-blue)]">Do you still?</span>
           </motion.h1>
 

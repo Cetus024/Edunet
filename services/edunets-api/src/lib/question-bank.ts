@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 
 import { db } from '../../../../database/index.js';
-import { quizQuestions, subjects, topics } from '../../../../database/schema/catalog.js';
+import { quizQuestions, subjects, subtopics, topics } from '../../../../database/schema/catalog.js';
 
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
 export type QuizQuestionMode = 'mcq' | 'essay' | 'placement';
@@ -12,6 +12,11 @@ export interface QuizQuestion {
   questionKey: string;
   type: QuizQuestionType;
   topic: string;
+  subtopic: {
+    id: string;
+    syllabusCode: string;
+    name: string;
+  } | null;
   text: string;
   correctAnswer: string | number;
   explanation: string;
@@ -26,7 +31,7 @@ export interface QuizQuestion {
 }
 
 export type PublicPlacementQuestion = Pick<QuizQuestion,
-  'questionKey' | 'topic' | 'text' | 'source'> & {
+  'questionKey' | 'topic' | 'subtopic' | 'text' | 'source'> & {
     type: 'mcq';
     options: string[];
   };
@@ -40,6 +45,7 @@ export function serializePlacementQuestions(questions: readonly QuizQuestion[]):
       questionKey: question.questionKey,
       type: 'mcq',
       topic: question.topic,
+      subtopic: question.subtopic,
       text: question.text,
       options: question.options,
       ...(question.source ? { source: question.source } : {}),
@@ -52,6 +58,8 @@ export const serializeSpeedQuestions = serializePlacementQuestions;
 export type QuestionPoolRow = typeof quizQuestions.$inferSelect & {
   topicName: string;
   topicPosition: number;
+  subtopicSyllabusCode: string | null;
+  subtopicName: string | null;
 };
 
 type QuestionPool = {
@@ -89,7 +97,7 @@ export function questionKeyFromDatabaseId(id: string, topicId: string): string {
   if (!Number.isInteger(ordinal) || ordinal < 1) {
     throw new Error(`Quiz question ${id} has an invalid ordinal.`);
   }
-  return `${topicId}:v1:q${String(ordinal).padStart(2, '0')}`;
+  return `${topicId}:v2:q${String(ordinal).padStart(2, '0')}`;
 }
 
 function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
@@ -107,6 +115,9 @@ function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
     questionKey: questionKeyFromDatabaseId(row.id, row.topicId),
     type: row.type,
     topic: row.topicName,
+    subtopic: row.subtopicId && row.subtopicSyllabusCode && row.subtopicName
+      ? { id: row.subtopicId, syllabusCode: row.subtopicSyllabusCode, name: row.subtopicName }
+      : null,
     text: row.text,
     correctAnswer,
     explanation: row.explanation,
@@ -147,6 +158,7 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
   const rows = await db.select({
     id: quizQuestions.id,
     topicId: quizQuestions.topicId,
+    subtopicId: quizQuestions.subtopicId,
     type: quizQuestions.type,
     usage: quizQuestions.usage,
     text: quizQuestions.text,
@@ -162,9 +174,12 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
     diagramUrl: quizQuestions.diagramUrl,
     topicName: topics.name,
     topicPosition: topics.position,
+    subtopicSyllabusCode: subtopics.syllabusCode,
+    subtopicName: subtopics.name,
   })
     .from(quizQuestions)
     .innerJoin(topics, eq(topics.id, quizQuestions.topicId))
+    .leftJoin(subtopics, eq(subtopics.id, quizQuestions.subtopicId))
     .where(eq(topics.subjectId, selectedTopic.subjectId))
     .orderBy(asc(topics.position), asc(quizQuestions.id));
 

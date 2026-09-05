@@ -38,6 +38,7 @@ import {
 import { useCatalog } from '@/lib/api/study';
 import { useStudySquad } from '@/lib/api/study-squads';
 import { reviewDiscussion, type CoverageVerdict } from '@/lib/discussion-rubric';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useSubjectName, useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import type { RevisionRoomPresence } from '@/lib/api/revision-rooms';
@@ -80,7 +81,10 @@ export default function RevisionRoomPage() {
   const { t } = useTranslation();
   const subjectName = useSubjectName();
   const roomId = searchParams.get('roomId');
-  const topicId = searchParams.get('topicId');
+  const requestedTopicId = searchParams.get('topicId');
+  const topicId = requestedTopicId
+    ? (resolveCurriculumTopic(requestedTopicId)?.id ?? requestedTopicId)
+    : null;
   const { data: account } = useCurrentAccount();
   const { data: catalog, isPending: catalogPending } = useCatalog();
   const userId = account?.user.id ?? null;

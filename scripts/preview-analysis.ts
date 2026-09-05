@@ -8,8 +8,8 @@
  * transcript. If the grounding looks thin here, no model is going to rescue it.
  *
  *   npx tsx scripts/preview-analysis.ts <topicId> <transcript-file>
- *   npx tsx scripts/preview-analysis.ts biology-genetics my-transcript.txt
- *   ... | npx tsx scripts/preview-analysis.ts biology-genetics -
+ *   npx tsx scripts/preview-analysis.ts chemistry-organic-chemistry my-transcript.txt
+ *   ... | npx tsx scripts/preview-analysis.ts chemistry-organic-chemistry -
  *
  * With MODELARTS_ENDPOINT / _API_KEY / _MODEL set it also calls the model and
  * prints the parsed verdict. Without them it stops at the prompt, which is the
@@ -36,7 +36,7 @@ const transcript = (source === '-' ? readFileSync(0, 'utf8') : readFileSync(sour
 const grounding = await buildTopicGrounding(topicId);
 if (!grounding) {
   console.error(`No rubric on record for "${topicId}".`);
-  console.error('Topic ids look like biology-genetics or chemistry-rate-of-reaction.');
+  console.error('Topic ids look like math-number-algebra or chemistry-rate-reactions.');
   process.exit(1);
 }
 

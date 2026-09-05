@@ -67,23 +67,8 @@ const subjects = [
   { id: 'chemistry', name: 'Chemistry', icon: '⚗️' },
 ];
 
-// Sample topics per subject
-const topicsMap: Record<string, string[]> = {
-  'e-math': ['Numbers', 'Algebra', 'Geometry', 'Statistics', 'Probability', 'Mensuration'],
-  chemistry: ['Atomic Structure', 'Covalent Bonding', 'Stoichiometry', 'Acids & Bases', 'Redox Reactions', 'Organic Chemistry', 'Rate of Reaction'],
-};
-
 // Sample materials library
 const materialsSample = [
-  {
-    id: '1',
-    name: 'Mitosis Lecture Notes',
-    subject: 'bio',
-    topic: 'Cell Division',
-    dateUploaded: '2024-01-15',
-    type: 'audio',
-    features: ['quiz', 'web'],
-  },
   {
     id: '2',
     name: 'Organic Chemistry Summary',
@@ -94,82 +79,17 @@ const materialsSample = [
     features: ['summary', 'quiz'],
   },
   {
-    id: '3',
-    name: 'Handwritten Physics Formulas',
-    subject: 'phys',
-    topic: 'Kinematics',
-    dateUploaded: '2024-01-13',
-    type: 'scan',
-    features: ['web'],
-  },
-  {
-    id: '4',
-    name: 'WWII Essay Notes',
-    subject: 'hist',
-    topic: 'World War II',
-    dateUploaded: '2024-01-12',
-    type: 'paste',
-    features: ['quiz', 'summary', 'web'],
-  },
-  {
-    id: '5',
-    name: 'Geography Rivers Chapter',
-    subject: 'geo',
-    topic: 'Rivers',
-    dateUploaded: '2024-01-11',
-    type: 'document',
-    features: ['summary'],
-  },
-  {
-    id: '6',
-    name: 'A-Math Quadratics Worked Examples',
-    subject: 'amath',
-    topic: 'Quadratics',
-    dateUploaded: '2024-01-10',
-    type: 'document',
-    features: ['quiz', 'summary'],
-  },
-  {
     id: '7',
-    name: 'Mathematics Geometry Formula Sheet',
+    name: 'Mathematics Geometry and Measurement Formula Sheet',
     subject: 'e-math',
-    topic: 'Geometry',
+    topic: 'GEOMETRY AND MEASUREMENT',
     dateUploaded: '2024-01-09',
     type: 'scan',
     features: ['web', 'summary'],
   },
-  {
-    id: '8',
-    name: 'Calculus Revision Voice Notes',
-    subject: 'amath',
-    topic: 'Calculus',
-    dateUploaded: '2024-01-08',
-    type: 'audio',
-    features: ['quiz', 'web'],
-  },
-  {
-    id: '9',
-    name: 'English Argument Essay Draft',
-    subject: 'eng',
-    topic: 'Essay Writing',
-    dateUploaded: '2024-01-07',
-    type: 'paste',
-    features: ['quiz', 'summary'],
-  },
-  {
-    id: '10',
-    name: 'History Source Analysis Notes',
-    subject: 'hist',
-    topic: 'Source Analysis',
-    dateUploaded: '2024-01-06',
-    type: 'document',
-    features: ['summary', 'web'],
-  },
   // Sample entries have no captured text of their own, so their summary
   // falls back to metadata-only bullets — see buildMaterialSummary below.
-]
-  .filter((material) => ['e-math', 'chemistry'].includes(material.subject))
-  .map((material) => ({ ...material, content: null as string | null }));
+].map((material) => ({ ...material, content: null as string | null }));
 
 // Animated soundwave component
 function SoundWave({ isActive }: { isActive: boolean }) {
@@ -662,11 +582,7 @@ export default function CaptureHubPage() {
     },
   ];
 
-  // Real catalog topics for the chosen subject, not the old hardcoded list --
-  // see resolvedTopicId above for why that mattered. subjects[].name and the
-  // catalog's subject names are the same eight strings (Biology, Chemistry,
-  // Physics, English, History, Geography, A-Math, E-Math), so the lookup is a
-  // name match, not an id one.
+  // Real parent Topics for the selected 4052/6092 subject.
   const availableTopics = useMemo(() => {
     const subjectName = subjects.find((candidate) => candidate.id === selectedSubject)?.name;
     const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);

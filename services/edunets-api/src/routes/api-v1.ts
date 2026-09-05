@@ -6,13 +6,14 @@ import { db } from '../../../../database/index.js';
 import {
   schools,
   subjects,
-  topicAliases,
   topics,
 } from '../../../../database/schema/catalog.js';
+import { CURRICULUM } from '../../../../lib/curriculum.js';
 import {
   onboardingProfiles,
   profiles,
   quizAttemptAnswers,
+  quizAttemptQuestions,
   quizAttempts,
   teachingScopes,
 } from '../../../../database/schema/learning.js';
@@ -85,11 +86,6 @@ function activeSubjectName(subject: { id: string; name: string }) {
   return subject.id === 'e-math' ? 'Mathematics' : subject.name;
 }
 
-function activeSubjectPosition(subjectId: string) {
-  const position = activeSubjectIds.indexOf(subjectId);
-  return position === -1 ? activeSubjectIds.length : position;
-}
-
 function requireUserId(context: Context<AppEnv>): string {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
@@ -145,51 +141,23 @@ async function loadTeachingScopes(userId: string) {
 }
 
 api.get('/catalog', async (context) => {
-  const [schoolRows, subjectRows, topicRows, aliasRows] = await Promise.all([
-    db.select({ id: schools.id, name: schools.name })
-      .from(schools)
-      .orderBy(asc(schools.position)),
-    db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
-      .from(subjects)
-      .where(inArray(subjects.id, activeSubjectIds))
-      .orderBy(asc(subjects.position)),
-    db.select({ id: topics.id, subjectId: topics.subjectId, name: topics.name })
-      .from(topics)
-      .where(inArray(topics.subjectId, activeSubjectIds))
-      .orderBy(asc(topics.subjectId), asc(topics.position)),
-    db.select({ topicId: topicAliases.topicId, alias: topicAliases.alias })
-      .from(topicAliases)
-      .orderBy(asc(topicAliases.topicId), asc(topicAliases.alias)),
-  ]);
-
-  const aliasesByTopic = new Map<string, string[]>();
-  for (const alias of aliasRows) {
-    const list = aliasesByTopic.get(alias.topicId) ?? [];
-    list.push(alias.alias);
-    aliasesByTopic.set(alias.topicId, list);
-  }
-
-  const topicsBySubject = new Map<string, Array<{
-    id: string;
-    subjectId: string;
-    name: string;
-    aliases: string[];
-  }>>();
-  for (const topic of topicRows) {
-    const list = topicsBySubject.get(topic.subjectId) ?? [];
-    list.push({ ...topic, aliases: aliasesByTopic.get(topic.id) ?? [] });
-    topicsBySubject.set(topic.subjectId, list);
-  }
+  const schoolRows = await db.select({ id: schools.id, name: schools.name })
+    .from(schools)
+    .orderBy(asc(schools.position));
 
   return context.json({
     schools: schoolRows,
-    subjects: subjectRows
-      .map((subject) => ({
-        ...subject,
-        name: activeSubjectName(subject),
-        topics: topicsBySubject.get(subject.id) ?? [],
-      }))
-      .sort((first, second) => activeSubjectPosition(first.id) - activeSubjectPosition(second.id)),
+    // The two-subject curriculum is versioned with the application. Returning
+    // it from that source of truth keeps authentication/onboarding available
+    // while an existing deployment is between the additive schema migration
+    // and the catalog seed. Schools remain database-backed reference data.
+    subjects: CURRICULUM.map((subject) => ({
+      ...subject,
+      topics: subject.topics.map((topic) => ({
+        ...topic,
+        subtopics: topic.subtopics.map((child) => ({ ...child, topicId: topic.id })),
+      })),
+    })),
   });
 });
 
@@ -596,7 +564,7 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       subjectId: selectedTopic.subjectId,
       topicId: selectedTopic.id,
       quizMode: 'placement',
-      questionSetVersion: 'placement-phase1-v1',
+      questionSetVersion: 'placement-phase1-v2',
       correctAnswers,
       totalQuestions: gradedAnswers.length,
       percentCorrect,
@@ -626,6 +594,25 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
       submittedAt: quizAttempts.submittedAt,
     });
     if (!attempt) throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
+
+    await transaction.insert(quizAttemptQuestions).values(studentPlacementSet.questions.map((question, questionIndex) => ({
+      attemptId: attempt.id,
+      questionIndex,
+      questionKey: question.questionKey,
+      type: question.type,
+      topic: question.topic,
+      subtopicId: question.subtopic?.id ?? null,
+      subtopicSyllabusCode: question.subtopic?.syllabusCode ?? null,
+      subtopicName: question.subtopic?.name ?? null,
+      text: question.text,
+      options: question.options ?? null,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      linkedConcept: question.linkedConcept,
+      source: question.source ?? null,
+      resourceNumber: question.resourceNumber ?? null,
+      maxMarks: null,
+    })));
 
     await transaction.insert(profiles).values({
       userId, role: 'student', schoolId: school.id, onboardingCompleted: true,

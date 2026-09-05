@@ -7,15 +7,16 @@ export const DATABASE_RESET_CONFIRMATION = 'DROP_EDUNETS_SCHEMA' as const;
 
 // The active catalog follows the two 2026 Singapore-Cambridge O-Level
 // syllabuses supplied for this build: Mathematics 4052 and Chemistry 6092.
-// Keep the established e-math id so existing Mathematics topic/question keys
-// and any saved progress remain stable while the user-facing name is corrected.
+// Keep the established subject ids while the v2 migration replaces all Topic
+// ids and learning evidence with the official parent hierarchy.
 export const ACTIVE_SUBJECT_IDS = ['e-math', 'chemistry'] as const;
 
 export const EXPECTED_CATALOG_COUNTS = {
   schools: 151,
   subjects: 2,
-  topics: 13,
-  questions: 208,
-  placementQuestions: 130,
-  practiceQuestions: 117,
+  topics: 15,
+  subtopics: 41,
+  questions: 225,
+  placementQuestions: 150,
+  practiceQuestions: 225,
 } as const;

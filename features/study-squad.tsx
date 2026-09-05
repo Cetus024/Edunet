@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useTranslation } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Mic, Orbit, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
@@ -255,8 +256,15 @@ export default function StudySquadPage() {
     const subject = searchParams.get('subject');
     const topic = searchParams.get('topic');
     if (!friendId && !subject && !topic) return;
+    const resolvedTopic = topic ? resolveCurriculumTopic(topic) : undefined;
+    const canonicalTopic = resolvedTopic?.name ?? topic;
+    const canonicalSubject = resolvedTopic
+      ? (resolvedTopic.subjectId === 'e-math' ? 'Mathematics' : 'Chemistry')
+      : subject;
 
-    if (subject && topic) setConceptContext({ subject, topic });
+    if (canonicalSubject && canonicalTopic) {
+      setConceptContext({ subject: canonicalSubject, topic: canonicalTopic });
+    }
 
     const targetMember = rankedMembers.find((member: SquadMember) => member.id === friendId);
     const nextParams = new URLSearchParams(searchParams);
@@ -270,8 +278,8 @@ export default function StudySquadPage() {
     setSelectedMemberId(targetMember.id);
     setExpanded(targetMember.id);
     setHighlightedMemberId(targetMember.id);
-    setHighlightedSubject(subject);
-    setHighlightedTopic(topic);
+    setHighlightedSubject(canonicalSubject);
+    setHighlightedTopic(canonicalTopic);
 
     window.setTimeout(() => {
       rowRefs.current[targetMember.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -319,9 +327,9 @@ export default function StudySquadPage() {
     setSendState('idle');
   };
 
-  // The rubric is keyed by catalog topic id. The demo roster's weak topics
-  // carry short slugs instead, so the id is derived from subject + topic name,
-  // which resolves for both. null means this topic has no rubric, and the entry
+  // The rubric is keyed by catalog Topic id. Deriving it from subject + Topic
+  // name keeps squad records and legacy links on the same parent. null means
+  // this Topic has no rubric, and the entry
   // point is hidden rather than opening a room that could not score anything.
   const discussionTopicId = useMemo(
     () => (rescueTarget ? resolveRubricTopicId(rescueTarget.topic.subject, rescueTarget.topic.topic) : null),

@@ -29,6 +29,7 @@ import {
   type DiscussionReview,
 } from '@/lib/discussion-rubric';
 import { cn } from '@/lib/utils';
+import { resolveCurriculumTopic } from '@/lib/curriculum';
 
 const DEFAULT_DURATION_SECONDS = 180;
 
@@ -47,9 +48,13 @@ const VERDICT_STYLES: Record<CoverageVerdict, { label: string; icon: typeof Circ
 export default function DiscussionRoomPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const topicId = searchParams.get('topicId') ?? '';
-  const topicLabel = searchParams.get('topic') ?? topicId;
-  const subjectLabel = searchParams.get('subject') ?? '';
+  const requestedTopicId = searchParams.get('topicId') ?? '';
+  const resolvedTopic = resolveCurriculumTopic(requestedTopicId);
+  const topicId = resolvedTopic?.id ?? requestedTopicId;
+  const topicLabel = resolvedTopic?.name ?? searchParams.get('topic') ?? topicId;
+  const subjectLabel = resolvedTopic
+    ? (resolvedTopic.subjectId === 'e-math' ? 'Mathematics' : 'Chemistry')
+    : (searchParams.get('subject') ?? '');
 
   const { data: account } = useCurrentAccount();
   const { data: catalog } = useCatalog();

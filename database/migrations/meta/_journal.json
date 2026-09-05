@@ -120,6 +120,13 @@
       "when": 1788439191576,
       "tag": "0016_outgoing_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788518724199,
+      "tag": "0017_naive_tusk",
+      "breakpoints": true
     }
   ]
 }

@@ -9,37 +9,37 @@ import {
 } from '../src/services/explanation-analysis.js';
 
 const GROUNDING: TopicGrounding = {
-  topicId: 'biology-genetics',
+  topicId: 'chemistry-particulate-nature-matter',
   subconcepts: [
-    { name: 'DNA & Genes', description: 'DNA carries genetic instructions in genes.' },
-    { name: 'Alleles', description: 'Different versions of the same gene.' },
+    { name: 'Kinetic Particle Theory', description: 'Particles move continuously and gain kinetic energy when heated.' },
+    { name: 'Atomic Structure', description: 'Proton number identifies an element and isotopes differ in neutron number.' },
   ],
   facts: [
-    { concept: 'Alleles', statement: 'An allele is an alternative form of a gene.' },
-    { concept: 'DNA', statement: 'DNA stores genetic information in the sequence of its bases.' },
+    { concept: 'Proton number', statement: 'Atoms of the same element have the same number of protons.' },
+    { concept: 'Isotopes', statement: 'Isotopes have the same proton number but different neutron numbers.' },
   ],
 };
 
 const WELL_FORMED = JSON.stringify({
-  correct: [{ point: 'Defined DNA correctly', quote: 'DNA stores the information' }],
-  incorrect: [{ point: 'Allele definition', quote: 'an allele is a chromosome', correction: 'An allele is a form of a gene, not a chromosome.' }],
-  missing: ['Punnett Squares'],
-  summary: 'You had DNA right. Check what an allele actually is.',
+  correct: [{ point: 'Used proton number correctly', quote: 'proton number identifies the element' }],
+  incorrect: [{ point: 'Isotope definition', quote: 'isotopes have different proton numbers', correction: 'Isotopes have the same proton number but different neutron numbers.' }],
+  missing: ['Electronic structure'],
+  summary: 'You used proton number correctly. Recheck what differs between isotopes.',
 });
 
 const fakeModel = (reply: string): AnalysisModel => ({ complete: async () => reply });
 
 describe('buildAnalysisPrompt', () => {
-  const prompt = buildAnalysisPrompt(GROUNDING, 'DNA stores the information in the bases');
+  const prompt = buildAnalysisPrompt(GROUNDING, 'The proton number identifies the element');
 
   it('supplies the grounding rather than relying on the model knowing the syllabus', () => {
-    expect(prompt).toContain('DNA carries genetic instructions in genes.');
-    expect(prompt).toContain('An allele is an alternative form of a gene.');
+    expect(prompt).toContain('Proton number identifies an element');
+    expect(prompt).toContain('same proton number but different neutron numbers');
     expect(prompt).toContain('Judge ONLY against the reference material below');
   });
 
   it('includes the transcript', () => {
-    expect(prompt).toContain('DNA stores the information in the bases');
+    expect(prompt).toContain('The proton number identifies the element');
   });
 
   it('warns that the transcript is speech-to-text', () => {
@@ -56,13 +56,13 @@ describe('buildAnalysisPrompt', () => {
 describe('parseAnalysis', () => {
   it('reads a bare JSON reply', () => {
     const parsed = parseAnalysis(WELL_FORMED);
-    expect(parsed?.correct[0].point).toBe('Defined DNA correctly');
-    expect(parsed?.incorrect[0].correction).toContain('not a chromosome');
-    expect(parsed?.missing).toEqual(['Punnett Squares']);
+    expect(parsed?.correct[0].point).toBe('Used proton number correctly');
+    expect(parsed?.incorrect[0].correction).toContain('different neutron numbers');
+    expect(parsed?.missing).toEqual(['Electronic structure']);
   });
 
   it('reads JSON wrapped in a code fence', () => {
-    expect(parseAnalysis(`\`\`\`json\n${WELL_FORMED}\n\`\`\``)?.summary).toContain('You had DNA right');
+    expect(parseAnalysis(`\`\`\`json\n${WELL_FORMED}\n\`\`\``)?.summary).toContain('proton number correctly');
   });
 
   it('reads JSON wrapped in prose', () => {
@@ -80,12 +80,12 @@ describe('parseAnalysis', () => {
     const parsed = parseAnalysis(JSON.stringify({
       correct: [{ quote: 'no point field' }, { point: 'kept', quote: 'q' }],
       incorrect: 'not an array',
-      missing: [null, 'Alleles'],
+      missing: [null, 'Electronic structure'],
       summary: 42,
     }));
     expect(parsed?.correct).toHaveLength(1);
     expect(parsed?.incorrect).toEqual([]);
-    expect(parsed?.missing).toEqual(['Alleles']);
+    expect(parsed?.missing).toEqual(['Electronic structure']);
     expect(parsed?.summary).toBe('');
   });
 });
@@ -93,7 +93,7 @@ describe('parseAnalysis', () => {
 describe('analyzeExplanation', () => {
   it('does not call the model for a transcript too short to judge', async () => {
     const complete = vi.fn();
-    const result = await analyzeExplanation('biology-genetics', 'um DNA I think', { complete });
+    const result = await analyzeExplanation('chemistry-particulate-nature-matter', 'um protons maybe', { complete });
     expect(result).toBeNull();
     expect(complete).not.toHaveBeenCalled();
   });
@@ -113,8 +113,8 @@ describe('analyzeExplanation', () => {
     // The caller falls back to the deterministic rubric, so the student still
     // sees coverage rather than an empty panel.
     const result = await analyzeExplanation(
-      'biology-genetics',
-      'mitosis produces two identical daughter cells and the chromosomes line up in the middle',
+      'chemistry-particulate-nature-matter',
+      'atoms contain protons neutrons and electrons arranged around a tiny central nucleus',
       fakeModel('the service is currently unavailable'),
       async () => GROUNDING,
     );
@@ -125,12 +125,12 @@ describe('analyzeExplanation', () => {
     // Grounding is injected, so this suite runs offline and without
     // DATABASE_URL — the model is the only thing being exercised here.
     const result = await analyzeExplanation(
-      'biology-genetics',
-      'DNA stores the information in its bases and an allele is a chromosome you inherit',
+      'chemistry-particulate-nature-matter',
+      'the proton number identifies the element and isotopes have different proton numbers',
       fakeModel(WELL_FORMED),
       async () => GROUNDING,
     );
-    expect(result?.incorrect[0].correction).toContain('not a chromosome');
-    expect(result?.summary).toContain('You had DNA right');
+    expect(result?.incorrect[0].correction).toContain('different neutron numbers');
+    expect(result?.summary).toContain('proton number correctly');
   });
 });

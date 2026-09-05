@@ -14,13 +14,25 @@ export type CatalogSchool = {
 export type CatalogTopic = {
   id: string;
   subjectId: string;
+  syllabusCode: string;
   name: string;
+  description: string;
   aliases: string[];
+  subtopics: CatalogSubtopic[];
+};
+
+export type CatalogSubtopic = {
+  id: string;
+  topicId: string;
+  syllabusCode: string;
+  name: string;
+  description: string;
 };
 
 export type CatalogSubject = {
   id: string;
   name: string;
+  syllabusCode: string;
   icon: string;
   topics: CatalogTopic[];
 };
@@ -38,6 +50,11 @@ export type PlacementQuestion = {
   questionKey: string;
   type: 'mcq';
   topic: string;
+  subtopic: {
+    id: string;
+    syllabusCode: string;
+    name: string;
+  } | null;
   text: string;
   options: string[];
   source?: string;

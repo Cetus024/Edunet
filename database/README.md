@@ -21,10 +21,16 @@ npm run db:setup:supabase
 The command performs three guarded, repeatable stages:
 
 1. Create the marked `edunets` schema and apply committed Drizzle migrations with `DATABASE_DIRECT_URL`.
-2. Reconcile the fixed catalog and verify exactly 151 schools, 2 subjects, 13 topics, and 208 questions, including 10 placement MCQs per topic.
+2. Reconcile the fixed catalog and verify exactly 151 schools, 2 subjects, 15 parent Topics, 41 formal Subtopics, and 225 questions. Every Topic has 10 placement/MCQ questions and 5 ten-mark Essay questions.
 3. Create/update the least-privilege `edunets_app` role and remove `anon`/`authenticated` access to application schemas, tables, sequences, and functions.
 
 Run the same command again to verify migration and seed idempotency. The ownership guard refuses to initialize an existing foreign schema or a marker with the wrong value.
+
+## Curriculum v2 migration
+
+Migration `0017_naive_tusk.sql` deliberately removes the retired six-subject catalog and all evidence tied to the old Topic model. It preserves authentication records, profile roles and schools, plus Study Squads, memberships, invitations and streak restores. Students are returned to onboarding; teachers keep only Mathematics/Chemistry scopes.
+
+Before applying it to an existing Supabase project, create a recoverable project snapshot and record the counts printed by the migration. Apply the migration and immediately run `npm run db:initialize`, followed by `npm run db:verify`; the initializer is repeatable and both commands verify the exact 15/41/225 catalog plus question coverage. The cleanup can only be rolled back by restoring that snapshot.
 
 ## Supabase project settings
 

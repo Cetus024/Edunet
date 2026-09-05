@@ -1,22 +1,7 @@
-import translationsZh from '../../../../database/fixtures/quiz-translations.zh.json' with { type: 'json' };
-
 /**
  * Localised question text, served from a bundled fixture rather than the
- * database.
- *
- * Questions themselves belong in Postgres because they are selected, filtered
- * and scored by SQL. Translations are not: they are looked up by key for
- * display and take part in no query. Keeping them as static reference data --
- * the same shape `quiz-catalog.json` already is -- means no migration, no
- * schema change on `quiz_questions`, and no coordination cost with whoever is
- * working on the question bank.
- *
- * Coverage is deliberately partial. Only the 251 authored questions are
- * translated; the 361 template-generated ones ("Which statement best explains
- * ...") are left in English, because their distractors are explanation
- * sentences lifted verbatim from unrelated topics and they do not test subject
- * knowledge. Anything without an entry falls back to English, so partial
- * coverage renders correctly instead of rendering blank.
+ * database. The v2 Mathematics/Chemistry bank currently falls back to its
+ * authored English copy until reviewed translations are supplied.
  */
 
 export type SupportedLocale = 'en' | 'zh';
@@ -41,7 +26,7 @@ type TranslationFile = {
 };
 
 const CATALOGUES: Record<Exclude<SupportedLocale, 'en'>, TranslationFile> = {
-  zh: translationsZh as TranslationFile,
+  zh: { version: 2, locale: 'zh', questions: {} },
 };
 
 export function parseLocale(value: string | undefined | null): SupportedLocale {

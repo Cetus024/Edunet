@@ -87,6 +87,11 @@ export type QuizQuestion = {
   questionKey: string;
   type: 'mcq' | 'structured';
   topic: string;
+  subtopic: {
+    id: string;
+    syllabusCode: string;
+    name: string;
+  } | null;
   text: string;
   options?: string[];
   source?: string;

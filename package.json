@@ -17,6 +17,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:create": "tsx database/createDB.ts",
     "db:initialize": "tsx database/initializeDB.ts",
+    "db:verify": "tsx database/verify-data.ts",
     "db:harden:supabase": "tsx database/harden-supabase.ts",
     "db:setup:supabase": "npm run db:create && npm run db:initialize && npm run db:harden:supabase",
     "db:delete": "tsx database/deleteDB.ts",
