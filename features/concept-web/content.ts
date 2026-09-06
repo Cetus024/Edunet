@@ -8,17 +8,31 @@ export type SubconceptSeed = {
   keyConnectionTopic: string;
 };
 
+export function buildSubconceptSeeds(topic: {
+  name: string;
+  subtopics: Array<{
+    id: string;
+    syllabusCode: string;
+    name: string;
+    description: string;
+  }>;
+}): SubconceptSeed[] {
+  return topic.subtopics.map((child, index) => ({
+    id: child.id,
+    // Keep the official code as metadata for syllabus/question linking, but
+    // Conceptual Hub node labels intentionally contain the title only.
+    syllabusCode: child.syllabusCode,
+    name: child.name,
+    description: child.description,
+    keyConnectionTopic: topic.subtopics[(index + 1) % topic.subtopics.length]?.name ?? topic.name,
+  }));
+}
+
 /** Only official syllabus Subtopics. Unsplit Chemistry Topics stay leaf nodes. */
 export const topicSubconcepts: Record<string, SubconceptSeed[]> = Object.fromEntries(
   CURRICULUM_TOPICS.map((topic) => [
     topic.id,
-    topic.subtopics.map((child, index) => ({
-      id: child.id,
-      syllabusCode: child.syllabusCode,
-      name: `${child.syllabusCode} ${child.name}`,
-      description: child.description,
-      keyConnectionTopic: topic.subtopics[(index + 1) % topic.subtopics.length]?.name ?? topic.name,
-    })),
+    buildSubconceptSeeds(topic),
   ]),
 );
 

@@ -11,9 +11,18 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { realisticTopicConnections, type SubconceptSeed } from '@/features/concept-web/content';
+import { buildSubconceptSeeds, realisticTopicConnections, type SubconceptSeed } from '@/features/concept-web/content';
 import { ConceptNodeFriendMarkers } from '@/features/concept-web/friend-markers';
-import { alignedOuterRingStart, clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
+import {
+  alignedOuterRingStart,
+  clamp,
+  clientPointToConceptSvg,
+  CONCEPT_WEB_LAYOUT,
+  CONCEPT_WEB_VIEW_BOX,
+  getConceptNodeTypography,
+  normalizeConceptLabel as normalize,
+  roundCoordinate,
+} from '@/features/concept-web/graph-utils';
 import {
   getStrugglingFriendsForTopic,
   getWeakestTopicForMember,
@@ -34,15 +43,6 @@ type GraphLink = { from: GraphNode; to: GraphNode; dashed?: boolean };
 type PopupState = { node: GraphNode; x: number; y: number };
 type PanState = { x: number; y: number; zoom: number };
 
-const wrapText = (label: string): string[] => {
-  const words = label.split(' ');
-  if (label.length <= 12) return [label];
-  const first: string[] = [];
-  const second: string[] = [];
-  words.forEach((word: string, index: number) => (index < Math.ceil(words.length / 2) ? first : second).push(word));
-  return [first.join(' '), second.join(' ')].filter(Boolean).slice(0, 2);
-};
-
 export default function StudentConceptWebView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -51,13 +51,7 @@ export default function StudentConceptWebView() {
   const subjectsData = useMemo<Record<string, SubjectEntry>>(() => {
     return Object.fromEntries(authenticatedSubjects.map((subjectData: SubjectData) => {
       const topics = subjectData.topics.map((topicData: TopicData, topicIndex: number): Topic => {
-        const subconceptSeeds: SubconceptSeed[] = topicData.subtopics.map((child, index) => ({
-          id: child.id,
-          syllabusCode: child.syllabusCode,
-          name: `${child.syllabusCode} ${child.name}`,
-          description: child.description,
-          keyConnectionTopic: topicData.subtopics[(index + 1) % topicData.subtopics.length]?.name ?? topicData.name,
-        }));
+        const subconceptSeeds = buildSubconceptSeeds(topicData);
         const nextTopic = subjectData.topics[(topicIndex + 1) % subjectData.topics.length] ?? topicData;
 
         return {
@@ -114,6 +108,7 @@ export default function StudentConceptWebView() {
   // neighbouring fans sit close together.
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const graph = useMemo(() => {
     const entry = subjectsData[subject];
@@ -128,15 +123,35 @@ export default function StudentConceptWebView() {
     const firstTopic = entry.topics[0];
     // Every real topic sits on an even ring around the subject, and topics
     // with official syllabus subtopics fan out a second ring of branch nodes.
-    const nodes: GraphNode[] = [{ id: normalize(subject), name: subject, memoryScore: average, description: `${subject} concept map built from your authenticated O-Level learning progress.`, keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` }, kind: 'subject', subject, x: 500, y: 400, r: 60, index: 0 }];
+    const nodes: GraphNode[] = [{
+      id: normalize(subject),
+      name: subject,
+      memoryScore: average,
+      description: `${subject} concept map built from your authenticated O-Level learning progress.`,
+      keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` },
+      kind: 'subject',
+      subject,
+      x: CONCEPT_WEB_LAYOUT.centerX,
+      y: CONCEPT_WEB_LAYOUT.centerY,
+      r: CONCEPT_WEB_LAYOUT.subjectRadius,
+      index: 0,
+    }];
     const links: GraphLink[] = [];
     const childCounts = entry.topics.map((topic) => topic.subConcepts.length);
-    const outerSlotCount = childCounts.reduce((sum, count) => sum + Math.max(1, count), 0);
+    const outerSlotCount = childCounts.reduce((sum, count) => sum + count, 0);
     const outerStartAngle = alignedOuterRingStart(childCounts);
     let outerSlotCursor = 0;
     entry.topics.forEach((topic: Topic, topicIndex: number) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / entry.topics.length);
-      const topicNode: GraphNode = { ...topic, kind: 'topic', subject, x: roundCoordinate(500 + Math.cos(angle) * 190), y: roundCoordinate(400 + Math.sin(angle) * 190), r: 42, index: nodes.length };
+      const topicNode: GraphNode = {
+        ...topic,
+        kind: 'topic',
+        subject,
+        x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        r: CONCEPT_WEB_LAYOUT.topicRadius,
+        index: nodes.length,
+      };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
       // Reserve consecutive positions on one global outer ring. This keeps
@@ -144,11 +159,20 @@ export default function StudentConceptWebView() {
       // though their parent topics have very different numbers of children.
       topic.subConcepts.forEach((concept: SubConcept, conceptIndex: number) => {
         const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
-        const subNode: GraphNode = { ...concept, kind: 'subconcept', subject, parentId: topic.id, x: roundCoordinate(500 + Math.cos(subAngle) * 365), y: roundCoordinate(400 + Math.sin(subAngle) * 365), r: 28, index: nodes.length };
+        const subNode: GraphNode = {
+          ...concept,
+          kind: 'subconcept',
+          subject,
+          parentId: topic.id,
+          x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          r: CONCEPT_WEB_LAYOUT.subtopicRadius,
+          index: nodes.length,
+        };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
-      outerSlotCursor += Math.max(1, topic.subConcepts.length);
+      outerSlotCursor += topic.subConcepts.length;
     });
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator: Record<string, GraphNode>, node: GraphNode) => ({ ...accumulator, [node.id]: node }), {});
     const curatedConnections = realisticTopicConnections[subject];
@@ -275,7 +299,11 @@ export default function StudentConceptWebView() {
       ));
       if (!target) return;
       setHighlightedId(target.id);
-      setPan({ x: 500 - target.x * 1.3, y: 400 - target.y * 1.3, zoom: 1.3 });
+      setPan({
+        x: CONCEPT_WEB_LAYOUT.centerX - target.x * 1.3,
+        y: CONCEPT_WEB_LAYOUT.centerY - target.y * 1.3,
+        zoom: 1.3,
+      });
       setPopup({ node: target, ...clampPopup(window.innerWidth - 430, 150) });
       setSearchParams(new URLSearchParams(), { replace: true });
       window.setTimeout(() => setHighlightedId(null), 3000);
@@ -300,30 +328,29 @@ export default function StudentConceptWebView() {
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-popup="true"]')) return;
-    setDragging({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    setDragging({ x: point?.x ?? event.clientX, y: point?.y ?? event.clientY, panX: pan.x, panY: pan.y });
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!dragging) return;
-    setPan((current: PanState) => ({ ...current, x: dragging.panX + event.clientX - dragging.x, y: dragging.panY + event.clientY - dragging.y }));
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    const x = point?.x ?? event.clientX;
+    const y = point?.y ?? event.clientY;
+    setPan((current: PanState) => ({ ...current, x: dragging.panX + x - dragging.x, y: dragging.panY + y - dragging.y }));
   };
 
   const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
-    const canvas = canvasRef.current;
     setPan((current: PanState) => {
       const nextZoom = clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.4, 2.5);
-      if (!canvas || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
-      // Keep the point under the cursor fixed on screen while zooming, in the
-      // SVG's 1000x800 viewBox space, instead of always zooming toward the
-      // fixed top-left origin — that made scrolling feel like it jumped to
-      // the wrong spot the further the cursor was from the corner.
-      const rect = canvas.getBoundingClientRect();
-      const svgX = ((event.clientX - rect.left) / rect.width) * 1000;
-      const svgY = ((event.clientY - rect.top) / rect.height) * 800;
-      const contentX = (svgX - current.x) / current.zoom;
-      const contentY = (svgY - current.y) / current.zoom;
-      return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
+      const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+      if (!point || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
+      // Use the SVG transform so cursor-centred zoom remains exact even when
+      // preserveAspectRatio adds letterboxing around the expanded viewBox.
+      const contentX = (point.x - current.x) / current.zoom;
+      const contentY = (point.y - current.y) / current.zoom;
+      return { x: point.x - contentX * nextZoom, y: point.y - contentY * nextZoom, zoom: nextZoom };
     });
   }, []);
 
@@ -390,7 +417,7 @@ export default function StudentConceptWebView() {
       </div>
 
       <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
-        <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
+        <svg ref={svgRef} viewBox={CONCEPT_WEB_VIEW_BOX} className="h-full w-full select-none">
           <defs>
             <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>
           </defs>
@@ -404,22 +431,26 @@ export default function StudentConceptWebView() {
               const tier = getKnowledgeScoreColor(node.memoryScore);
               const scoreLabel = node.memoryScore === null ? 'Not Started' : `memory score ${node.memoryScore}%`;
               const highlighted = highlightedId === node.id;
-              const lines = wrapText(node.name);
+              const typography = getConceptNodeTypography(node.name, node.kind);
+              const lines = typography.lines;
               const friendMarkers = friendMarkersByNodeId[node.id] ?? [];
-              const inViewport = node.x * pan.zoom + pan.x > -120 && node.x * pan.zoom + pan.x < 1120 && node.y * pan.zoom + pan.y > -120 && node.y * pan.zoom + pan.y < 920;
+              const inViewport = node.x * pan.zoom + pan.x > -CONCEPT_WEB_LAYOUT.viewportMargin
+                && node.x * pan.zoom + pan.x < CONCEPT_WEB_LAYOUT.width + CONCEPT_WEB_LAYOUT.viewportMargin
+                && node.y * pan.zoom + pan.y > -CONCEPT_WEB_LAYOUT.viewportMargin
+                && node.y * pan.zoom + pan.y < CONCEPT_WEB_LAYOUT.height + CONCEPT_WEB_LAYOUT.viewportMargin;
               const activated = !prefersReducedMotion && (
                 hoveredNodeId === node.id
                 || (node.kind === 'topic' && hoveredNodeId === normalize(subject))
                 || (node.kind === 'subconcept' && hoveredNodeId === node.parentId)
               );
               return (
-                <motion.g key={node.id} data-node="true" role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: greyed ? 0.35 : 1, scale: highlighted ? 1.15 : activated ? 1.22 : 1, y: prefersReducedMotion ? 0 : [0, -4, 0, 4, 0] }} transition={{ opacity: { duration: 0.25, delay: node.index * 0.04 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.25 }, y: prefersReducedMotion ? { duration: 0 } : { duration: 5 + (node.index % 3), repeat: Infinity, ease: 'easeInOut' as const, delay: node.index * 0.12 } }} style={{ transformBox: 'view-box', originX: node.x / 1_000, originY: node.y / 800 }}>
+                <motion.g key={node.id} data-node="true" role="button" tabIndex={0} aria-label={`${node.name}, ${scoreLabel}`} onClick={(event: React.MouseEvent<SVGGElement>) => handleNodeClick(event, node)} onKeyDown={(event: React.KeyboardEvent<SVGGElement>) => handleNodeKeyDown(event, node)} onMouseDown={(event: React.MouseEvent<SVGGElement>) => event.stopPropagation()} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId((current) => (current === node.id ? null : current))} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: greyed ? 0.35 : 1, scale: highlighted ? 1.15 : activated ? 1.22 : 1, y: prefersReducedMotion ? 0 : [0, -4, 0, 4, 0] }} transition={{ opacity: { duration: 0.25, delay: node.index * 0.04 }, scale: activated ? { type: 'spring' as const, stiffness: 380, damping: 10 } : { duration: 0.25 }, y: prefersReducedMotion ? { duration: 0 } : { duration: 5 + (node.index % 3), repeat: Infinity, ease: 'easeInOut' as const, delay: node.index * 0.12 } }} style={{ transformBox: 'view-box', originX: node.x / CONCEPT_WEB_LAYOUT.width, originY: node.y / CONCEPT_WEB_LAYOUT.height }}>
                   {node.kind === 'subject' && <circle cx={node.x} cy={node.y} r={node.r + 14} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.45" />}
                   {highlighted && <><circle cx={node.x} cy={node.y} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={node.x} cy={node.y} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
                   <circle cx={node.x} cy={node.y} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter="url(#node-shadow)" />
                   <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
-                  {node.kind === 'subject' && <text x={node.x} y={node.y - 18} textAnchor="middle" fontSize="30">{subjectsData[subject]?.icon ?? '🧠'}</text>}
-                  {lines.map((line: string, lineIndex: number) => <text key={line} x={node.x} y={node.y + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
+                  {node.kind === 'subject' && <text x={node.x} y={node.y - node.r * 0.3} textAnchor="middle" fontSize="34">{subjectsData[subject]?.icon ?? '🧠'}</text>}
+                  {lines.map((line: string, lineIndex: number) => <text key={`${line}-${lineIndex}`} x={node.x} y={node.y + (node.kind === 'subject' ? node.r * 0.22 : 0) + (lineIndex - (lines.length - 1) / 2) * typography.lineHeight} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={typography.fontSize}>{line}</text>)}
                   {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   {node.kind !== 'subject' && friendMarkers.length > 0 && inViewport && (
                     <ConceptNodeFriendMarkers

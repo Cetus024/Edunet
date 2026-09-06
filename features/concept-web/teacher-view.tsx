@@ -10,7 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
-import { alignedOuterRingStart, clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
+import {
+  alignedOuterRingStart,
+  clamp,
+  clientPointToConceptSvg,
+  CONCEPT_WEB_LAYOUT,
+  CONCEPT_WEB_VIEW_BOX,
+  getConceptNodeTypography,
+  normalizeConceptLabel as normalize,
+  roundCoordinate,
+} from '@/features/concept-web/graph-utils';
 import {
   useClassConceptWeb,
   useStudentConceptWeb,
@@ -53,15 +62,6 @@ type NormalizedTopic = {
   nextReviewAt: string | null;
 };
 
-const wrapText = (label: string): string[] => {
-  const words = label.split(' ');
-  if (label.length <= 12) return [label];
-  const first: string[] = [];
-  const second: string[] = [];
-  words.forEach((word: string, index: number) => (index < Math.ceil(words.length / 2) ? first : second).push(word));
-  return [first.join(' '), second.join(' ')].filter(Boolean).slice(0, 2);
-};
-
 function formatDate(value: string | null) {
   if (!value) return 'Never';
   const date = new Date(value);
@@ -101,6 +101,7 @@ export default function TeacherConceptWebView() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const { data: webData, isLoading: classLoading, error: classError } = useClassConceptWeb({
     enabled: !rosterLoading && students.length > 0 && !selectedStudentId,
@@ -164,14 +165,14 @@ export default function TeacherConceptWebView() {
         : `${subjectName} concept map aggregated across ${scopeLabel} of ${classSize} students.`,
       keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` },
       kind: 'subject',
-      x: 500,
-      y: 400,
-      r: 60,
+      x: CONCEPT_WEB_LAYOUT.centerX,
+      y: CONCEPT_WEB_LAYOUT.centerY,
+      r: CONCEPT_WEB_LAYOUT.subjectRadius,
       index: 0,
     }];
     const links: GraphLink[] = [];
     const childCounts = normalizedTopics.map((topic) => (topicSubconcepts[topic.id] ?? []).length);
-    const outerSlotCount = childCounts.reduce((sum, count) => sum + Math.max(1, count), 0);
+    const outerSlotCount = childCounts.reduce((sum, count) => sum + count, 0);
     const outerStartAngle = alignedOuterRingStart(childCounts);
     let outerSlotCursor = 0;
 
@@ -194,9 +195,9 @@ export default function TeacherConceptWebView() {
           explanation: `${topic.name} and ${normalizedTopics[(topicIndex + 1) % normalizedTopics.length].name} are neighbouring branches in this subject map.`,
         },
         kind: 'topic',
-        x: roundCoordinate(500 + Math.cos(angle) * 190),
-        y: roundCoordinate(400 + Math.sin(angle) * 190),
-        r: 42,
+        x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        r: CONCEPT_WEB_LAYOUT.topicRadius,
         index: nodes.length,
       };
       nodes.push(topicNode);
@@ -219,15 +220,15 @@ export default function TeacherConceptWebView() {
           keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topic.name}.` },
           kind: 'subconcept',
           parentId: topic.id,
-          x: roundCoordinate(500 + Math.cos(subAngle) * 365),
-          y: roundCoordinate(400 + Math.sin(subAngle) * 365),
-          r: 28,
+          x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          r: CONCEPT_WEB_LAYOUT.subtopicRadius,
           index: nodes.length,
         };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
-      outerSlotCursor += Math.max(1, subconceptSeeds.length);
+      outerSlotCursor += subconceptSeeds.length;
     });
 
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator, node) => ({ ...accumulator, [node.id]: node }), {});
@@ -311,24 +312,25 @@ export default function TeacherConceptWebView() {
   };
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-popup="true"]')) return;
-    setDragging({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    setDragging({ x: point?.x ?? event.clientX, y: point?.y ?? event.clientY, panX: pan.x, panY: pan.y });
   };
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!dragging) return;
-    setPan((current) => ({ ...current, x: dragging.panX + event.clientX - dragging.x, y: dragging.panY + event.clientY - dragging.y }));
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    const x = point?.x ?? event.clientX;
+    const y = point?.y ?? event.clientY;
+    setPan((current) => ({ ...current, x: dragging.panX + x - dragging.x, y: dragging.panY + y - dragging.y }));
   };
   const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
-    const canvas = canvasRef.current;
     setPan((current) => {
       const nextZoom = clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.4, 2.5);
-      if (!canvas || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
-      const rect = canvas.getBoundingClientRect();
-      const svgX = ((event.clientX - rect.left) / rect.width) * 1000;
-      const svgY = ((event.clientY - rect.top) / rect.height) * 800;
-      const contentX = (svgX - current.x) / current.zoom;
-      const contentY = (svgY - current.y) / current.zoom;
-      return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
+      const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+      if (!point || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
+      const contentX = (point.x - current.x) / current.zoom;
+      const contentY = (point.y - current.y) / current.zoom;
+      return { x: point.x - contentX * nextZoom, y: point.y - contentY * nextZoom, zoom: nextZoom };
     });
   }, []);
 
@@ -432,7 +434,7 @@ export default function TeacherConceptWebView() {
               {webError instanceof Error ? webError.message : 'Could not load the concept web.'}
             </div>
           )}
-          <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
+          <svg ref={svgRef} viewBox={CONCEPT_WEB_VIEW_BOX} className="h-full w-full select-none">
             <defs>
               <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>
             </defs>
@@ -445,7 +447,8 @@ export default function TeacherConceptWebView() {
                 const tier = getKnowledgeScoreColor(node.memoryScore);
                 const scoreLabel = node.memoryScore === null ? 'not started' : `${node.memoryScore}% mastery`;
                 const highlighted = highlightedId === node.id;
-                const lines = wrapText(node.name);
+                const typography = getConceptNodeTypography(node.name, node.kind);
+                const lines = typography.lines;
                 const activated = !prefersReducedMotion && (
                   hoveredNodeId === node.id
                   || (node.kind === 'topic' && hoveredNodeId === normalize(subjectName ?? ''))
@@ -457,8 +460,8 @@ export default function TeacherConceptWebView() {
                     {highlighted && <><circle cx={node.x} cy={node.y} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={node.x} cy={node.y} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
                     <circle cx={node.x} cy={node.y} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter="url(#node-shadow)" />
                     <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
-                    {node.kind === 'subject' && subjectIcon && <text x={node.x} y={node.y - 18} textAnchor="middle" fontSize="30">{subjectIcon}</text>}
-                    {lines.map((line: string, lineIndex: number) => <text key={line} x={node.x} y={node.y + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
+                    {node.kind === 'subject' && subjectIcon && <text x={node.x} y={node.y - node.r * 0.3} textAnchor="middle" fontSize="34">{subjectIcon}</text>}
+                    {lines.map((line: string, lineIndex: number) => <text key={`${line}-${lineIndex}`} x={node.x} y={node.y + (node.kind === 'subject' ? node.r * 0.22 : 0) + (lineIndex - (lines.length - 1) / 2) * typography.lineHeight} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={typography.fontSize}>{line}</text>)}
                     {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   </motion.g>
                 );
