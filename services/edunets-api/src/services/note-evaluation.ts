@@ -141,6 +141,6 @@ export async function evaluateNotes(
   const grounding = await loadGrounding(topicId);
   if (!grounding) return null;
 
-  const reply = await model.complete(buildNoteEvaluationPrompt(grounding, notes));
+  const reply = await model.complete(buildNoteEvaluationPrompt(grounding, notes), { maxTokens: 600 });
   return parseNoteEvaluation(reply);
 }

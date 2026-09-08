@@ -88,6 +88,15 @@ type DebugLogEntry = {
 };
 
 function describeCaptureFailure(failure: CaptureFailure): string {
+  if (failure.reason === 'incomplete_output') {
+    return 'The AI response reached its token limit before finishing. Your notes are still available; try a shorter section.';
+  }
+  if (failure.reason === 'rate_limited') {
+    return `The AI service has reached its request or token limit. Try again in ${Math.max(1, failure.retryAfterSeconds ?? 60)} seconds. Your notes are still available.`;
+  }
+  if (failure.reason === 'timeout') {
+    return 'The AI service took too long to respond. Your notes are still available; please try again.';
+  }
   if (failure.reason === 'not_configured') {
     return failure.stage === 'ocr'
       ? 'OCR is not connected: Azure Vision server credentials are not configured.'
@@ -250,12 +259,8 @@ function extractKeyPoints(content: string, max = 5): string[] {
   return Array.from({ length: max }, (_, index) => sentences[Math.floor(index * step)]);
 }
 
-// O-level style key-point summary for a saved material. Capture Hub has no
-// real backend (see known-gaps notes), so nothing is summarised server-side -
-// when the material has its own captured text (anything just processed in
-// this session), the summary is genuinely extracted from that text. Older
-// sample-library entries have no stored text, so they fall back to a
-// metadata-only summary instead of nothing.
+// Legacy metadata overview for sample-library entries without captured text.
+// Real notes use the server summary and show failures explicitly.
 function buildMaterialSummary(material: (typeof materialsSample)[number]): string[] {
   const subject = subjects.find((candidate) => candidate.id === material.subject);
   const subjectLabel = subject ? `${subject.icon} ${subject.name}` : 'this subject';
@@ -316,7 +321,6 @@ export default function CaptureHubPage() {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('');
   const [generateQuiz, setGenerateQuiz] = useState(true);
-  const [addToWeb, setAddToWeb] = useState(false);
   const [generateSummary, setGenerateSummary] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOcrRunning, setIsOcrRunning] = useState(false);
@@ -333,9 +337,7 @@ export default function CaptureHubPage() {
   const [evaluationUnavailable, setEvaluationUnavailable] = useState(false);
   const [evaluationOpen, setEvaluationOpen] = useState(false);
 
-  // Summarize: tried against the real model first, when one is configured;
-  // falls back to the local heuristic in buildMaterialSummary otherwise, so
-  // opening a summary never shows nothing.
+  // Keep generated summaries separate from loading/error states and demo metadata.
   const [realSummaryPoints, setRealSummaryPoints] = useState<string[] | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -362,16 +364,34 @@ export default function CaptureHubPage() {
     [],
   );
 
+  const summaryRequests = useRef(new Map<string, ReturnType<typeof summarizeNotesApi>>());
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryAttempt, setSummaryAttempt] = useState(0);
+
   useEffect(() => {
     if (!summaryMaterial?.content) {
       setRealSummaryPoints(null);
+      setSummaryError(null);
+      setIsSummarizing(false);
       return;
     }
     let cancelled = false;
     setIsSummarizing(true);
     setRealSummaryPoints(null);
+    setSummaryError(null);
     appendDebugLog('Summary', 'running', 'Sending the captured notes to the configured analysis provider.');
-    summarizeNotesApi(summaryMaterial.content)
+    const content = summaryMaterial.content;
+    // Reuse completed/in-flight requests, including React's development effect
+    // replay. Opening the same note again should not spend another quota slot.
+    let request = summaryRequests.current.get(content);
+    if (!request) {
+      request = summarizeNotesApi(content);
+      summaryRequests.current.set(content, request);
+      void request.then((result) => {
+        if (!result.points?.length) summaryRequests.current.delete(content);
+      }, () => summaryRequests.current.delete(content));
+    }
+    request
       .then((result) => {
         if (cancelled) return;
         if (result.available && result.points && result.points.length > 0) {
@@ -383,11 +403,13 @@ export default function CaptureHubPage() {
           ? describeCaptureFailure(result.failure)
           : 'The summary endpoint returned no usable points and no diagnostic reason.';
         appendDebugLog('Summary', result.available ? 'warning' : 'error', message);
+        setSummaryError(message);
         toast.error(message);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         const message = describeRequestError(error, 'Summary');
+        setSummaryError(message);
         appendDebugLog('Connection', 'error', message);
         toast.error(message);
       })
@@ -397,7 +419,7 @@ export default function CaptureHubPage() {
     return () => {
       cancelled = true;
     };
-  }, [appendDebugLog, summaryMaterial]);
+  }, [appendDebugLog, summaryMaterial, summaryAttempt]);
 
   // File input refs
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -568,9 +590,6 @@ export default function CaptureHubPage() {
 
     setIsProcessing(true);
 
-    // Simulate processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
     const newMaterial = {
       id: Date.now().toString(),
       name: selectedTopic ? `${selectedTopic} Notes` : 'New Notes',
@@ -580,7 +599,6 @@ export default function CaptureHubPage() {
       type: activeMethod || 'paste',
       features: [
         ...(generateQuiz ? ['quiz'] : []),
-        ...(addToWeb ? ['web'] : []),
         ...(generateSummary ? ['summary'] : []),
       ],
       // Stored so buildMaterialSummary can genuinely summarise this specific
@@ -591,12 +609,7 @@ export default function CaptureHubPage() {
     setMaterials((prev) => [newMaterial, ...prev]);
     setIsProcessing(false);
 
-    const actions = [];
-    if (generateQuiz) actions.push('Quiz generated');
-    if (addToWeb) actions.push('Added to Concept Web');
-    if (generateSummary) actions.push('Summary created');
-
-    toast.success(actions.join(' • ') || 'Material saved!');
+    toast.success(generateSummary ? 'Material saved. Generating summary…' : 'Material saved!');
     // Open the summary immediately so the result of "Summarise into Key
     // Points" is actually visible, not just a toast claiming it happened.
     if (generateSummary) setSummaryMaterial(newMaterial);
@@ -1005,7 +1018,7 @@ export default function CaptureHubPage() {
                   <Label className="text-sm font-semibold text-studynow-dark mb-3 block">
                     What would you like to do with this material?
                   </Label>
-                  <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="grid sm:grid-cols-2 gap-3">
                     {/* Generate Quiz */}
                     <motion.label
                       whileHover={{ scale: 1.02 }}
@@ -1030,34 +1043,6 @@ export default function CaptureHubPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Sends to Smart Quiz with content loaded
-                        </p>
-                      </div>
-                    </motion.label>
-
-                    {/* Add to Concept Web */}
-                    <motion.label
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        addToWeb
-                          ? 'border-[#6486B5] bg-[#6486B5]/10'
-                          : 'border-border hover:border-[#6486B5]/50'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={addToWeb}
-                        onCheckedChange={(c) => setAddToWeb(!!c)}
-                        className="data-[state=checked]:bg-[#6486B5] data-[state=checked]:border-[#6486B5]"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">🕸️</span>
-                          <span className="font-semibold text-sm text-studynow-dark">
-                            Add to Concept Web
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          AI extracts key concepts as nodes
                         </p>
                       </div>
                     </motion.label>
@@ -1360,8 +1345,16 @@ export default function CaptureHubPage() {
           {isSummarizing && (
             <p className="text-xs font-semibold text-muted-foreground">Summarizing with AI...</p>
           )}
+          {summaryError && !isSummarizing && (
+            <div className="space-y-3" role="alert">
+              <p className="text-sm text-destructive">{summaryError}</p>
+              <Button variant="outline" onClick={() => setSummaryAttempt((attempt) => attempt + 1)}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Retry summary
+              </Button>
+            </div>
+          )}
           <ul className="space-y-2.5 text-sm leading-relaxed text-studynow-dark">
-            {summaryMaterial && (realSummaryPoints ?? buildMaterialSummary(summaryMaterial)).map((point) => (
+            {summaryMaterial && (realSummaryPoints ?? (summaryMaterial.content ? [] : buildMaterialSummary(summaryMaterial))).map((point) => (
               <li key={point} className="flex gap-2.5">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6486B5]" />
                 <span>{point}</span>

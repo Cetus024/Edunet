@@ -2,6 +2,7 @@ import type { AnalysisModel, TopicGrounding } from './explanation-analysis.js';
 import { buildTopicGrounding } from './explanation-analysis.js';
 import { evaluateNotes, type NoteEvaluation } from './note-evaluation.js';
 import { summarizeNotes } from './summarize-notes.js';
+import { analysisFailure, type AnalysisFailureReason } from './analysis-error.js';
 
 export type CaptureAssessment = {
   summaryPoints: string[];
@@ -11,7 +12,8 @@ export type CaptureAssessment = {
 
 export type CaptureAnalysisFailure = {
   stage: 'summary' | 'grounding' | 'evaluation';
-  reason: 'provider_error' | 'no_summary' | 'topic_not_found' | 'invalid_evaluation';
+  reason: AnalysisFailureReason | 'no_summary' | 'topic_not_found' | 'invalid_evaluation';
+  retryAfterSeconds?: number;
 };
 
 /**
@@ -27,11 +29,11 @@ export async function assessCapturedNotes(
   let summaryPoints: string[] | null;
   try {
     summaryPoints = await summarizeNotes(notes, model);
-  } catch {
+  } catch (error) {
     return {
       summaryPoints: [],
       evaluation: null,
-      failure: { stage: 'summary', reason: 'provider_error' },
+      failure: { stage: 'summary', ...analysisFailure(error) },
     };
   }
   if (!summaryPoints || summaryPoints.length === 0) {
@@ -45,11 +47,11 @@ export async function assessCapturedNotes(
   let grounding: TopicGrounding | null;
   try {
     grounding = await loadGrounding(topicId);
-  } catch {
+  } catch (error) {
     return {
       summaryPoints,
       evaluation: null,
-      failure: { stage: 'grounding', reason: 'provider_error' },
+      failure: { stage: 'grounding', ...analysisFailure(error) },
     };
   }
   if (!grounding) {
@@ -68,11 +70,11 @@ export async function assessCapturedNotes(
       model,
       async () => grounding,
     );
-  } catch {
+  } catch (error) {
     return {
       summaryPoints,
       evaluation: null,
-      failure: { stage: 'evaluation', reason: 'provider_error' },
+      failure: { stage: 'evaluation', ...analysisFailure(error) },
     };
   }
 

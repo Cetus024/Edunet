@@ -23,6 +23,47 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `MODELARTS_ENDPOINT` / `MODELARTS_API_KEY` / `MODELARTS_MODEL` | Optional later fallback analysis provider when the Foundry variables are absent. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
+### Capture summary reliability
+
+Summaries reserve 250 output tokens; syllabus evaluations reserve 600 (the verdict
+contains quoted evidence and corrections). Foundry retries HTTP 429/503 at most
+twice, respecting `retry-after-ms` or `Retry-After` within the original request
+deadline. Longer quota waits return `rate_limited` and `retryAfterSeconds`; request
+timeouts return `timeout`. Upstream response bodies are never sent to the browser.
+The Capture Hub reuses successful and in-flight summaries for the same notes during
+the mounted session, retains the saved notes on failure, and offers a retry action.
+
+Small Azure quotas can still reject a request when the prompt plus output
+reservation exceeds the allocation. Retries do not increase that allocation.
+See [Azure quota guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota).
+
+### GPT-6 Astra configuration
+
+The adapter supports GPT-6 Astra through tool-free Chat Completions, using
+`reasoning_effort: low` and `max_completion_tokens` without `temperature`.
+Astra gets 4,096 reasoning tokens in addition to the caller's output target
+(at most 8,096 total), and a default 45-second deadline. These are initial bounded
+budgets, not a guarantee that every reasoning task will fit. Truncated responses
+return `incomplete_output` rather than being accepted as partial summaries.
+
+Deploy `gpt-6-astra` in the Foundry resource, then configure the server:
+
+```dotenv
+AZURE_FOUNDRY_MODEL=gpt-6-astra
+AZURE_FOUNDRY_MODEL_ID=gpt-6-astra
+```
+
+`AZURE_FOUNDRY_MODEL` is the actual deployment name. Set
+`AZURE_FOUNDRY_MODEL_ID=gpt-6-astra` when the deployment uses a custom name.
+Restart local API processes after changing environment variables; hosted servers
+need their own environment configuration. Never commit API keys or local env files.
+
+On 8 September 2026, the existing resource's catalog listed Astra, but a live
+completion request returned HTTP 404 `DeploymentNotFound`. The existing local
+GPT-4.1 mini configuration was retained pending deployment, so this code change
+alone must not be described as a completed live model switch.
+See [Microsoft's reasoning model guide](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning).
+
 Initialize and harden a new Supabase database from the repository root before starting the API:
 
 ```powershell

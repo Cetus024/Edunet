@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { assessCapturedNotes } from '../src/services/capture-analysis.js';
 import type { AnalysisModel, TopicGrounding } from '../src/services/explanation-analysis.js';
+import { AnalysisProviderError } from '../src/services/analysis-error.js';
 
 const GROUNDING: TopicGrounding = {
   topicId: 'biology-cell-division',
@@ -10,6 +11,23 @@ const GROUNDING: TopicGrounding = {
 };
 
 describe('assessCapturedNotes', () => {
+  it('preserves quota diagnostics and saved summary when evaluation is rate limited', async () => {
+    const complete = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({ points: ['Mitosis produces two genetically identical daughter cells and supports growth and repair in multicellular organisms.'] }))
+      .mockRejectedValueOnce(new AnalysisProviderError('rate_limited', 60));
+    const result = await assessCapturedNotes('biology-cell-division',
+      'these notes have enough words to summarize mitosis and its role in growth',
+      { complete }, async () => GROUNDING);
+    expect(result.summaryPoints).toHaveLength(1);
+    expect(result.failure).toEqual({ stage: 'evaluation', reason: 'rate_limited', retryAfterSeconds: 60 });
+  });
+
+  it('preserves summary timeout diagnostics', async () => {
+    const result = await assessCapturedNotes('biology-cell-division',
+      'these notes have enough words to summarize mitosis and its role in growth',
+      { complete: vi.fn().mockRejectedValue(new AnalysisProviderError('timeout')) }, async () => GROUNDING);
+    expect(result.failure).toEqual({ stage: 'summary', reason: 'timeout' });
+  });
   it('evaluates the generated summary rather than the raw OCR text', async () => {
     const complete = vi.fn()
       .mockResolvedValueOnce(JSON.stringify({

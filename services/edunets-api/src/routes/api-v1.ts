@@ -23,6 +23,7 @@ import { getAnalysisModel, isAnalysisConfigured } from '../services/analysis-mod
 import { assessCapturedNotes } from '../services/capture-analysis.js';
 import { getOcrProvider, isOcrConfigured } from '../services/ocr.js';
 import { summarizeNotes } from '../services/summarize-notes.js';
+import { analysisFailure } from '../services/analysis-error.js';
 import {
   captureEvaluateSchema,
   captureOcrSchema,
@@ -951,11 +952,11 @@ api.post('/me/capture/summarize', loadSession, requireSession, async (context) =
       points,
       failure: points?.length ? null : { stage: 'summary', reason: 'no_summary' },
     });
-  } catch {
+  } catch (error) {
     return context.json({
       available: true,
       points: null,
-      failure: { stage: 'summary', reason: 'provider_error' },
+      failure: { stage: 'summary', ...analysisFailure(error) },
     });
   }
 });

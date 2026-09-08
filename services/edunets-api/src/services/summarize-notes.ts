@@ -24,7 +24,7 @@ export function buildSummaryPrompt(notes: string): string {
     `NOTES:\n"""${notes.trim()}"""`,
     '',
     `Return ONLY a JSON object, no prose and no code fence: {"points":["", ...]}.`,
-    `Up to ${MAX_POINTS} points, each one idea, in the notes' own order. Use the student's`,
+    `Up to ${MAX_POINTS} points, each one idea, at most 18 words each, in the notes' own order. Use the student's`,
     'own terms rather than substituting your own vocabulary. If the notes are too short or',
     'too garbled to summarize, return {"points":[]}.',
   ].join('\n');
@@ -50,6 +50,6 @@ export function parseSummary(reply: string): string[] | null {
 
 export async function summarizeNotes(notes: string, model: AnalysisModel): Promise<string[] | null> {
   if (notes.trim().split(/\s+/).length < MIN_WORDS) return null;
-  const reply = await model.complete(buildSummaryPrompt(notes));
+  const reply = await model.complete(buildSummaryPrompt(notes), { maxTokens: 250 });
   return parseSummary(reply);
 }

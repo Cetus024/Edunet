@@ -11,10 +11,14 @@ export type NoteEvaluation = {
 };
 
 export type CaptureFailure = {
+  retryAfterSeconds?: number;
   stage: 'ocr' | 'summary' | 'grounding' | 'evaluation';
   reason:
     | 'not_configured'
     | 'provider_error'
+    | 'rate_limited'
+    | 'timeout'
+    | 'incomplete_output'
     | 'no_text'
     | 'no_summary'
     | 'topic_not_found'

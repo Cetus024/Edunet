@@ -1,4 +1,6 @@
 import type { AnalysisModel } from './explanation-analysis.js';
+import { setTimeout as delay } from 'node:timers/promises';
+import { AnalysisProviderError } from './analysis-error.js';
 
 /**
  * Microsoft Foundry chat completions adapter.
@@ -10,10 +12,23 @@ import type { AnalysisModel } from './explanation-analysis.js';
 
 const REQUEST_TIMEOUT_MS = 25_000;
 
+function retryDelayMs(response: Response): number {
+  const milliseconds = response.headers?.get('retry-after-ms');
+  if (milliseconds && Number.isFinite(Number(milliseconds))) return Math.max(0, Number(milliseconds));
+  const value = response.headers?.get('retry-after');
+  if (!value) return 1000;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 1000;
+}
+
 type AzureFoundryConfig = {
   endpoint: string;
   apiKey: string;
   model: string;
+  /** Underlying model ID when the Azure deployment uses a custom name. */
+  modelId?: string;
 };
 
 function readConfig(): AzureFoundryConfig | null {
@@ -21,7 +36,8 @@ function readConfig(): AzureFoundryConfig | null {
   const apiKey = process.env.AZURE_FOUNDRY_API_KEY?.trim();
   const model = process.env.AZURE_FOUNDRY_MODEL?.trim();
   if (!endpoint || !apiKey || !model) return null;
-  return { endpoint: endpoint.replace(/\/+$/, ''), apiKey, model };
+  const modelId = process.env.AZURE_FOUNDRY_MODEL_ID?.trim();
+  return { endpoint: endpoint.replace(/\/+$/, ''), apiKey, model, ...(modelId ? { modelId } : {}) };
 }
 
 function chatCompletionsUrl(endpoint: string): string {
@@ -36,36 +52,64 @@ export function isAzureFoundryConfigured(): boolean {
 }
 
 export function createAzureFoundryModel(config: AzureFoundryConfig): AnalysisModel {
+  const isAstra = /^gpt-6-astra(?:-|$)/i.test(config.modelId || config.model);
   return {
     async complete(prompt: string, options): Promise<string> {
       const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), Math.min(options?.timeoutMs ?? REQUEST_TIMEOUT_MS, 45_000));
+      const timeoutMs = Math.min(options?.timeoutMs ?? (isAstra ? 45_000 : REQUEST_TIMEOUT_MS), 45_000);
+      const outputTokens = Math.min(options?.maxTokens ?? 900, 4000);
+      const deadline = Date.now() + timeoutMs;
+      const timer = setTimeout(() => abort.abort(), timeoutMs);
 
       try {
-        const response = await fetch(chatCompletionsUrl(config.endpoint), {
-          method: 'POST',
-          signal: abort.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'api-key': config.apiKey,
-          },
-          body: JSON.stringify({
-            model: config.model,
-            temperature: 0,
-            max_tokens: Math.min(options?.maxTokens ?? 900, 4000),
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
+        for (let attempt = 0; ; attempt++) {
+          const response = await fetch(chatCompletionsUrl(config.endpoint), {
+            method: 'POST',
+            signal: abort.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'api-key': config.apiKey,
+            },
+            body: JSON.stringify({
+              model: config.model,
+              ...(isAstra ? {
+                // Astra requires reasoning and counts it against completion
+                // tokens. Reserve room beyond the caller's visible-output target.
+                reasoning_effort: 'low',
+                max_completion_tokens: outputTokens + 4096,
+              } : { temperature: 0, max_tokens: outputTokens }),
+              messages: [{ role: 'user', content: prompt }],
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`Microsoft Foundry returned HTTP ${response.status}`);
+          if (!response.ok) {
+            const retryable = response.status === 429 || response.status === 503;
+            const waitMs = retryDelayMs(response);
+            await response.body?.cancel();
+            // Keep all attempts within the original deadline. Never retry before
+            // Azure's reset time, or keep the student waiting through a long quota reset.
+            if (retryable && attempt < 2 && Date.now() + waitMs + 1000 < deadline) {
+              await delay(waitMs, undefined, { signal: abort.signal });
+              continue;
+            }
+            throw new AnalysisProviderError(
+              response.status === 429 ? 'rate_limited' : 'provider_error',
+              response.status === 429 ? Math.ceil(waitMs / 1000) : undefined,
+            );
+          }
+
+          const payload = await response.json() as {
+            choices?: { finish_reason?: string; message?: { content?: unknown } }[];
+          };
+          if (payload.choices?.[0]?.finish_reason === 'length') {
+            throw new AnalysisProviderError('incomplete_output');
+          }
+          const content = payload.choices?.[0]?.message?.content;
+          return typeof content === 'string' ? content : '';
         }
-
-        const payload = await response.json() as {
-          choices?: { message?: { content?: unknown } }[];
-        };
-        const content = payload.choices?.[0]?.message?.content;
-        return typeof content === 'string' ? content : '';
+      } catch (error) {
+        if (abort.signal.aborted) throw new AnalysisProviderError('timeout');
+        throw error;
       } finally {
         clearTimeout(timer);
       }
