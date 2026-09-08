@@ -12,6 +12,9 @@ export type StudySquadMember = {
   joinedAt: string;
   streakDays: number;
   overallMemoryScore: number | null;
+  /** Average score of this member's whiteboard work, null before their first submission. */
+  scribbleScore: number | null;
+  scribbleCount: number;
   subjects: Array<{
     id: string;
     name: string;
@@ -59,12 +62,13 @@ export const studySquadQueryKey = ['study-squad'] as const;
 export const studySquadInvitationQueryKey = ['study-squad-invitation'] as const;
 export const schoolDirectoryQueryKey = ['school-directory'] as const;
 
+/** Students only: teachers are reached through Ask Teacher, not squad invites. */
 export type SchoolDirectoryPerson = {
   id: string;
   name: string;
   image: string | null;
-  role: 'student' | 'teacher';
-  status: 'available' | 'invited' | 'member' | 'in_other_squad' | 'teacher';
+  role: 'student';
+  status: 'available' | 'invited' | 'member' | 'in_other_squad';
   canInvite: boolean;
 };
 

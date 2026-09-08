@@ -5,6 +5,7 @@ import { db } from '../../../../database/index.js';
 import { users } from '../../../../database/schema/auth.js';
 import { schools, subjects, topics } from '../../../../database/schema/catalog.js';
 import { discussionRooms, discussionUtterances } from '../../../../database/schema/discussion.js';
+import { learningWork } from '../../../../database/schema/learning-work.js';
 import { profiles, quizAttempts, userTopicModeProgress } from '../../../../database/schema/learning.js';
 import { notifications } from '../../../../database/schema/notifications.js';
 import { squadQuizRoomCompletions, squadQuizRooms } from '../../../../database/schema/squad-quiz.js';
@@ -18,6 +19,7 @@ import { ApiError } from '../errors.js';
 import { sendSquadInvitationEmail, SquadEmailError } from './squad-email.js';
 import { buildNotificationValues } from './notifications.js';
 import { calculateConceptMemory } from '../lib/knowledge-model.js';
+import { scoreWorkAnalysis } from '../../../../lib/learning-work.js';
 import {
   calculateMemberStreak,
   calculateStudySquadStreak,
@@ -40,6 +42,8 @@ export type StudySquadResponse = {
       joinedAt: Date;
       streakDays: number;
       overallMemoryScore: number | null;
+      scribbleScore: number | null;
+      scribbleCount: number;
       subjects: Array<{
         id: string;
         name: string;
@@ -139,6 +143,10 @@ export async function getSchoolDirectory(userId: string) {
     .where(and(
       eq(profiles.schoolId, actor.schoolId),
       eq(profiles.onboardingCompleted, true),
+      // Students only. Squads are peer groups, and teachers are reached
+      // through Ask Teacher instead -- so their names are filtered out here
+      // rather than in the UI, keeping staff out of the payload entirely.
+      eq(profiles.role, 'student'),
       ne(users.id, userId),
     ))
     .orderBy(asc(users.name), asc(users.id));
@@ -158,16 +166,14 @@ export async function getSchoolDirectory(userId: string) {
   return {
     school: { id: actor.schoolId, name: actor.schoolName },
     people: people.flatMap((person) => {
-      if (person.role !== 'student' && person.role !== 'teacher') return [];
-      const status = person.role === 'teacher'
-        ? 'teacher'
-        : person.squadId === membership?.squadId
-          ? 'member'
-          : person.squadId
-            ? 'in_other_squad'
-            : pendingUserIds.has(person.id)
-              ? 'invited'
-              : 'available';
+      if (person.role !== 'student') return [];
+      const status = person.squadId === membership?.squadId
+        ? 'member'
+        : person.squadId
+          ? 'in_other_squad'
+          : pendingUserIds.has(person.id)
+            ? 'invited'
+            : 'available';
       return [{
         id: person.id,
         name: person.name,
@@ -234,7 +240,7 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
     name: invitation.userId ? invitedUserNames.get(invitation.userId) ?? null : null,
   }));
   const memberIds = members.map((member) => member.id);
-  const [progressRows, activityRows, restoreRows, rescueCompletionRows, revisionCompletionRows] = await Promise.all([
+  const [progressRows, activityRows, restoreRows, rescueCompletionRows, revisionCompletionRows, workRows] = await Promise.all([
     memberIds.length === 0
       ? Promise.resolve([])
       : db.select({
@@ -282,6 +288,18 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
         isNotNull(discussionRooms.endedAt),
         sql`exists (select 1 from ${discussionUtterances} where ${discussionUtterances.roomId} = ${discussionRooms.id})`,
       )),
+    // Whiteboard work counts as studying: it feeds both the streak and the
+    // member's scribble score, so a day spent working through a problem on
+    // the board is no longer invisible next to a day spent on quizzes.
+    memberIds.length === 0
+      ? Promise.resolve([])
+      : db.select({
+        userId: learningWork.userId,
+        analysis: learningWork.analysis,
+        createdAt: learningWork.createdAt,
+      })
+        .from(learningWork)
+        .where(inArray(learningWork.userId, memberIds)),
   ]);
 
   const activityDatesByUser = new Map<string, Set<string>>();
@@ -293,6 +311,19 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
     const dates = activityDatesByUser.get(activity.userId) ?? new Set<string>();
     dates.add(toSingaporeDateKey(activity.completedAt));
     activityDatesByUser.set(activity.userId, dates);
+  }
+  // Scribble submissions join the same per-member activity set as quizzes, so
+  // the combined streak counts a revision day the same as a quiz day.
+  const workScoresByUser = new Map<string, number[]>();
+  for (const work of workRows) {
+    const joinedAt = memberJoinedAt.get(work.userId);
+    if (!joinedAt || work.createdAt < joinedAt) continue;
+    const dates = activityDatesByUser.get(work.userId) ?? new Set<string>();
+    dates.add(toSingaporeDateKey(work.createdAt));
+    activityDatesByUser.set(work.userId, dates);
+    const scores = workScoresByUser.get(work.userId) ?? [];
+    scores.push(scoreWorkAnalysis(work.analysis).score);
+    workScoresByUser.set(work.userId, scores);
   }
   const squadActivityDates = new Set(
     [...activityDatesByUser.values()].flatMap((dates) => [...dates]),
@@ -367,6 +398,7 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
     const overallMemoryScore = memberSubjects.length === 0
       ? null
       : Math.round(memberSubjects.reduce((sum, subject) => sum + subject.score, 0) / memberSubjects.length);
+    const workScores = workScoresByUser.get(member.id) ?? [];
     return {
       ...member,
       streakDays: calculateMemberStreak({
@@ -375,6 +407,10 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
         now: streakCalculatedAt,
       }),
       overallMemoryScore,
+      scribbleScore: workScores.length === 0
+        ? null
+        : Math.round(workScores.reduce((sum, score) => sum + score, 0) / workScores.length),
+      scribbleCount: workScores.length,
       subjects: memberSubjects,
     };
   });

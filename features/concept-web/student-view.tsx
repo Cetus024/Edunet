@@ -24,11 +24,12 @@ import {
   roundCoordinate,
 } from '@/features/concept-web/graph-utils';
 import {
-  getStrugglingFriendsForTopic,
-  getWeakestTopicForMember,
-  squadMembers,
+  getInitials,
+  normalizeTopic,
   type StrugglingFriend,
 } from '@/lib/squad-data';
+import { useCurrentAccount } from '@/lib/api/me';
+import { useStudySquad, type StudySquadMember } from '@/lib/api/study-squads';
 import { subjectsAtom, type SubjectData, type TopicData } from '@/lib/study-data';
 import { getKnowledgeScoreColor } from '@/lib/score-color';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
@@ -48,6 +49,18 @@ export default function StudentConceptWebView() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const authenticatedSubjects = useAtomValue(subjectsAtom);
+  // Friend markers and the "Find your friend" picker both read the real squad
+  // roster. Your own weak topics already colour the map, so the squad view
+  // only covers the other members -- seeing yourself orbiting your own node
+  // would just double-count the score the bubble already shows.
+  const { data: account } = useCurrentAccount();
+  const currentUserId = account?.user.id ?? null;
+  const squadQuery = useStudySquad(currentUserId);
+  const squadRoster = squadQuery.data?.squad?.members;
+  const squadFriends = useMemo<StudySquadMember[]>(
+    () => (squadRoster ?? []).filter((member: StudySquadMember) => member.id !== currentUserId),
+    [currentUserId, squadRoster],
+  );
   const subjectsData = useMemo<Record<string, SubjectEntry>>(() => {
     return Object.fromEntries(authenticatedSubjects.map((subjectData: SubjectData) => {
       const topics = subjectData.topics.map((topicData: TopicData, topicIndex: number): Topic => {
@@ -211,17 +224,44 @@ export default function StudentConceptWebView() {
   // drives (see the effect below), just triggered from a friend pick
   // instead of an external link.
   const handleFindFriend = useCallback((memberId: string) => {
-    const weakest = getWeakestTopicForMember(memberId);
+    const friend = squadFriends.find((member: StudySquadMember) => member.id === memberId);
+    if (!friend) return;
+    const weakest = friend.subjects
+      .flatMap((subjectEntry) => subjectEntry.topics.map((topic) => ({ subject: subjectEntry.name, topic: topic.name, score: topic.score })))
+      .reduce<{ subject: string; topic: string; score: number } | null>(
+        (lowest, candidate) => (lowest === null || candidate.score < lowest.score ? candidate : lowest),
+        null,
+      );
     if (!weakest) return;
     setSearchParams(new URLSearchParams({ subject: weakest.subject, topic: weakest.topic }));
-  }, [setSearchParams]);
+  }, [setSearchParams, squadFriends]);
+
+  // Squad topic names come from the database and node names come from the
+  // learner's own curriculum map, so they are matched on the normalised label
+  // rather than by id -- the two sides do not share topic ids.
+  const strugglingFriendsByTopicKey = useMemo(() => {
+    const index = new Map<string, StrugglingFriend[]>();
+    for (const friend of squadFriends) {
+      for (const subjectEntry of friend.subjects) {
+        for (const topic of subjectEntry.topics) {
+          if (topic.score >= 40) continue;
+          const key = `${normalizeTopic(subjectEntry.name)}|${normalizeTopic(topic.name)}`;
+          const existing = index.get(key) ?? [];
+          existing.push({ memberId: friend.id, name: friend.name, initials: getInitials(friend.name), score: topic.score });
+          index.set(key, existing);
+        }
+      }
+    }
+    for (const friends of index.values()) friends.sort((first, second) => first.score - second.score);
+    return index;
+  }, [squadFriends]);
 
   const friendMarkersByNodeId = useMemo<Record<string, StrugglingFriend[]>>(() => {
     return graph.nodes.reduce<Record<string, StrugglingFriend[]>>((accumulator: Record<string, StrugglingFriend[]>, node: GraphNode) => {
-      accumulator[node.id] = getStrugglingFriendsForTopic(node.subject, node.name);
+      accumulator[node.id] = strugglingFriendsByTopicKey.get(`${normalizeTopic(node.subject)}|${normalizeTopic(node.name)}`) ?? [];
       return accumulator;
     }, {});
-  }, [graph.nodes]);
+  }, [graph.nodes, strugglingFriendsByTopicKey]);
 
   const clampPopup = useCallback((x: number, y: number) => ({
     x: clamp(x, 16, Math.max(16, window.innerWidth - 390)),
@@ -398,14 +438,14 @@ export default function StudentConceptWebView() {
           </SelectContent>
         </Select>
         <div className="flex-1" />
-        <Select value="" onValueChange={handleFindFriend}>
+        <Select value="" onValueChange={handleFindFriend} disabled={squadFriends.length === 0}>
           <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Find your friend">
             <Users className="h-4 w-4 shrink-0" />
-            <SelectValue placeholder="Find your friend" />
+            <SelectValue placeholder={squadQuery.isPending ? 'Loading squad…' : squadFriends.length === 0 ? 'No squad friends yet' : 'Find your friend'} />
           </SelectTrigger>
           <SelectContent>
-            {squadMembers.map((member) => (
-              <SelectItem key={member.id} value={member.id}>{member.fullName}</SelectItem>
+            {squadFriends.map((member: StudySquadMember) => (
+              <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>

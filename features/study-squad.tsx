@@ -6,7 +6,7 @@ import { resolveRubricTopicId } from '@/lib/discussion-rubric';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useTranslation } from '@/lib/i18n';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Flame, Flag, GraduationCap, Instagram, Loader2, Medal, Pencil, Orbit, Search, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Crown, Download, Flame, Flag, Ghost, Instagram, Loader2, Medal, MessageCircle, Pencil, Orbit, Search, Send, Sparkles, Timer, UserPlus, Users, Zap } from 'lucide-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -29,8 +29,12 @@ import {
   useSchoolDirectory,
   useStudySquad,
 } from '@/lib/api/study-squads';
+import { renderRecapStoryImage } from '@/lib/recap-story-image';
 import {
+  CONSISTENCY_STREAK_TARGET,
+  CONSISTENCY_WORK_TARGET,
   getAvatarClass,
+  getConsistencyScore,
   getInitials,
   normalizeTopic,
   type SquadMember,
@@ -39,6 +43,41 @@ import {
 } from '@/lib/squad-data';
 
 type RescueTarget = { member: SquadMember; topic: WeakTopic };
+
+// Instagram and Snapchat have no web endpoint that accepts an image, so for
+// them the OS share sheet is the only real route and there is nothing to fall
+// back to but saving the file. WhatsApp and Telegram do have web composers,
+// but those take text only -- the image still has to be pasted or attached.
+const shareTargets = [
+  { id: 'instagram', label: 'Instagram', icon: Instagram, webUrl: null },
+  { id: 'snapchat', label: 'Snapchat', icon: Ghost, webUrl: null },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    icon: MessageCircle,
+    webUrl: (caption: string) => `https://wa.me/?text=${encodeURIComponent(caption)}`,
+  },
+  {
+    id: 'telegram',
+    label: 'Telegram',
+    icon: Send,
+    webUrl: (caption: string) => `https://t.me/share/url?url=${encodeURIComponent(caption)}`,
+  },
+] as const;
+
+type ShareTarget = (typeof shareTargets)[number];
+
+// Best-effort: Firefox has no ClipboardItem for images and every browser can
+// refuse the write, so callers fall back to a download rather than assuming.
+async function copyStoryToClipboard(file: File): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return false;
+    await navigator.clipboard.write([new ClipboardItem({ [file.type]: file })]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const presetMessages = ['Wanna review this together?', "You've got this — need a hand?", "Let's team up on this one"];
 const fallbackMember: SquadMember = {
@@ -51,12 +90,13 @@ const fallbackMember: SquadMember = {
   streak: 0,
   color: 'white',
   subjects: [],
+  scribbleScore: null,
+  scribbleCount: 0,
 };
 
 export default function StudySquadPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
   const [squadName, setSquadName] = useState('');
   const [expanded, setExpanded] = useState<string>('');
@@ -133,10 +173,9 @@ export default function StudySquadPage() {
     const people = directoryQuery.data?.people ?? [];
     const query = memberSearch.trim().toLowerCase();
     if (!query) return people;
-    return people.filter((person) => (
-      person.name.toLowerCase().includes(query)
-      || person.role.toLowerCase().includes(query)
-    ));
+    // Name only: every row is a student now, so matching on role would just
+    // return the whole list for the word "student".
+    return people.filter((person) => person.name.toLowerCase().includes(query));
   }, [directoryQuery.data?.people, memberSearch]);
   const subjectSummaries = useAtomValue(subjectSummariesAtom);
   const currentSquadMember = squad?.members.find((member) => member.id === account?.user.id);
@@ -163,8 +202,10 @@ export default function StudySquadPage() {
       streak: currentSquadMember?.streakDays ?? 0,
       color: 'white',
       subjects,
+      scribbleScore: currentSquadMember?.scribbleScore ?? null,
+      scribbleCount: currentSquadMember?.scribbleCount ?? 0,
     };
-  }, [account, currentSquadMember?.streakDays, subjectSummaries]);
+  }, [account, currentSquadMember, subjectSummaries]);
   const allMembers = useMemo<SquadMember[]>(() => {
     if (!squad) return realMember ? [realMember] : [fallbackMember];
     const colors = ['yellow', 'blue', 'white'] as const;
@@ -185,6 +226,8 @@ export default function StudySquadPage() {
           score: subject.score,
           topics: subject.topics.map((topic) => topic.name),
         })),
+        scribbleScore: member.scribbleScore,
+        scribbleCount: member.scribbleCount,
       };
     });
   }, [realMember, squad]);
@@ -241,7 +284,87 @@ export default function StudySquadPage() {
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const rankedMembers = useMemo(() => [...allMembers].sort((a: SquadMember, b: SquadMember) => b.score - a.score), [allMembers]);
-  const selectedMember = rankedMembers.find((member: SquadMember) => member.id === selectedMemberId) ?? rankedMembers[0] ?? fallbackMember;
+
+  // Two boards rather than one blended number. Studying stays a pure Memory
+  // Score so a rank there always means understanding; Consistency is the
+  // grindable one, and keeping them apart is what stops streak-farming from
+  // outranking someone who actually knows the material.
+  const [board, setBoard] = useState<'studying' | 'consistency'>('studying');
+  const boardMembers = useMemo(() => {
+    if (board === 'studying') return rankedMembers;
+    return [...allMembers].sort((first: SquadMember, second: SquadMember) => {
+      const delta = getConsistencyScore(second) - getConsistencyScore(first);
+      // Ties break on the longer streak, then the higher Memory Score, so the
+      // order is stable instead of falling back on array position.
+      return delta !== 0 ? delta : (second.streak - first.streak) || (second.score - first.score);
+    });
+  }, [allMembers, board, rankedMembers]);
+
+  // The recap card leaves the app -- it gets posted to a Story -- so every
+  // number on it is derived from the same squad payload the leaderboard reads.
+  // A shareable card is the worst place for placeholder figures, because the
+  // learner cannot tell they are fake once it is a screenshot.
+  const recap = useMemo(() => {
+    const topLearner = rankedMembers[0] ?? fallbackMember;
+    const myIndex = rankedMembers.findIndex((member: SquadMember) => member.id === account?.user.id);
+    const scoredMembers = rankedMembers.filter((member: SquadMember) => member.subjects.length > 0);
+    // Averaged per subject across the squad, so the bars back up the "your
+    // squad remembered" headline instead of one member's private scores.
+    const subjectTotals = new Map<string, { total: number; count: number }>();
+    for (const member of rankedMembers) {
+      for (const subject of member.subjects) {
+        const entry = subjectTotals.get(subject.subject) ?? { total: 0, count: 0 };
+        subjectTotals.set(subject.subject, { total: entry.total + subject.score, count: entry.count + 1 });
+      }
+    }
+    return {
+      rank: myIndex >= 0 ? myIndex + 1 : rankedMembers.length,
+      bestStreak: rankedMembers.reduce((best: number, member: SquadMember) => Math.max(best, member.streak), 0),
+      topScore: topLearner.score,
+      topLearner,
+      squadAverage: scoredMembers.length > 0
+        ? Math.round(scoredMembers.reduce((sum: number, member: SquadMember) => sum + member.score, 0) / scoredMembers.length)
+        : 0,
+      topSubjects: [...subjectTotals.entries()]
+        .map(([subject, entry]) => ({ subject, score: Math.round(entry.total / entry.count) }))
+        .sort((first, second) => second.score - first.score)
+        .slice(0, 3),
+    };
+  }, [account?.user.id, rankedMembers]);
+
+  // The Story PNG is rendered as soon as the numbers settle rather than on
+  // tap. navigator.share() only runs on the user activation from the click,
+  // and awaiting an image render inside the handler spends that activation on
+  // iOS -- the share then fails with a NotAllowedError.
+  const [storyFile, setStoryFile] = useState<File | null>(null);
+  useEffect(() => {
+    if (recap.squadAverage === 0) {
+      setStoryFile(null);
+      return;
+    }
+    let cancelled = false;
+    void renderRecapStoryImage({
+      squadAverage: recap.squadAverage,
+      topSubjects: recap.topSubjects,
+      topLearner: recap.topLearner.name,
+    }).then((blob) => {
+      if (cancelled || !blob) return;
+      setStoryFile(new File([blob], 'edunets-wrapped.png', { type: 'image/png' }));
+    });
+    return () => { cancelled = true; };
+  }, [recap]);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [storyPreview, setStoryPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!storyFile) {
+      setStoryPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(storyFile);
+    setStoryPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [storyFile]);
 
   const submitCreateSquad = () => {
     if (!squadName.trim()) {
@@ -275,7 +398,6 @@ export default function StudySquadPage() {
 
     if (!targetMember) return;
 
-    setSelectedMemberId(targetMember.id);
     setExpanded(targetMember.id);
     setHighlightedMemberId(targetMember.id);
     setHighlightedSubject(canonicalSubject);
@@ -433,8 +555,74 @@ export default function StudySquadPage() {
     setSendState('idle');
   };
 
+  const shareCaption = `My EduNets Wrapped — ${recap.squadAverage}% squad memory 🧠`;
+
+  const downloadStory = useCallback(() => {
+    if (!storyFile) return;
+    const url = URL.createObjectURL(storyFile);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = storyFile.name;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [storyFile]);
+
+  // Opens the preview instead of sharing straight away, so nothing leaves the
+  // device before the learner has seen exactly what would be posted.
   const shareRecap = () => {
-    toast.success('Story recap ready', { description: 'Your 9:16 Memory Score recap is ready for Instagram Stories.' });
+    if (recap.squadAverage === 0) {
+      toast.error('Nothing to recap yet', {
+        description: 'Finish a quiz so your recap has real scores to show.',
+      });
+      return;
+    }
+    if (!storyFile) {
+      toast.error('Recap image not ready', { description: 'Give it a second and tap again.' });
+      return;
+    }
+    setShareOpen(true);
+  };
+
+  const shareStoryTo = (target: ShareTarget) => {
+    if (!storyFile) return;
+    const shareData = { files: [storyFile], text: shareCaption };
+
+    // The OS share sheet is the only route that can hand the real image to
+    // any of these apps, so it is tried first whichever one was tapped. It is
+    // called with no await in front of it: awaiting anything here would spend
+    // the click's user activation and iOS would reject the share.
+    if (navigator.canShare?.(shareData)) {
+      navigator.share(shareData)
+        .then(() => setShareOpen(false))
+        .catch((error: unknown) => {
+          // Dismissing the sheet is a normal outcome, not a failure.
+          if (error instanceof Error && error.name === 'AbortError') return;
+          downloadStory();
+          toast.success('Recap saved instead', { description: `Add it to ${target.label} from your camera roll.` });
+        });
+      return;
+    }
+
+    // Desktop: no browser can push a file into these apps. Open the web
+    // composer first -- window.open must stay inside the click's activation
+    // or the popup blocker eats it -- then copy the image so it can be pasted.
+    if (target.webUrl) {
+      window.open(target.webUrl(shareCaption), '_blank', 'noopener,noreferrer');
+      void copyStoryToClipboard(storyFile).then((copied) => {
+        if (copied) {
+          toast.success(`${target.label} opened`, { description: 'The recap image is on your clipboard — paste it into the chat.' });
+          return;
+        }
+        downloadStory();
+        toast.success(`${target.label} opened`, { description: 'Attach the saved edunets-wrapped.png to your message.' });
+      });
+      return;
+    }
+
+    downloadStory();
+    toast.success('Recap saved', {
+      description: `${target.label} cannot take a file straight from a browser — post the saved image from your camera roll.`,
+    });
   };
 
 
@@ -543,7 +731,7 @@ export default function StudySquadPage() {
                   {squad.role === 'owner' && (
                     <div className="space-y-3">
                       <div>
-                        <label htmlFor="school-member-search" className="block text-sm font-bold">Find people at your school</label>
+                        <label htmlFor="school-member-search" className="block text-sm font-bold">Find classmates at your school</label>
                         <p className="mt-1 text-xs text-muted-foreground">{directoryQuery.data?.school.name ?? 'Your school'} · emails stay private</p>
                       </div>
                       <div className="relative">
@@ -553,7 +741,7 @@ export default function StudySquadPage() {
                           type="search"
                           value={memberSearch}
                           onChange={(event: React.ChangeEvent<HTMLInputElement>) => setMemberSearch(event.target.value)}
-                          placeholder="Search by name or role"
+                          placeholder="Search by name"
                           className="rounded-full pl-9"
                         />
                       </div>
@@ -569,11 +757,10 @@ export default function StudySquadPage() {
                           ) : filteredSchoolPeople.map((person) => (
                             <div key={person.id} className="flex items-center gap-3 rounded-2xl border border-border bg-background p-3">
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
-                                {person.role === 'teacher' ? <GraduationCap className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                                <Users className="h-4 w-4" />
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-black">{person.name}</p>
-                                <p className="text-xs capitalize text-muted-foreground">{person.role.replace('_', ' ')}</p>
                               </div>
                               {person.canInvite ? (
                                 <Button
@@ -590,10 +777,9 @@ export default function StudySquadPage() {
                                 </Button>
                               ) : (
                                 <Badge variant="outline" className="rounded-full">
-                                  {person.status === 'teacher' ? 'Ask Teacher'
-                                    : person.status === 'member' ? 'Member'
-                                      : person.status === 'invited' ? 'Invited'
-                                        : 'In another squad'}
+                                  {person.status === 'member' ? 'Member'
+                                    : person.status === 'invited' ? 'Invited'
+                                      : 'In another squad'}
                                 </Badge>
                               )}
                             </div>
@@ -622,19 +808,47 @@ export default function StudySquadPage() {
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="card-shadow border-border bg-card text-card-foreground">
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <CardTitle className="flex items-center gap-2 text-xl"><Medal className="h-5 w-5" /> Leaderboard</CardTitle>
-              <Badge className="rounded-full border-0 bg-primary text-primary-foreground">Top 5</Badge>
+            <CardHeader className="gap-3">
+              <div className="flex flex-row items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 text-xl"><Medal className="h-5 w-5" /> Leaderboard</CardTitle>
+                <Badge className="rounded-full border-0 bg-primary text-primary-foreground">Top 5</Badge>
+              </div>
+              <div className="flex w-full gap-1 rounded-full bg-background p-1">
+                {([
+                  { id: 'studying' as const, label: 'Studying', hint: 'Ranked on Memory Score' },
+                  { id: 'consistency' as const, label: 'Consistency', hint: 'Ranked on streak and whiteboard work' },
+                ]).map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setBoard(option.id)}
+                    aria-pressed={board === option.id}
+                    title={option.hint}
+                    className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${
+                      board === option.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-secondary hover:text-secondary-foreground'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">
+                {board === 'studying'
+                  ? 'Memory Score across every subject you have started.'
+                  : `Showing up: ${CONSISTENCY_STREAK_TARGET}-day streak and ${CONSISTENCY_WORK_TARGET} pieces of whiteboard work score full marks.`}
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              {rankedMembers.map((member: SquadMember, index: number) => {
+              {boardMembers.map((member: SquadMember, index: number) => {
                 const pendingRescue = activeRescueByMember[member.id];
                 const justCompleted = latestCompletedRescue?.memberId === member.id;
                 return (
                   <button
                     ref={(element: HTMLButtonElement | null) => { rowRefs.current[member.id] = element; }}
                     key={member.id}
-                    onClick={() => { setSelectedMemberId(member.id); setExpanded(expanded === member.id ? '' : member.id); setHighlightedMemberId(null); setHighlightedSubject(null); setHighlightedTopic(null); }}
+                    onClick={() => { setExpanded(expanded === member.id ? '' : member.id); setHighlightedMemberId(null); setHighlightedSubject(null); setHighlightedTopic(null); }}
                     className={`w-full rounded-[18px] border p-4 text-left text-foreground transition hover:bg-accent hover:text-accent-foreground ${highlightedMemberId === member.id ? 'border-accent bg-accent/25' : 'border-border bg-background'}`}
                   >
                     <div className="flex items-center gap-4">
@@ -649,14 +863,31 @@ export default function StudySquadPage() {
                             <>{' '}<Badge className="ml-1 rounded-full border-0 bg-primary text-primary-foreground align-middle">You</Badge></>
                           )}
                         </p>
-                        <p className="text-sm text-muted-foreground"><Flame className="mr-1 inline h-4 w-4" /> {member.streak}-day streak</p>
+                        <p className="text-sm text-muted-foreground">
+                          <Flame className="mr-1 inline h-4 w-4" /> {member.streak}-day streak
+                          {board === 'consistency' && (
+                            <> · <Pencil className="mr-1 inline h-4 w-4" />{member.scribbleCount} on the board</>
+                          )}
+                        </p>
                       </div>
                       {pendingRescue && <Badge className="rounded-full border-0 bg-secondary text-secondary-foreground">Rescue sent ⏳</Badge>}
                       {justCompleted && <Badge className="rounded-full border-0 bg-primary text-primary-foreground">Rescued! ✓</Badge>}
-                      <p className="text-2xl font-bold">{member.score}%</p>
+                      <p className="text-2xl font-bold">{board === 'studying' ? member.score : getConsistencyScore(member)}%</p>
                     </div>
                     {expanded === member.id && (
                       <div className="mt-4 space-y-3 rounded-[18px] bg-card p-4 text-card-foreground">
+                        {member.scribbleScore !== null && (
+                          <div className="rounded-xl bg-secondary/40 p-2">
+                            <div className="mb-1 flex justify-between text-sm font-semibold">
+                              <span>Whiteboard work</span>
+                              <span>{member.scribbleScore}%</span>
+                            </div>
+                            <Progress value={member.scribbleScore} className="h-2" />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Across {member.scribbleCount} {member.scribbleCount === 1 ? 'submission' : 'submissions'} in Revision and Rescue Rooms.
+                            </p>
+                          </div>
+                        )}
                         {member.subjects.map((subject: SubjectScore) => {
                           const subjectMatches = highlightedMemberId === member.id && highlightedSubject === subject.subject;
                           const topicMatches = subjectMatches && highlightedTopic && subject.topics?.some((topic: string) => normalizeTopic(topic) === normalizeTopic(highlightedTopic));
@@ -797,15 +1028,15 @@ export default function StudySquadPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-[18px] bg-secondary p-4 text-secondary-foreground">
                   <p className="text-sm font-bold">Squad rank</p>
-                  <p className="mt-1 text-3xl font-black">#2</p>
+                  <p className="mt-1 text-3xl font-black">#{recap.rank}</p>
                 </div>
                 <div className="rounded-[18px] bg-primary p-4 text-primary-foreground">
                   <p className="text-sm font-bold">Best streak</p>
-                  <p className="mt-1 text-3xl font-black">18d</p>
+                  <p className="mt-1 text-3xl font-black">{recap.bestStreak}d</p>
                 </div>
                 <div className="rounded-[18px] bg-accent p-4 text-accent-foreground">
                   <p className="text-sm font-bold">Top score</p>
-                  <p className="mt-1 text-3xl font-black">92%</p>
+                  <p className="mt-1 text-3xl font-black">{recap.topScore}%</p>
                 </div>
               </div>
               <Button onClick={shareRecap} className="rounded-full bg-primary text-primary-foreground hover:bg-accent"><Instagram className="mr-2 h-4 w-4" /> Post in Story</Button>
@@ -824,17 +1055,21 @@ export default function StudySquadPage() {
 
                   <div className="space-y-3">
                     <p className="text-sm font-bold text-primary-foreground">This week, your squad remembered</p>
-                    <h3 className="text-6xl font-black leading-none tracking-[-0.08em] text-primary-foreground">86%</h3>
+                    <h3 className="text-6xl font-black leading-none tracking-[-0.08em] text-primary-foreground">{recap.squadAverage}%</h3>
                     <p className="max-w-[14rem] text-lg font-black leading-tight text-primary-foreground">of your strongest topics before they faded.</p>
                   </div>
 
                   <div className="space-y-3">
-                    {selectedMember.subjects.slice(0, 3).map((subject: SubjectScore, index: number) => (
+                    {recap.topSubjects.length > 0 ? recap.topSubjects.map((subject, index: number) => (
                       <div key={subject.subject} className="rounded-2xl bg-card p-3 text-card-foreground shadow-lg">
                         <div className="mb-2 flex items-center justify-between text-sm font-black"><span>{index + 1}. {subject.subject}</span><span>{subject.score}%</span></div>
                         <Progress value={subject.score} className="h-2" />
                       </div>
-                    ))}
+                    )) : (
+                      <div className="rounded-2xl bg-card p-3 text-sm font-bold text-card-foreground shadow-lg">
+                        Finish a quiz to fill in your squad&apos;s strongest subjects.
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-[1.5rem] bg-secondary p-4 text-secondary-foreground">
@@ -842,7 +1077,7 @@ export default function StudySquadPage() {
                       <BookOpenCheck className="h-8 w-8" />
                       <div>
                         <p className="text-xs font-bold">Top learner</p>
-                        <p className="text-2xl font-black">{selectedMember.name}</p>
+                        <p className="text-2xl font-black">{recap.topLearner.name}</p>
                       </div>
                       <ArrowUpRight className="ml-auto h-6 w-6" />
                     </div>
@@ -852,6 +1087,52 @@ export default function StudySquadPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+          <DialogContent className="max-w-[400px] border-border bg-card text-card-foreground">
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-2xl font-black tracking-tight">Share your recap</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                This is exactly what gets posted — nothing leaves your device until you pick where it goes.
+              </DialogDescription>
+            </DialogHeader>
+
+            {storyPreview && (
+              // eslint-disable-next-line @next/next/no-img-element -- an object URL for a canvas blob, which next/image cannot take
+              <img
+                src={storyPreview}
+                alt="Your Memory Score recap, ready for a Story"
+                className="mx-auto w-[210px] rounded-[1.5rem] shadow-lg"
+              />
+            )}
+
+            <div className="grid grid-cols-4 gap-2">
+              {shareTargets.map((target) => (
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => shareStoryTo(target)}
+                  className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-background p-3 text-xs font-bold text-foreground transition hover:border-primary hover:bg-secondary hover:text-secondary-foreground"
+                >
+                  <target.icon className="h-6 w-6" />
+                  {target.label}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                downloadStory();
+                setShareOpen(false);
+                toast.success('Recap saved', { description: 'edunets-wrapped.png is in your downloads.' });
+              }}
+              className="w-full rounded-full border-2 border-primary font-bold text-primary hover:bg-secondary"
+            >
+              <Download className="mr-2 h-4 w-4" /> Save to device
+            </Button>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={rescueTarget !== null} onOpenChange={(open: boolean) => { if (!open) closeRescueDialog(); }}>
           <DialogContent className="max-w-[430px] overflow-hidden border-border bg-card p-0 text-card-foreground">
