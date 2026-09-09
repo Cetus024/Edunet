@@ -123,3 +123,11 @@ M services/edunets-api/src/services/study-squads.ts
 - 本次提交包括上文的小队真实数据、白板评分、双排行榜、Story PNG 分享和学生名录筛选，以及对应测试。
 - API 密钥、.env.local、.claude 本机配置、.codex-tmp 临时脚本与截图、artifacts 文档均未包含在提交中。
 - 上文真机/登录界面的验证记录由此前编辑窗口提供；本次推送前另行执行 TypeScript、API 测试、改动文件 ESLint 和生产构建检查。
+
+
+## 2026-09-09 GPT-5 mini switch
+
+- Astra deployment was blocked by insufficient Azure quota. GPT-5 mini was deployed successfully on the existing Japan East resource using Global Standard, 100K TPM.
+- Updated the Foundry adapter to use low reasoning and max_completion_tokens for GPT-5 mini, including custom deployment names via AZURE_FOUNDRY_MODEL_ID.
+- Local .env.local now selects gpt-5-mini; endpoint and API key are unchanged. Secrets remain untracked. Updated .env.example and prepared artifacts/vercel-gpt-5-mini.env.txt for manual Vercel configuration.
+- Verification: 14 adapter tests passed; live adapter and actual summarizeNotes calls returned successfully. Vercel still needs the two model variables updated and a redeployment.

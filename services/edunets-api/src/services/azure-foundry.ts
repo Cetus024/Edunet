@@ -52,11 +52,11 @@ export function isAzureFoundryConfigured(): boolean {
 }
 
 export function createAzureFoundryModel(config: AzureFoundryConfig): AnalysisModel {
-  const isAstra = /^gpt-6-astra(?:-|$)/i.test(config.modelId || config.model);
+  const isReasoningModel = /^(?:gpt-6-astra|gpt-5-mini)(?:-|$)/i.test(config.modelId || config.model);
   return {
     async complete(prompt: string, options): Promise<string> {
       const abort = new AbortController();
-      const timeoutMs = Math.min(options?.timeoutMs ?? (isAstra ? 45_000 : REQUEST_TIMEOUT_MS), 45_000);
+      const timeoutMs = Math.min(options?.timeoutMs ?? (isReasoningModel ? 45_000 : REQUEST_TIMEOUT_MS), 45_000);
       const outputTokens = Math.min(options?.maxTokens ?? 900, 4000);
       const deadline = Date.now() + timeoutMs;
       const timer = setTimeout(() => abort.abort(), timeoutMs);
@@ -72,8 +72,8 @@ export function createAzureFoundryModel(config: AzureFoundryConfig): AnalysisMod
             },
             body: JSON.stringify({
               model: config.model,
-              ...(isAstra ? {
-                // Astra requires reasoning and counts it against completion
+              ...(isReasoningModel ? {
+                // These models use reasoning and count it against completion
                 // tokens. Reserve room beyond the caller's visible-output target.
                 reasoning_effort: 'low',
                 max_completion_tokens: outputTokens + 4096,

@@ -13,14 +13,14 @@ const CONFIG = {
 };
 
 describe('Microsoft Foundry analysis model', () => {
-  it('uses Astra-compatible parameters and reserves tokens for reasoning', async () => {
+  it.each(['gpt-6-astra', 'gpt-5-mini'])('uses compatible parameters for %s and reserves reasoning tokens', async (model) => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ finish_reason: 'stop', message: { content: '{"points":["Triangle angles sum to 180 degrees."]}' } }],
     })));
     vi.stubGlobal('fetch', fetchMock);
-    await createAzureFoundryModel({ ...CONFIG, model: 'gpt-6-astra' }).complete('summarize', { maxTokens: 250 });
+    await createAzureFoundryModel({ ...CONFIG, model }).complete('summarize', { maxTokens: 250 });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toMatchObject({ model: 'gpt-6-astra', reasoning_effort: 'low', max_completion_tokens: 4346 });
+    expect(body).toMatchObject({ model, reasoning_effort: 'low', max_completion_tokens: 4346 });
     expect(body).not.toHaveProperty('temperature');
     expect(body).not.toHaveProperty('max_tokens');
   });
