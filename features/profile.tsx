@@ -13,10 +13,8 @@ import {
   LogOut,
   Mail,
   Pencil,
-  Plus,
   Save,
   ShieldCheck,
-  Trash2,
   Trophy,
   UserRound,
   X,
@@ -33,7 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 import { authClient } from '@/lib/api/auth-client';
-import { currentAccountQueryKey, updateSchool, updateTeachingScopes, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
+import { currentAccountQueryKey, updateSchool, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
 import { useCatalog } from '@/lib/api/study';
 import { getRoleLabel, isTeachingRole } from '@/lib/roles';
 import { getKnowledgeScoreColor } from '@/lib/score-color';
@@ -100,6 +98,10 @@ function getInitials(name: string): string {
     .join('') || 'EN';
 }
 
+function getClassLabel(value: string | null | undefined): string {
+  return value?.trim() || '—';
+}
+
 function TeacherProfilePage({
   account,
   signOut,
@@ -111,52 +113,11 @@ function TeacherProfilePage({
   const fullName = account.user.name;
   const email = account.user.email;
   const roleLabel = getRoleLabel(profile?.role);
-  const queryClient = useQueryClient();
-  const catalogQuery = useCatalog();
   const nameEditor = useNameEditor(fullName);
-  const [isSavingScopes, setIsSavingScopes] = useState(false);
-  const [scopeDrafts, setScopeDrafts] = useState(() => {
-    const savedScopes = profile?.teachingScopes ?? [];
-    if (savedScopes.length > 0) {
-      return savedScopes.map((scope) => ({
-        key: scope.id,
-        subjectId: scope.subjectId,
-        classroomName: scope.classroomName,
-      }));
-    }
-    return profile ? [{
-      key: 'legacy-primary',
-      subjectId: profile.subjectId,
-      classroomName: `${profile.subjectName} class`,
-    }] : [];
-  });
-
-  const handleSaveScopes = async () => {
-    if (scopeDrafts.length === 0 || scopeDrafts.some((scope) => !scope.subjectId || !scope.classroomName.trim())) {
-      toast.error('Keep at least one classroom and complete every subject and classroom name.');
-      return;
-    }
-    setIsSavingScopes(true);
-    try {
-      const result = await updateTeachingScopes(scopeDrafts.map((scope) => ({
-        subjectId: scope.subjectId,
-        classroomName: scope.classroomName.trim(),
-      })));
-      setScopeDrafts(result.scopes.map((scope) => ({
-        key: scope.id,
-        subjectId: scope.subjectId,
-        classroomName: scope.classroomName,
-      })));
-      await queryClient.invalidateQueries({ queryKey: currentAccountQueryKey });
-      toast.success('Teaching subjects and classrooms updated.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not update teaching details.');
-    } finally {
-      setIsSavingScopes(false);
-    }
-  };
 
   const teachingSubjectNames = [...new Set((profile?.teachingScopes ?? []).map((scope) => scope.subjectName))];
+  const teachingClassNames = [...new Set((profile?.teachingScopes ?? []).map((scope) => scope.classroomName))];
+  const assignmentLabel = 'Awaiting admin assignment';
 
   const profileDetails = [
     {
@@ -167,12 +128,12 @@ function TeacherProfilePage({
     {
       icon: BookOpen,
       label: 'Teaching Subjects',
-      value: teachingSubjectNames.length > 0 ? teachingSubjectNames.join(', ') : profile?.subjectName ?? 'Not provided',
+      value: teachingSubjectNames.length > 0 ? teachingSubjectNames.join(', ') : assignmentLabel,
     },
     {
       icon: Focus,
-      label: 'Classrooms',
-      value: profile?.teachingScopes?.map((scope) => scope.classroomName).join(', ') || `${profile?.subjectName ?? 'Primary'} class`,
+      label: 'Teaching Classes',
+      value: teachingClassNames.length > 0 ? teachingClassNames.join(', ') : assignmentLabel,
     },
   ] as const;
 
@@ -276,7 +237,7 @@ function TeacherProfilePage({
               </span>
               <div>
                 <h2 className="text-lg font-black">Teaching details</h2>
-                <p className="text-xs font-semibold text-slate-500">Saved from your EduNets onboarding profile.</p>
+                <p className="text-xs font-semibold text-slate-500">Assigned by your school admin.</p>
               </div>
             </div>
 
@@ -301,89 +262,10 @@ function TeacherProfilePage({
             </dl>
 
             <div className="mt-5 rounded-2xl border border-slate-200 bg-[#f7f9fc] p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-black text-[#17233a]">Edit classrooms and subjects</h3>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">Add another classroom, rename it, or change the subject it teaches.</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!catalogQuery.data?.subjects.length || scopeDrafts.length >= 16}
-                  onClick={() => {
-                    const firstSubject = catalogQuery.data?.subjects[0];
-                    if (!firstSubject) return;
-                    setScopeDrafts((current) => [...current, {
-                      key: crypto.randomUUID(),
-                      subjectId: firstSubject.id,
-                      classroomName: `${firstSubject.name} class`,
-                    }]);
-                  }}
-                  className="rounded-xl border-slate-300 bg-white text-[#17233a] hover:bg-slate-100"
-                >
-                  <Plus className="mr-1.5 h-4 w-4" /> Add classroom
-                </Button>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {scopeDrafts.map((scope, index) => (
-                  <div key={scope.key} className="grid gap-2 rounded-2xl border border-[#2b4261] bg-[#0c1b31] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-                    <label>
-                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#7185a3]">Subject</span>
-                      <Select
-                        value={scope.subjectId}
-                        onValueChange={(subjectId) => setScopeDrafts((current) => current.map((candidate) => (
-                          candidate.key === scope.key ? { ...candidate, subjectId } : candidate
-                        )))}
-                      >
-                        <SelectTrigger className="w-full border-[#3a5272] bg-[#172b47] text-white"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {catalogQuery.data?.subjects.map((subject) => (
-                            <SelectItem key={subject.id} value={subject.id}>{subject.icon} {subject.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
-                    <label>
-                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#7185a3]">Classroom name</span>
-                      <Input
-                        value={scope.classroomName}
-                        maxLength={80}
-                        onChange={(event) => setScopeDrafts((current) => current.map((candidate) => (
-                          candidate.key === scope.key ? { ...candidate, classroomName: event.target.value } : candidate
-                        )))}
-                        placeholder={`Classroom ${index + 1}`}
-                        className="border-[#3a5272] bg-[#172b47] text-white placeholder:text-[#7185a3]"
-                      />
-                    </label>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      disabled={scopeDrafts.length === 1}
-                      aria-label={`Remove ${scope.classroomName || `classroom ${index + 1}`}`}
-                      onClick={() => setScopeDrafts((current) => current.filter((candidate) => candidate.key !== scope.key))}
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <Button
-                type="button"
-                onClick={() => void handleSaveScopes()}
-                disabled={isSavingScopes || catalogQuery.isPending}
-                className="mt-4 w-full rounded-xl bg-[#f7cf5d] font-black text-[#17233a] hover:bg-[#ffe17d]"
-              >
-                <Save className="mr-2 h-4 w-4" /> {isSavingScopes ? 'Saving…' : 'Save teaching contexts'}
-              </Button>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-[#f7cf5d]/40 bg-[#f7cf5d]/[0.12] px-4 py-4 text-sm font-semibold leading-relaxed text-[#53657e]">
-              These details identify your teaching workspace and help EduNets connect relevant student enquiries.
+              <h3 className="font-black text-[#17233a]">Admin-managed assignments</h3>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">
+                Teaching classes and subjects are assigned by your school admin. Contact them if an assignment is missing or incorrect.
+              </p>
             </div>
           </motion.section>
         </div>
@@ -461,6 +343,7 @@ export default function ProfilePage() {
   }, [subjectOverview, subjectSummaries]);
 
   const fullName = account?.user.name ?? 'EduNets learner';
+  const classLabel = getClassLabel(account?.user.class);
   const schoolName = account?.profile?.schoolName ?? 'School not set';
   const role = account?.profile?.role
     ? account.profile.role.charAt(0).toUpperCase() + account.profile.role.slice(1)
@@ -538,6 +421,11 @@ export default function ProfilePage() {
                   </button>
                 </div>
               )}
+              <div className="mb-4 flex max-w-full items-start gap-2 rounded-xl bg-secondary/40 px-3 py-2 text-sm">
+                <Focus className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="shrink-0 font-semibold text-foreground">Class</span>
+                <span className="min-w-0 break-words text-muted-foreground">{classLabel}</span>
+              </div>
               <Badge className="mb-6 bg-secondary px-4 py-1 text-sm font-semibold text-secondary-foreground hover:bg-secondary">
                 {role}
               </Badge>

@@ -7,12 +7,14 @@ export type CurrentUser = {
   name: string;
   email: string;
   image: string | null;
+  class: string;
 };
 
 export type TeachingScope = {
   id: string;
   schoolId: string;
   schoolName: string;
+  classId: string;
   subjectId: string;
   subjectName: string;
   subjectIcon: string | null;
@@ -26,14 +28,16 @@ type OnboardingProfileBase = {
   learningSource: 'material' | 'recording' | 'none';
   material: unknown | null;
   recording: unknown | null;
-  subjectId: string;
-  subjectName: string;
+  subjectId: string | null;
+  subjectName: string | null;
   completedAt: string;
   teachingScopes: TeachingScope[];
 };
 
 export type StudentOnboardingProfileResponse = OnboardingProfileBase & {
   role: 'student';
+  subjectId: string;
+  subjectName: string;
   topicId: string;
   topicName: string;
   initialMastery: number | null;
@@ -42,6 +46,8 @@ export type StudentOnboardingProfileResponse = OnboardingProfileBase & {
 
 export type TeacherOnboardingProfileResponse = OnboardingProfileBase & {
   role: 'teacher';
+  subjectId: null;
+  subjectName: null;
   topicId: null;
   topicName: null;
   initialMastery: null;
@@ -79,14 +85,6 @@ export function useCurrentAccount() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-  });
-}
-
-export function updateTeachingScopes(scopes: Array<{ subjectId: string; classroomName: string }>) {
-  return apiRequest<{ scopes: TeachingScope[] }>('/api/v1/me/teaching-scopes', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scopes }),
   });
 }
 

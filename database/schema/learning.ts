@@ -36,7 +36,7 @@ export const onboardingProfiles = pgTable('onboarding_profile', {
   materialLastModified: bigint('material_last_modified', { mode: 'number' }),
   recordingDurationSeconds: integer('recording_duration_seconds'),
   recordingMimeType: text('recording_mime_type'),
-  subjectId: text('subject_id').notNull().references(() => subjects.id),
+  subjectId: text('subject_id').references(() => subjects.id),
   topicId: text('topic_id').references(() => topics.id),
   initialMastery: doublePrecision('initial_memory_score'),
   placementAttemptId: text('placement_attempt_id').unique().references(() => quizAttempts.id, { onDelete: 'set null' }),
@@ -51,22 +51,39 @@ export const questionReviews = pgTable('question_review', {
   reviewedAt: timestamp('reviewed_at').notNull().defaultNow(),
 });
 
+export const schoolClasses = pgTable('school_class', {
+  id: text('id').primaryKey(),
+  schoolId: text('school_id').notNull().references(() => schools.id, { onDelete: 'restrict' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('school_class_school_name_uidx').on(table.schoolId, sql`lower(${table.name})`),
+]);
+
 export const teachingScopes = pgTable('teaching_scope', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   schoolId: text('school_id').notNull().references(() => schools.id),
+  classId: text('class_id').notNull().references(() => schoolClasses.id, { onDelete: 'restrict' }),
   subjectId: text('subject_id').notNull().references(() => subjects.id),
   classroomName: text('classroom_name').notNull(),
   position: integer('position').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('teaching_scope_teacher_class_subject_uidx').on(table.userId, table.classId, table.subjectId),
+]);
+
+export const studentClassAssignments = pgTable('student_class_assignment', {
+  studentUserId: text('student_user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  classId: text('class_id').notNull().references(() => schoolClasses.id, { onDelete: 'restrict' }),
+  assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
-// Explicit teacher-added roster membership, layered on top of the implicit
-// school+subject match (see listStudentsInScope) rather than replacing it -
-// a teacher can pull in a student who hasn't picked their exact subject (or
-// is at a different school) without that student's own onboarding choices
-// being overwritten.
+// Legacy teacher-managed membership retained temporarily as migration input.
+// Authorization and current rosters use studentClassAssignments instead.
 export const classroomEnrollments = pgTable('classroom_enrollment', {
   teachingScopeId: text('teaching_scope_id').notNull().references(() => teachingScopes.id, { onDelete: 'cascade' }),
   studentUserId: text('student_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

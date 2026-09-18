@@ -33,7 +33,7 @@ export type StudentConceptWebResponse = {
   topics: StudentConceptWebTopic[];
 };
 
-export type ClassConceptWebTopic = {
+export type TeacherConceptWebTopic = {
   id: string;
   name: string;
   memoryScore: number | null;
@@ -43,36 +43,40 @@ export type ClassConceptWebTopic = {
   quizAttempts: number;
 };
 
-export type ClassConceptWebResponse = {
-  classSize: number;
+export type TeacherConceptWebResponse = {
+  cohortSize: number;
+  audience: { kind: 'school' | 'class'; id: string; label: string };
   subject: { id: string; name: string; icon: string | null };
-  topics: ClassConceptWebTopic[];
+  topics: TeacherConceptWebTopic[];
 };
+
+export type TeacherConceptWebView =
+  | { view: 'school'; subjectId: string }
+  | { view: 'class'; scopeId: string };
 
 export const teacherStudentsQueryKey = ['teacher-students'] as const;
 
-function withScope(path: string, scopeId: string | null) {
-  if (!scopeId) return path;
-  return `${path}?${new URLSearchParams({ scopeId }).toString()}`;
-}
-
-export function useTeacherStudents({ enabled = true, scopeId = null }: { enabled?: boolean; scopeId?: string | null } = {}) {
+export function useTeacherStudents({ enabled = true, scopeId }: { enabled?: boolean; scopeId: string | null }) {
   return useQuery({
-    queryKey: [...teacherStudentsQueryKey, scopeId ?? 'primary'],
-    queryFn: () => apiRequest<{ students: TeacherStudent[] }>(withScope('/api/v1/me/students', scopeId)),
-    enabled,
+    queryKey: [...teacherStudentsQueryKey, scopeId ?? 'none'],
+    queryFn: () => apiRequest<{ students: TeacherStudent[] }>(
+      `/api/v1/me/students?${new URLSearchParams({ scopeId: scopeId! }).toString()}`,
+    ),
+    enabled: enabled && Boolean(scopeId),
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
 }
 
-export const classConceptWebQueryKey = ['teacher-class-concept-web'] as const;
+export const teacherConceptWebQueryKey = ['teacher-concept-web'] as const;
 
-export function useClassConceptWeb({ enabled = true, scopeId = null }: { enabled?: boolean; scopeId?: string | null } = {}) {
+export function useTeacherConceptWeb(view: TeacherConceptWebView | null, enabled = true) {
   return useQuery({
-    queryKey: [...classConceptWebQueryKey, scopeId ?? 'primary'],
-    queryFn: () => apiRequest<ClassConceptWebResponse>(withScope('/api/v1/me/class-concept-web', scopeId)),
-    enabled,
+    queryKey: [...teacherConceptWebQueryKey, view],
+    queryFn: () => apiRequest<TeacherConceptWebResponse>(
+      `/api/v1/me/class-concept-web?${new URLSearchParams(view!).toString()}`,
+    ),
+    enabled: enabled && view !== null,
     staleTime: 15_000,
     refetchInterval: 30_000,
   });
@@ -82,55 +86,13 @@ export function studentConceptWebQueryKey(studentId: string) {
   return ['teacher-student-concept-web', studentId] as const;
 }
 
-export function useStudentConceptWeb(studentId: string | null, scopeId: string | null = null) {
+export function useStudentConceptWeb(studentId: string | null, scopeId: string | null) {
   return useQuery({
-    queryKey: [...studentConceptWebQueryKey(studentId ?? 'none'), scopeId ?? 'primary'],
-    queryFn: () => apiRequest<StudentConceptWebResponse>(withScope(`/api/v1/me/students/${studentId}/concept-web`, scopeId)),
-    enabled: Boolean(studentId),
-    staleTime: 15_000,
-  });
-}
-
-export type StudentSearchResult = {
-  id: string;
-  name: string;
-  email: string;
-  schoolId: string;
-  subjectId: string | null;
-  inClass: boolean;
-};
-
-export function studentSearchQueryKey(query: string, scopeId: string) {
-  return ['teacher-student-search', scopeId, query] as const;
-}
-
-/**
- * Powers the "Add student" search in the teacher dashboard - candidates are
- * students at the teacher's own school, tagged with whether they're already
- * in this class (implicit school+subject match or a prior explicit add) so
- * the picker can grey out a duplicate instead of erroring on it.
- */
-export function useSearchStudents(query: string, scopeId: string | null, enabled: boolean) {
-  return useQuery({
-    queryKey: studentSearchQueryKey(query, scopeId ?? 'none'),
-    queryFn: () => apiRequest<{ students: StudentSearchResult[] }>(
-      `/api/v1/me/students/search?${new URLSearchParams({ q: query, scopeId: scopeId ?? '' }).toString()}`,
+    queryKey: [...studentConceptWebQueryKey(studentId ?? 'none'), scopeId ?? 'none'],
+    queryFn: () => apiRequest<StudentConceptWebResponse>(
+      `/api/v1/me/students/${studentId}/concept-web?${new URLSearchParams({ scopeId: scopeId! }).toString()}`,
     ),
-    enabled: enabled && Boolean(scopeId) && query.trim().length >= 2,
-    staleTime: 10_000,
-  });
-}
-
-export function addStudentToClass(studentId: string, scopeId: string) {
-  return apiRequest<{ ok: true }>('/api/v1/me/students', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ studentId, scopeId }),
-  });
-}
-
-export function removeStudentFromClass(studentId: string, scopeId: string) {
-  return apiRequest<{ ok: true }>(`/api/v1/me/students/${studentId}?${new URLSearchParams({ scopeId }).toString()}`, {
-    method: 'DELETE',
+    enabled: Boolean(studentId && scopeId),
+    staleTime: 15_000,
   });
 }

@@ -15,6 +15,8 @@ import {
   quizAttemptAnswers,
   quizAttemptQuestions,
   quizAttempts,
+  schoolClasses,
+  studentClassAssignments,
   teachingScopes,
 } from '../../../../database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
@@ -58,26 +60,22 @@ import { commitModeProgress, lockTopic } from '../services/phase1-progress.js';
 import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import { localizeQuestions, parseLocale } from '../lib/question-translations.js';
 import {
-  addStudentToScope,
-  getClassConceptWebForTeacher,
+  getTeacherConceptWeb,
   getStudentConceptWebForTeacher,
   listStudentsForTeacher,
-  removeStudentFromScope,
-  searchStudentsForTeacher,
 } from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
-  addStudentToScopeSchema,
   onboardingRequestSchema,
   placementSetRequestSchema,
   quizOptionsQuerySchema,
   quizHistoryQuerySchema,
   quizSetRequestSchema,
   assessmentAnswerSchema,
-  studentSearchQuerySchema,
+  teacherConceptWebQuerySchema,
+  teacherScopeQuerySchema,
   updateQuestionReviewSchema,
   updateSchoolSchema,
-  updateTeachingScopesSchema,
 } from '../validation.js';
 
 const api = new Hono<AppEnv>();
@@ -118,16 +116,18 @@ function localizeSessionQuestions<T extends { questions?: unknown }>(result: T, 
 async function loadTeachingScopes(userId: string) {
   const rows = await db.select({
     id: teachingScopes.id,
-    schoolId: teachingScopes.schoolId,
+    classId: teachingScopes.classId,
+    schoolId: schoolClasses.schoolId,
     schoolName: schools.name,
     subjectId: teachingScopes.subjectId,
     subjectName: subjects.name,
     subjectIcon: subjects.icon,
-    classroomName: teachingScopes.classroomName,
+    classroomName: schoolClasses.name,
     position: teachingScopes.position,
   })
     .from(teachingScopes)
-    .innerJoin(schools, eq(schools.id, teachingScopes.schoolId))
+    .innerJoin(schoolClasses, eq(schoolClasses.id, teachingScopes.classId))
+    .innerJoin(schools, eq(schools.id, schoolClasses.schoolId))
     .innerJoin(subjects, eq(subjects.id, teachingScopes.subjectId))
     .where(and(
       eq(teachingScopes.userId, userId),
@@ -166,6 +166,11 @@ api.get('/me', loadSession, requireSession, async (context) => {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
   const scopeRowsPromise = loadTeachingScopes(user.id);
+  const assignedClassPromise = db.select({ name: schoolClasses.name, schoolId: schoolClasses.schoolId })
+    .from(studentClassAssignments)
+    .innerJoin(schoolClasses, eq(schoolClasses.id, studentClassAssignments.classId))
+    .where(eq(studentClassAssignments.studentUserId, user.id))
+    .limit(1);
 
   const [profile] = await db.select({
     role: profiles.role,
@@ -194,7 +199,7 @@ api.get('/me', loadSession, requireSession, async (context) => {
     .leftJoin(topics, eq(onboardingProfiles.topicId, topics.id))
     .where(eq(profiles.userId, user.id))
     .limit(1);
-  const scopeRows = await scopeRowsPromise;
+  const [scopeRows, assignedClasses] = await Promise.all([scopeRowsPromise, assignedClassPromise]);
 
   return context.json({
     user: {
@@ -202,6 +207,9 @@ api.get('/me', loadSession, requireSession, async (context) => {
       name: user.name,
       email: user.email,
       image: user.image ?? null,
+      class: profile?.role === 'student' && assignedClasses[0]?.schoolId === profile.schoolId
+        ? assignedClasses[0].name
+        : user.class,
     },
     onboardingCompleted: profile?.onboardingCompleted ?? false,
     profile: profile ? {
@@ -227,61 +235,16 @@ api.get('/me', loadSession, requireSession, async (context) => {
             mimeType: profile.recordingMimeType,
           }
         : null,
-      subjectId: profile.subjectId,
-      subjectName: profile.subjectName,
-      topicId: profile.topicId,
-      topicName: profile.topicName,
-      initialMastery: profile.initialMastery,
-      placementAttemptId: profile.placementAttemptId,
+      subjectId: profile.role === 'teacher' ? null : profile.subjectId,
+      subjectName: profile.role === 'teacher' ? null : profile.subjectName,
+      topicId: profile.role === 'teacher' ? null : profile.topicId,
+      topicName: profile.role === 'teacher' ? null : profile.topicName,
+      initialMastery: profile.role === 'teacher' ? null : profile.initialMastery,
+      placementAttemptId: profile.role === 'teacher' ? null : profile.placementAttemptId,
       completedAt: profile.completedAt,
       teachingScopes: scopeRows,
     } : null,
   });
-});
-
-api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = updateTeachingScopesSchema.parse(await readJson(context));
-  const [profile] = await db.select({ role: profiles.role, schoolId: profiles.schoolId })
-    .from(profiles)
-    .where(eq(profiles.userId, userId))
-    .limit(1);
-
-  if (!profile || profile.role !== 'teacher') {
-    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers can update teaching contexts.');
-  }
-
-  const requestedSubjectIds = [...new Set(input.scopes.map((scope) => scope.subjectId))];
-  const subjectRows = await db.select({ id: subjects.id })
-    .from(subjects)
-    .where(inArray(subjects.id, requestedSubjectIds));
-  if (subjectRows.length !== requestedSubjectIds.length) {
-    throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
-  }
-
-  const firstScope = input.scopes[0]!;
-
-  const now = new Date();
-  await db.transaction(async (transaction) => {
-    await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
-    await transaction.insert(teachingScopes).values(input.scopes.map((scope, position) => ({
-      id: randomUUID(),
-      userId,
-      schoolId: profile.schoolId,
-      subjectId: scope.subjectId,
-      classroomName: scope.classroomName,
-      position,
-      createdAt: now,
-      updatedAt: now,
-    })));
-    await transaction.update(onboardingProfiles).set({
-      subjectId: firstScope.subjectId,
-      topicId: null,
-      updatedAt: now,
-    }).where(eq(onboardingProfiles.userId, userId));
-  });
-
-  return context.json({ scopes: await loadTeachingScopes(userId) });
 });
 
 api.put('/me/school', loadSession, requireSession, async (context) => {
@@ -301,6 +264,19 @@ api.put('/me/school', loadSession, requireSession, async (context) => {
     .where(eq(schools.id, input.schoolId))
     .limit(1);
   if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Selected school was not found.');
+
+  const [assignedClass] = await db.select({ schoolId: schoolClasses.schoolId })
+    .from(studentClassAssignments)
+    .innerJoin(schoolClasses, eq(schoolClasses.id, studentClassAssignments.classId))
+    .where(eq(studentClassAssignments.studentUserId, userId))
+    .limit(1);
+  if (assignedClass && assignedClass.schoolId !== school.id) {
+    throw new ApiError(
+      409,
+      'CLASS_ASSIGNMENT_MANAGED_BY_ADMIN',
+      'Ask your school admin to update your Class before changing schools.',
+    );
+  }
 
   await db.update(profiles).set({ schoolId: school.id, updatedAt: new Date() }).where(eq(profiles.userId, userId));
 
@@ -477,15 +453,6 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
 
     const now = new Date();
     if (input.role === 'teacher') {
-      const requestedSubjectIds = [...new Set(input.teachingScopes.map((scope) => scope.subjectId))];
-      const validSubjects = await transaction.select({ id: subjects.id, name: subjects.name })
-        .from(subjects).where(inArray(subjects.id, requestedSubjectIds));
-      if (validSubjects.length !== requestedSubjectIds.length) {
-        throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
-      }
-      const primaryScope = input.teachingScopes[0]!;
-      const primarySubject = validSubjects.find((subject) => subject.id === primaryScope.subjectId)!;
-
       await transaction.insert(profiles).values({
         userId, role: 'teacher', schoolId: school.id, onboardingCompleted: true,
         onboardingCompletedAt: now, updatedAt: now,
@@ -494,17 +461,12 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
         set: { role: 'teacher', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
       });
       await transaction.insert(onboardingProfiles).values({
-        userId, learningSource: 'none', subjectId: primarySubject.id, topicId: null,
+        userId, learningSource: 'none', subjectId: null, topicId: null,
         initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now,
       }).onConflictDoUpdate({
         target: onboardingProfiles.userId,
-        set: { subjectId: primarySubject.id, topicId: null, initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now },
+        set: { subjectId: null, topicId: null, initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now },
       });
-      await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
-      await transaction.insert(teachingScopes).values(input.teachingScopes.map((scope, position) => ({
-        id: randomUUID(), userId, schoolId: school.id, subjectId: scope.subjectId,
-        classroomName: scope.classroomName, position, createdAt: now, updatedAt: now,
-      })));
 
       return {
         alreadyCompleted: false,
@@ -514,14 +476,14 @@ api.put('/me/onboarding', loadSession, requireSession, async (context) => {
           schoolId: school.id,
           schoolName: school.name,
           learningSource: 'none' as const,
-          subjectId: primarySubject.id,
-          subjectName: primarySubject.name,
+          subjectId: null,
+          subjectName: null,
           topicId: null,
           topicName: null,
           initialMastery: null,
           placementAttemptId: null,
           completedAt: now,
-          teachingScopes: input.teachingScopes,
+          teachingScopes: [],
         },
         placementResult: null,
       };
@@ -682,54 +644,37 @@ api.get('/me/study-state', loadSession, requireSession, async (context) => {
 
 api.get('/me/students', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const students = await listStudentsForTeacher(userId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const students = await listStudentsForTeacher(userId, input.scopeId);
   return context.json({ students });
-});
-
-// Registered before the /me/students/:studentId/concept-web param route
-// below so "search" is never captured as a literal studentId.
-api.get('/me/students/search', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = studentSearchQuerySchema.parse({
-    q: context.req.query('q'),
-    scopeId: context.req.query('scopeId'),
-  });
-  const students = await searchStudentsForTeacher(userId, input.q, input.scopeId);
-  return context.json({ students });
-});
-
-api.post('/me/students', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = addStudentToScopeSchema.parse(await readJson(context));
-  await addStudentToScope(userId, input.studentId, input.scopeId);
-  return context.json({ ok: true });
-});
-
-api.delete('/me/students/:studentId', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const studentId = context.req.param('studentId');
-  const scopeId = context.req.query('scopeId');
-  if (!scopeId) throw new ApiError(400, 'SCOPE_ID_REQUIRED', 'scopeId is required.');
-  await removeStudentFromScope(userId, studentId, scopeId);
-  return context.json({ ok: true });
 });
 
 api.get('/me/class-concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const result = await getClassConceptWebForTeacher(userId, context.req.query('scopeId'));
+  const view = context.req.query('view');
+  const input = teacherConceptWebQuerySchema.parse(
+    view === 'school'
+      ? { view, subjectId: context.req.query('subjectId') }
+      : view === 'class'
+        ? { view, scopeId: context.req.query('scopeId') }
+        : { view },
+  );
+  const result = await getTeacherConceptWeb(userId, input);
   return context.json(result);
 });
 
 api.get('/me/students/:studentId/concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const studentId = context.req.param('studentId');
-  const result = await getStudentConceptWebForTeacher(userId, studentId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const result = await getStudentConceptWebForTeacher(userId, studentId, input.scopeId);
   return context.json(result);
 });
 
 api.get('/me/quiz-review', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const result = await getQuizReviewForTeacher(userId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const result = await getQuizReviewForTeacher(userId, input.scopeId);
   return context.json(result);
 });
 

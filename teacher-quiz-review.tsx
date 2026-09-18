@@ -77,7 +77,7 @@ export function TeacherQuizReview() {
       </div>
 
       {subjectTabs.length === 0 ? (
-        <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">Add a subject and classroom on your profile to start reviewing quiz activity.</p>
+        <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">Awaiting a Class and subject assignment from your school admin.</p>
       ) : (
         <>
           <div className="mb-6 flex gap-3 overflow-x-auto border-b border-border">

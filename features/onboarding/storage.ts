@@ -1,7 +1,7 @@
 import type { PlacementQuestion, PlacementResult, PlacementSetResponse } from '@/lib/api/study';
 import type { OnboardingRole } from './types';
 
-export const ONBOARDING_DRAFT_KEY = 'edunets:onboarding-draft:v2';
+export const ONBOARDING_DRAFT_KEY = 'edunets:onboarding-draft:v3';
 export const PLACEMENT_RESULT_KEY = 'edunets:placement-result:phase1-v1';
 
 export type OnboardingDraft = {
@@ -10,8 +10,6 @@ export type OnboardingDraft = {
   schoolId: string;
   subjectId: string;
   topicId: string;
-  teachingSubjectIds: string[];
-  classroomNames: Record<string, string>;
   placementSet: PlacementSetResponse | null;
   placementAnswers: Record<string, number>;
   placementStartedAt: string | null;

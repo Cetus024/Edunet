@@ -7,7 +7,7 @@ export type EnquiryActor = {
   name: string;
   role: EnquiryRole;
   schoolId: string;
-  subjectId: string;
+  subjectId: string | null;
 };
 
 export type DirectoryCandidate = {

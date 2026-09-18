@@ -26,9 +26,9 @@ import {
   studySquadInvitationIdSchema,
   studySquadInvitationTokenSchema,
   submitSquadQuizAnswerSchema,
-  updateTeachingScopesSchema,
+  teacherConceptWebQuerySchema,
+  teacherScopeQuerySchema,
 } from '../src/validation.js';
-
 describe('Capture Hub OCR validation', () => {
   it('accepts the compressed Base64 ceiling and rejects payloads above it', () => {
     const base = { mimeType: 'image/jpeg' as const };
@@ -147,18 +147,19 @@ describe('quiz submission validation', () => {
 });
 
 describe('teaching context validation', () => {
-  it('accepts multiple named subjects for a teacher', () => {
+  it('accepts teacher onboarding without self-assigned classes or subjects', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'teacher',
       schoolId: 'example-school',
-      teachingScopes: [
-        { subjectId: 'e-math', classroomName: 'Mathematics 4A' },
-        { subjectId: 'chemistry', classroomName: 'Chemistry 4B' },
-      ],
     }).success).toBe(true);
+    expect(onboardingRequestSchema.safeParse({
+      role: 'teacher',
+      schoolId: 'example-school',
+      teachingScopes: [{ subjectId: 'e-math', classroomName: '4A' }],
+    }).success).toBe(false);
   });
 
-  it('rejects teaching contexts for learners and requires at least one on profile updates', () => {
+  it('rejects teaching contexts for learners and requires explicit teacher data scopes', () => {
     expect(onboardingRequestSchema.safeParse({
       role: 'student',
       schoolId: 'example-school',
@@ -166,7 +167,14 @@ describe('teaching context validation', () => {
       topicId: 'math-number-algebra',
       teachingScopes: [{ subjectId: 'e-math', classroomName: '4A' }],
     }).success).toBe(false);
-    expect(updateTeachingScopesSchema.safeParse({ scopes: [] }).success).toBe(false);
+    expect(teacherScopeQuerySchema.safeParse({ scopeId: 'scope-1' }).success).toBe(true);
+    expect(teacherScopeQuerySchema.safeParse({}).success).toBe(false);
+    expect(teacherConceptWebQuerySchema.safeParse({ view: 'school', subjectId: 'e-math' }).success).toBe(true);
+    expect(teacherConceptWebQuerySchema.safeParse({ view: 'class', scopeId: 'scope-1' }).success).toBe(true);
+    expect(teacherConceptWebQuerySchema.safeParse({ view: 'school', scopeId: 'scope-1' }).success).toBe(false);
+    expect(teacherConceptWebQuerySchema.safeParse({
+      view: 'school', subjectId: 'e-math', scopeId: undefined,
+    }).success).toBe(false);
   });
 });
 

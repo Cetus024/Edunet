@@ -105,7 +105,6 @@ export type StudentOnboardingInput = {
 export type TeacherOnboardingInput = {
   role: 'teacher';
   schoolId: string;
-  teachingScopes: Array<{ subjectId: string; classroomName: string }>;
 };
 
 export type OnboardingInput = StudentOnboardingInput | TeacherOnboardingInput;

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "class" text DEFAULT '' NOT NULL;

@@ -27,8 +27,7 @@ export type QuizReviewResponse = {
 };
 
 function withScope(path: string, scopeId: string | null) {
-  if (!scopeId) return path;
-  return `${path}?${new URLSearchParams({ scopeId }).toString()}`;
+  return `${path}?${new URLSearchParams({ scopeId: scopeId! }).toString()}`;
 }
 
 export const teacherQuizReviewQueryKey = ['teacher-quiz-review'] as const;
@@ -37,7 +36,7 @@ export function useQuizReview({ enabled = true, scopeId = null }: { enabled?: bo
   return useQuery({
     queryKey: [...teacherQuizReviewQueryKey, scopeId ?? 'primary'],
     queryFn: () => apiRequest<QuizReviewResponse>(withScope('/api/v1/me/quiz-review', scopeId)),
-    enabled,
+    enabled: enabled && Boolean(scopeId),
     staleTime: 15_000,
   });
 }

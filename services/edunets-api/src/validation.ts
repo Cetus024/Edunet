@@ -2,11 +2,6 @@ import { z } from 'zod';
 
 export const signupReferralCodeSchema = z.string().trim().max(64);
 
-export const teachingScopeInputSchema = z.strictObject({
-  subjectId: z.string().trim().min(1).max(64),
-  classroomName: z.string().trim().min(1).max(80),
-});
-
 const onboardingSchoolFields = {
   schoolId: z.string().trim().min(1).max(128).optional(),
   school: z.string().trim().min(1).max(255).optional(),
@@ -32,7 +27,6 @@ const studentOnboardingSchema = z.strictObject({
 const teacherOnboardingSchema = z.strictObject({
   role: z.literal('teacher'),
   ...onboardingSchoolFields,
-  teachingScopes: z.array(teachingScopeInputSchema).min(1).max(16),
 });
 
 export const onboardingRequestSchema = z.discriminatedUnion('role', [
@@ -51,10 +45,6 @@ export const placementSetRequestSchema = z.strictObject({
   submissionId: z.uuid(),
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
-});
-
-export const updateTeachingScopesSchema = z.strictObject({
-  scopes: z.array(teachingScopeInputSchema).min(1).max(16),
 });
 
 export const updateQuestionReviewSchema = z.strictObject({
@@ -113,15 +103,20 @@ export const sendEnquiryMessageSchema = z.strictObject({
 
 export const enquiryThreadIdSchema = z.uuid();
 
-export const studentSearchQuerySchema = z.strictObject({
-  q: z.string().trim().min(1).max(120),
+export const teacherScopeQuerySchema = z.strictObject({
   scopeId: z.string().trim().min(1).max(64),
 });
 
-export const addStudentToScopeSchema = z.strictObject({
-  studentId: z.string().trim().min(1).max(255),
-  scopeId: z.string().trim().min(1).max(64),
-});
+export const teacherConceptWebQuerySchema = z.discriminatedUnion('view', [
+  z.strictObject({
+    view: z.literal('school'),
+    subjectId: z.string().trim().min(1).max(64),
+  }),
+  z.strictObject({
+    view: z.literal('class'),
+    scopeId: z.string().trim().min(1).max(64),
+  }),
+]);
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
 export type QuizSetRequest = z.infer<typeof quizSetRequestSchema>;

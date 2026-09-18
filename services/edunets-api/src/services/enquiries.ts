@@ -85,7 +85,6 @@ export async function loadEnquiryActor(userId: string): Promise<EnquiryActorWith
 
   if (!row?.onboardingCompleted
     || !row.schoolId
-    || !row.subjectId
     || (!isRequesterRole(row.role) && !isRecipientRole(row.role))) {
     throw new ApiError(409, 'ONBOARDING_REQUIRED', 'Complete onboarding before using enquiries.');
   }

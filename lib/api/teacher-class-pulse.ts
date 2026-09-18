@@ -31,8 +31,7 @@ function statusFor(topic: Omit<TopicHealth, 'status'>): TopicHealth['status'] {
 
 export const teacherClassPulseQueryKey = ['teacher-class-pulse'] as const;
 
-function withScope(path: string, scopeId: string | null) {
-  if (!scopeId) return path;
+function withScope(path: string, scopeId: string) {
   return `${path}?${new URLSearchParams({ scopeId }).toString()}`;
 }
 
@@ -49,10 +48,10 @@ export function useTeacherClassPulse({ enabled = true, scopeId = null }: { enabl
   return useQuery({
     queryKey: [...teacherClassPulseQueryKey, scopeId ?? 'primary'],
     queryFn: async (): Promise<ClassPulse> => {
-      const { students } = await apiRequest<{ students: TeacherStudent[]}>(withScope('/api/v1/me/students', scopeId));
+      const { students } = await apiRequest<{ students: TeacherStudent[]}>(withScope('/api/v1/me/students', scopeId!));
       const conceptWebs = await Promise.all(
         students.map((student) => apiRequest<StudentConceptWebResponse>(
-          withScope(`/api/v1/me/students/${student.id}/concept-web`, scopeId),
+          withScope(`/api/v1/me/students/${student.id}/concept-web`, scopeId!),
         ).catch(() => null)),
       );
 
@@ -85,7 +84,7 @@ export function useTeacherClassPulse({ enabled = true, scopeId = null }: { enabl
 
       return { studentCount: students.length, topics };
     },
-    enabled,
+    enabled: enabled && Boolean(scopeId),
     staleTime: 30_000,
     refetchInterval: 30_000,
   });

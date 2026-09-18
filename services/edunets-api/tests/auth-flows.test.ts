@@ -70,6 +70,12 @@ async function createAuthTestInstance(initialGoogleUser?: Partial<GoogleUser>) {
     },
     user: {
       additionalFields: {
+        class: {
+          type: 'string',
+          required: false,
+          defaultValue: '',
+          input: false,
+        },
         signupReferralCode: {
           type: 'string',
           required: false,
@@ -112,7 +118,12 @@ describe('Google and email/password authentication flows', () => {
       throw new Error('Expected direct Google sign-in user data.');
     }
     expect(second.data.user.id).toBe(first.data.user.id);
-    expect(await allRows(instance, 'user')).toHaveLength(1);
+    expect(await allRows(instance, 'user')).toEqual([
+      expect.objectContaining({
+        email: 'google@example.com',
+        class: '',
+      }),
+    ]);
     expect(await allRows(instance, 'account')).toHaveLength(1);
   });
 
@@ -144,6 +155,7 @@ describe('Google and email/password authentication flows', () => {
       expect.objectContaining({
         email: 'email-student@example.com',
         emailVerified: false,
+        class: '',
         signupReferralCode: 'class-2026',
       }),
     ]);

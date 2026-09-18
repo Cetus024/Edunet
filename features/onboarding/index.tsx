@@ -29,10 +29,10 @@ import {
 } from './storage';
 import type { OnboardingRole } from './types';
 
-type StepKey = 'role' | 'school' | 'topic' | 'subject' | 'placement';
+type StepKey = 'role' | 'school' | 'topic' | 'placement';
 
 const studentSteps: readonly StepKey[] = ['role', 'school', 'topic', 'placement'];
-const teacherSteps: readonly StepKey[] = ['role', 'school', 'subject'];
+const teacherSteps: readonly StepKey[] = ['role', 'school'];
 
 const emptyDraft: OnboardingDraft = {
   step: 0,
@@ -40,8 +40,6 @@ const emptyDraft: OnboardingDraft = {
   schoolId: '',
   subjectId: '',
   topicId: '',
-  teachingSubjectIds: [],
-  classroomNames: {},
   placementSet: null,
   placementAnswers: {},
   placementStartedAt: null,
@@ -57,8 +55,6 @@ function readDraft(): OnboardingDraft {
     return {
       ...emptyDraft,
       ...parsed,
-      teachingSubjectIds: Array.isArray(parsed.teachingSubjectIds) ? parsed.teachingSubjectIds : [],
-      classroomNames: parsed.classroomNames ?? {},
       placementAnswers: parsed.placementAnswers ?? {},
     };
   } catch {
@@ -183,48 +179,24 @@ export default function OnboardingPage() {
     }));
   };
 
-  const toggleTeachingSubject = (subjectId: string) => {
-    setDraft((current) => {
-      const selected = current.teachingSubjectIds.includes(subjectId);
-      const teachingSubjectIds = selected
-        ? current.teachingSubjectIds.filter((id) => id !== subjectId)
-        : [...current.teachingSubjectIds, subjectId];
-      const subjectName = catalog.data?.subjects.find((subject) => subject.id === subjectId)?.name ?? 'Class';
-      return {
-        ...current,
-        teachingSubjectIds,
-        classroomNames: selected || current.classroomNames[subjectId]
-          ? current.classroomNames
-          : { ...current.classroomNames, [subjectId]: `${subjectName} class` },
-      };
-    });
-  };
-
   const canContinue = currentStep === 'role'
     ? draft.role !== null
     : currentStep === 'school'
       ? Boolean(selectedSchool)
       : currentStep === 'topic'
         ? Boolean(selectedSubject && selectedTopic)
-        : currentStep === 'subject'
-          ? draft.teachingSubjectIds.length > 0
-            && draft.teachingSubjectIds.every((id) => draft.classroomNames[id]?.trim())
-          : false;
+        : false;
 
   const finishTeacher = async () => {
-    if (!draft.schoolId || draft.teachingSubjectIds.length === 0 || isSubmitting) return;
+    if (!draft.schoolId || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await saveOnboarding({
         role: 'teacher',
         schoolId: draft.schoolId,
-        teachingScopes: draft.teachingSubjectIds.map((subjectId) => ({
-          subjectId,
-          classroomName: draft.classroomNames[subjectId]!.trim(),
-        })),
       });
       sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
-      window.location.replace('/ask-teacher');
+      window.location.replace('/dashboard');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save your teaching profile.');
       setIsSubmitting(false);
@@ -354,16 +326,6 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {currentStep === 'subject' && (
-            <div>
-              <Heading eyebrow="Teaching workspace" title="Choose your classes" description="Select one or more teaching subjects and name each classroom." />
-              <div className="mx-auto mt-7 grid max-w-4xl gap-3 sm:grid-cols-2">{catalog.data.subjects.map((subject) => {
-                const selected = draft.teachingSubjectIds.includes(subject.id);
-                return <div key={subject.id} className={cn('rounded-2xl border-2 p-4', selected ? 'border-[var(--edunets-dark-blue)] bg-blue-50' : 'border-slate-200')}><button type="button" onClick={() => toggleTeachingSubject(subject.id)} className="flex w-full items-center gap-3 text-left font-black"><span className="text-xl">{subject.icon}</span>{subject.name}{selected && <Check className="ml-auto h-5 w-5" />}</button>{selected && <input value={draft.classroomNames[subject.id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, classroomNames: { ...current.classroomNames, [subject.id]: event.target.value } }))} className="mt-3 h-10 w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold" placeholder="Classroom name" />}</div>;
-              })}</div>
-            </div>
-          )}
-
           {currentStep === 'placement' && (
             <div className="mx-auto max-w-4xl">
               <Heading eyebrow="Starting-point quiz" title={selectedTopic?.name ?? 'Placement quiz'} description="Answer all 10 questions. Feedback appears only after your first and final submission." />
@@ -379,7 +341,7 @@ export default function OnboardingPage() {
           )}
         </section>
 
-        {currentStep !== 'placement' && <footer className="flex items-center justify-between border-t border-slate-200 px-5 py-4 sm:px-8"><p className="text-xs font-semibold text-slate-500">{draft.role === 'student' ? 'Your quiz result creates the first point on your learning map.' : 'You can update teaching contexts later from your profile.'}</p><button type="button" onClick={handleContinue} disabled={!canContinue || isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--edunets-dark-blue)] px-6 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : safeStep === activeSteps.length - 1 ? 'Finish setup' : <>Continue<ArrowRight className="h-4 w-4" /></>}</button></footer>}
+        {currentStep !== 'placement' && <footer className="flex items-center justify-between border-t border-slate-200 px-5 py-4 sm:px-8"><p className="text-xs font-semibold text-slate-500">{draft.role === 'student' ? 'Your quiz result creates the first point on your learning map.' : 'Your school admin will assign your Classes and teaching subjects.'}</p><button type="button" onClick={handleContinue} disabled={!canContinue || isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--edunets-dark-blue)] px-6 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : safeStep === activeSteps.length - 1 ? 'Finish setup' : <>Continue<ArrowRight className="h-4 w-4" /></>}</button></footer>}
       </div>
     </main>
   );

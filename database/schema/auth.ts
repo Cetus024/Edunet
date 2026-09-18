@@ -8,6 +8,7 @@ export const users = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  class: text('class').notNull().default(''),
   signupReferralCode: text('signup_referral_code'),
 });
 

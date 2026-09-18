@@ -134,6 +134,27 @@
       "when": 1788621224860,
       "tag": "0018_curriculum_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789649305811,
+      "tag": "0019_petite_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789652377181,
+      "tag": "0020_common_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789653565882,
+      "tag": "0021_repair_class_assignments",
+      "breakpoints": true
     }
   ]
 }

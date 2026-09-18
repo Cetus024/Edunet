@@ -88,6 +88,12 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
+      class: {
+        type: 'string',
+        required: false,
+        defaultValue: '',
+        input: false,
+      },
       signupReferralCode: {
         type: 'string',
         required: false,

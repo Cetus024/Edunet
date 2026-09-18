@@ -6,7 +6,7 @@ import { quizAttemptAnswers, quizAttempts, questionReviews } from '../../../../d
 import { users } from '../../../../database/schema/auth.js';
 import { ApiError } from '../errors.js';
 import { getQuestionByKey, getQuestionsForTopic } from '../lib/question-bank.js';
-import { loadTeacherActor, listStudentsInScope } from './teacher-students.js';
+import { loadTeacherActor, listStudentsForTeacher, requireTeacherProfile } from './teacher-students.js';
 
 export type ReviewQuestion = {
   questionKey: string;
@@ -38,10 +38,10 @@ export type QuizReviewResponse = {
  */
 export async function getQuizReviewForTeacher(
   teacherUserId: string,
-  scopeId?: string,
+  scopeId: string,
 ): Promise<QuizReviewResponse> {
-  const teacher = await loadTeacherActor(teacherUserId, scopeId);
-  const roster = await listStudentsInScope(teacher);
+  const teacher = await loadTeacherActor(teacherUserId, { scopeId });
+  const roster = await listStudentsForTeacher(teacherUserId, scopeId);
 
   const [subjectRow] = await db.select({ id: subjects.id, name: subjects.name })
     .from(subjects)
@@ -129,7 +129,7 @@ export async function saveQuestionReview(
   questionKey: string,
   explanation: string,
 ): Promise<void> {
-  await loadTeacherActor(teacherUserId); // throws TEACHER_ONLY for non-teaching roles
+  await requireTeacherProfile(teacherUserId);
 
   const question = await getQuestionByKey(questionKey);
   if (!question) throw new ApiError(400, 'INVALID_QUESTION_KEY', 'This question was not found.');
