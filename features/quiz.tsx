@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Brain, CalendarClock, CheckCircle2, FileText, LoaderCircle, RotateCcw, Trash2, XCircle } from 'lucide-react';
+import { ArrowRight, Brain, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, FileText, LoaderCircle, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { TeacherQuizReview } from '@/components/teacher-quiz-review';
@@ -62,6 +62,10 @@ function FormulaPanel({ session, onAbandon, abandoning }: {
 }) {
   const parameters = session.model.parameters;
   const calculation = session.model.calculation;
+  // The trace grows one card per evidence step, so on a long assessment it
+  // pushes everything else out of view. Collapsed it keeps the headline
+  // numbers, which is what most students actually read.
+  const [traceCollapsed, setTraceCollapsed] = useState(false);
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-start justify-between gap-3">
@@ -106,13 +110,32 @@ function FormulaPanel({ session, onAbandon, abandoning }: {
         </code>}
       </div>}
 
-      <div className="mt-4 flex-1 space-y-3 overflow-auto rounded-2xl border bg-muted/15 p-4">
-        <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">{session.status === 'in_progress' ? 'Provisional calculation' : 'Committed calculation'}</p>
-        {calculation ? calculation.trace.map((trace) => <FormulaCard key={trace.step} trace={trace} />) : (
-          <div className="rounded-xl bg-card p-4 text-sm leading-6 text-muted-foreground">
-            Complete the first answer to see the server calculate A, B and the Bayesian posterior. The prior is fixed for this whole assessment, so answer order cannot change the final mastery.
-          </div>
-        )}
+      <div className={`mt-4 rounded-2xl border bg-muted/15 p-4 ${traceCollapsed ? '' : 'flex-1 overflow-auto'}`}>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">{session.status === 'in_progress' ? 'Provisional calculation' : 'Committed calculation'}</p>
+          <button
+            type="button"
+            onClick={() => setTraceCollapsed((collapsed) => !collapsed)}
+            aria-expanded={!traceCollapsed}
+            aria-controls="formula-trace-log"
+            className="-mr-1 flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#186636]"
+          >
+            {traceCollapsed ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />}
+            {traceCollapsed ? 'Expand' : 'Minimize'}
+          </button>
+        </div>
+        <div id="formula-trace-log" hidden={traceCollapsed} className="mt-3 space-y-3">
+          {calculation ? calculation.trace.map((trace) => <FormulaCard key={trace.step} trace={trace} />) : (
+            <div className="rounded-xl bg-card p-4 text-sm leading-6 text-muted-foreground">
+              Complete the first answer to see the server calculate A, B and the Bayesian posterior. The prior is fixed for this whole assessment, so answer order cannot change the final mastery.
+            </div>
+          )}
+        </div>
+        {traceCollapsed && <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
+          {calculation
+            ? `${calculation.trace.length} step${calculation.trace.length === 1 ? '' : 's'} hidden · posterior ${formatModelPercent(calculation.posteriorMastery)}`
+            : 'No steps yet — answer the first question to start the trace.'}
+        </p>}
       </div>
     </div>
   );

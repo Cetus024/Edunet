@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock } from 'lucide-react';
+import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock, Inbox } from 'lucide-react';
 import Image from 'next/image';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
@@ -449,6 +449,7 @@ function getDynamicInsight(
 
 function StudentDashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const localizeSubjectName = useSubjectName();
   const { data: account } = useCurrentAccount();
   const firstName = account?.user.name.split(/\s+/)[0] || 'Student';
@@ -542,19 +543,42 @@ function StudentDashboard() {
       >
         <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-accent blob-soft" />
         <div className="absolute -bottom-14 left-1/3 h-40 w-40 rounded-full bg-secondary blob-soft" />
-        <div className="relative max-w-4xl">
-          <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">{t('dashboard.pulse')}</Badge>
-          <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
-            {t(getGreetingKey())}, {firstName}.<br />{t('dashboard.subtitle')}
-          </h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-foreground leading-relaxed max-w-2xl text-base lg:text-lg font-medium"
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+          <div className="min-w-0 max-w-4xl">
+            <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">{t('dashboard.pulse')}</Badge>
+            <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
+              {t(getGreetingKey())}, {firstName}.<br />{t('dashboard.subtitle')}
+            </h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-foreground leading-relaxed max-w-2xl text-base lg:text-lg font-medium"
+            >
+              {insightMessage}
+            </motion.p>
+          </div>
+
+          {/* Capture Hub shortcut — the hero's top-right corner is the only
+              always-visible spot on this page, so the phone-first capture flow
+              gets an entry point that does not depend on the sidebar. */}
+          <motion.button
+            type="button"
+            onClick={() => navigate('/capture-hub')}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="group flex w-full shrink-0 items-center gap-3 rounded-2xl border border-primary/15 bg-card/80 px-5 py-4 text-left shadow-[0_12px_32px_rgba(29,58,98,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_44px_rgba(29,58,98,0.18)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto lg:w-60"
           >
-            {insightMessage}
-          </motion.p>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Inbox className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-primary">{t('nav.captureHub')}</span>
+              <span className="block text-xs font-semibold text-muted-foreground">{t('dashboard.captureCta')}</span>
+            </span>
+            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-primary transition group-hover:translate-x-0.5" aria-hidden="true" />
+          </motion.button>
         </div>
       </motion.div>
 

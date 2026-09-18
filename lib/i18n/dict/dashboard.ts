@@ -7,6 +7,7 @@ export const dashboardDict = {
 
   'dashboard.pulse': { en: 'EduNets study pulse', zh: 'EduNets 学习脉搏' },
   'dashboard.subtitle': { en: 'Let’s make revision feel lighter.', zh: '让复习变得轻松一些。' },
+  'dashboard.captureCta': { en: 'Snap or paste your notes', zh: '拍照或粘贴笔记' },
   'dashboard.memoryHealth': { en: 'Memory Health by Subject', zh: '各科记忆健康度' },
   'dashboard.priorityQueue': { en: 'Today’s Priority Queue', zh: '今日优先复习' },
   'dashboard.priorityQueue.sorted': {

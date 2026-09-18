@@ -2,6 +2,8 @@
 
 EduNets is a Next.js application for Singapore O-Level revision. It keeps the existing Power Apps-compatible static frontend while using a separate Node API for real accounts, onboarding, per-user learning progress, server-graded quiz history, and student-to-teacher enquiries.
 
+Contributors and coding agents should start from [`CLAUDE.md`](CLAUDE.md) for the repository map, conventions, and known environment traps. Every verified change is recorded at the top of [`docs/UPDATE_LOG.md`](docs/UPDATE_LOG.md).
+
 ## Technology
 
 - Next.js 16 App Router and React 19
