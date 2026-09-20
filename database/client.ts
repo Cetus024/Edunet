@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { getDatabaseEnvironment } from './env.js';
+import { postgresPoolConnection } from './pg-pool-connection.js';
 import * as schema from './schema/index.js';
 import { assertSupabaseRuntimeConnection, parseSupabaseConnection } from './supabase-safety.js';
 
@@ -14,7 +15,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export const pool = new Pool({
-  connectionString: environment.databaseUrl,
+  ...postgresPoolConnection(environment.databaseUrl),
   max: environment.poolMax,
   idleTimeoutMillis: environment.poolIdleTimeoutMillis,
   connectionTimeoutMillis: environment.poolConnectionTimeoutMillis,

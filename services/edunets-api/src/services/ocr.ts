@@ -1,21 +1,19 @@
 /**
- * OCR for Capture Hub, over Azure AI Vision's Image Analysis (Read) API.
+ * OCR for Capture Hub.
  *
- * Chosen as the interim provider on the way to a different one -- the whole
- * point of OcrProvider is that nothing outside this file knows which service
- * answers `recognize()`. Swapping providers later means writing one new
- * `createXOcr()` and changing what `getOcrProvider()` constructs; the route
- * and everything upstream of it stays the same.
+ * Gemini 3.5 Flash is the primary handwritten-note reader. Azure AI Vision
+ * remains a fallback when GEMINI_API_KEY is absent. Nothing outside this file
+ * knows which service answers `recognize()`; swapping providers later means
+ * writing one new `createXOcr()` and changing what `getOcrProvider()`
+ * constructs.
  *
- * Configured entirely from the environment, mirroring modelarts.ts: unset,
- * `getOcrProvider()` returns null, the route reports `available: false`, and
- * Capture Hub falls back to typed/pasted text only. Nothing here is required
- * for the rest of the app to work.
- *
- * Credentials stay server-side and must never carry a NEXT_PUBLIC_ prefix --
- * the frontend is a static export, so anything with that prefix ships to the
- * browser.
+ * Configured entirely from the environment: unset, `getOcrProvider()` returns
+ * null, the route reports `available: false`, and Capture Hub falls back to
+ * typed/pasted text only. Credentials stay server-side and must never carry a
+ * NEXT_PUBLIC_ prefix.
  */
+
+import { generateGeminiContent, isGeminiConfigured, readGeminiConfig } from './gemini.js';
 
 export interface OcrProvider {
   /** `image` is raw bytes, not a data: URL -- callers strip the base64 header before this. */
@@ -23,13 +21,21 @@ export interface OcrProvider {
 }
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const GEMINI_OCR_TIMEOUT_MS = 45_000;
+
+const GEMINI_OCR_PROMPT = [
+  'Transcribe every handwritten and printed word in this image of student notes.',
+  'Preserve the original line breaks and order.',
+  'Do not translate, correct, summarise, or add commentary.',
+  'If nothing is readable, return an empty string.',
+].join(' ');
 
 type AzureVisionConfig = {
   endpoint: string;
   apiKey: string;
 };
 
-function readConfig(): AzureVisionConfig | null {
+function readAzureConfig(): AzureVisionConfig | null {
   const endpoint = process.env.AZURE_VISION_ENDPOINT?.trim();
   const apiKey = process.env.AZURE_VISION_KEY?.trim();
   if (!endpoint || !apiKey) return null;
@@ -37,7 +43,7 @@ function readConfig(): AzureVisionConfig | null {
 }
 
 export function isOcrConfigured(): boolean {
-  return readConfig() !== null;
+  return isGeminiConfigured() || readAzureConfig() !== null;
 }
 
 /**
@@ -70,6 +76,33 @@ function extractText(payload: unknown): string {
   }
 
   return '';
+}
+
+export function createGeminiOcr(): OcrProvider {
+  return {
+    async recognize(image: Buffer, mimeType: string): Promise<string> {
+      const config = readGeminiConfig();
+      if (!config) throw new Error('Gemini OCR is not configured');
+      const text = await generateGeminiContent(
+        [
+          { text: GEMINI_OCR_PROMPT },
+          {
+            inline_data: {
+              mime_type: mimeType || 'image/png',
+              data: image.toString('base64'),
+            },
+          },
+        ],
+        {
+          maxOutputTokens: 4096,
+          timeoutMs: GEMINI_OCR_TIMEOUT_MS,
+          thinkingLevel: 'minimal',
+        },
+        config,
+      );
+      return text.trim();
+    },
+  };
 }
 
 export function createAzureVisionOcr(config: AzureVisionConfig): OcrProvider {
@@ -108,6 +141,7 @@ export function createAzureVisionOcr(config: AzureVisionConfig): OcrProvider {
 }
 
 export function getOcrProvider(): OcrProvider | null {
-  const config = readConfig();
+  if (isGeminiConfigured()) return createGeminiOcr();
+  const config = readAzureConfig();
   return config ? createAzureVisionOcr(config) : null;
 }

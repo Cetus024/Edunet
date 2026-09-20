@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { getDatabaseAdminEnvironment } from './env.js';
+import { postgresPoolConnection } from './pg-pool-connection.js';
 import * as schema from './schema/index.js';
 import { assertSupabaseAdminConnection, parseSupabaseConnection } from './supabase-safety.js';
 
@@ -12,7 +13,7 @@ assertSupabaseAdminConnection(parseSupabaseConnection(
 ));
 
 export const adminPool = new Pool({
-  connectionString: environment.databaseUrl,
+  ...postgresPoolConnection(environment.databaseUrl),
   max: environment.poolMax,
   idleTimeoutMillis: environment.poolIdleTimeoutMillis,
   connectionTimeoutMillis: environment.poolConnectionTimeoutMillis,

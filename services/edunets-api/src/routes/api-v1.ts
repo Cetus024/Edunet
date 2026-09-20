@@ -26,11 +26,16 @@ import { assessCapturedNotes } from '../services/capture-analysis.js';
 import { getOcrProvider, isOcrConfigured } from '../services/ocr.js';
 import { summarizeNotes } from '../services/summarize-notes.js';
 import { analysisFailure } from '../services/analysis-error.js';
+import { getGeminiChatModel } from '../services/gemini.js';
+import { generateTopicNotes } from '../services/generate-topic-notes.js';
+import { answerSpideyChat } from '../services/spidey-chat.js';
 import {
   captureEvaluateSchema,
+  captureGenerateNotesSchema,
   captureOcrSchema,
   captureSummarizeSchema,
   discussionAnalysisSchema,
+  spideyChatSchema,
 } from '../validation.js';
 import {
   KNOWLEDGE_MODEL_VERSION,
@@ -946,6 +951,77 @@ api.post('/me/capture/evaluate', loadSession, requireSession, async (context) =>
       summaryPoints: null,
       evaluation: null,
       failure: { stage: 'evaluation', reason: 'provider_error' },
+    });
+  }
+});
+
+// Capture Hub: write study notes from retrieved staff textbook passages.
+// Uses Gemini 3.1 Flash-Lite, not the 3.5 Flash OCR/scoring model.
+api.post('/me/capture/generate-notes', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureGenerateNotesSchema.parse(await readJson(context));
+
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'generate', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await generateTopicNotes(input.topicId, model);
+    if (!result.grounded) {
+      return context.json({
+        available: true,
+        text: null,
+        failure: { stage: 'generate', reason: 'no_textbook' },
+      });
+    }
+    return context.json({
+      available: true,
+      text: result.text,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: { stage: 'generate', ...analysisFailure(error) },
+    });
+  }
+});
+
+// Spidey: general study-guide chat (EduNets features, tips, saved materials).
+// Uses Gemini 3.1 Flash-Lite on GEMINI_API_KEY, not the 3.5 Flash OCR model.
+api.post('/me/spidey/chat', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = spideyChatSchema.parse(await readJson(context));
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await answerSpideyChat({
+      messages: input.messages,
+      ...(input.materials === undefined ? {} : { materials: input.materials }),
+    }, model);
+    return context.json({
+      available: true,
+      text: result.text,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: analysisFailure(error),
     });
   }
 });

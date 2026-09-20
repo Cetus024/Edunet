@@ -26,6 +26,28 @@
 
 ---
 
+## 2026-09-21 · 工作区未提交 · 评价准确率改为按 LO 比例给分
+
+**评价百分比从「整项全对才给分」改为每条学习目标按完成比例给分**
+
+- **做了什么**：`scoreFromObjectiveVerdicts` 对每条 syllabus LO 计 `credit = (accurate + 0.5×partial) / 该 LO 的证据点数`，再 `percentage = Σcredit / 总 LO × 100`。错误和未写仍为 0。分母仍是 unique LO，教材句子不再当额外满分。
+- **为什么**：原先一项里有一句不全整项归零，分数偏低；按句计满分又容易刷分。半对半分是两者之间。
+- **影响面**：Capture Hub 评价百分比会比全有或全无更高，仍不能靠重复同一技能抬分。UI 未改。
+- **坑**：Vitest `note-evaluation` / `capture-analysis` 已通过。无浏览器端到端验证。
+
+---
+
+## 2026-09-21 · 工作区未提交 · Capture Hub 评价面板还原
+
+**把 Capture Hub 评价摘要还原成原先的 Covered well / missing / How to improve 布局**
+
+- **做了什么**：评价对话框去掉 KaTeX 公式卡、「Needs correction」和教材引用列表；百分比、Covered well、Not in your notes、How to improve 保持原样。`evaluationFormulaMarkdown` 从前端 `lib/study-notes.ts` 移除。后端仍按准确 LO / 总 LO × 100 计分。
+- **为什么**：评价面板外观要回到首次给出准确率公式时的样子，计分逻辑保留。
+- **影响面**：仅 Capture Hub 评价 UI；Generate Notes、KaTeX 笔记、Spidey 未改。
+- **坑**：无浏览器工具做端到端点击验证；相关 Vitest（note-evaluation / capture-analysis / study-notes）已通过。
+
+---
+
 ## 2026-09-19 · 汇总与复核 · Cetus024 + Codex
 
 **汇总 Claude 本轮改动并完成提交前验证**

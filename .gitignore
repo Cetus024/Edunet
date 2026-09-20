@@ -20,3 +20,9 @@ full-tsc-output.txt
 # misc
 .DS_Store
 *.tsbuildinfo
+
+# staff textbook binaries (ingest locally; do not commit commercial PDFs)
+content/textbooks/**/*.pdf
+content/textbooks/.extract-cache/
+/Chem_Text.pdf
+

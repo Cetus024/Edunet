@@ -18,16 +18,20 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `RESEND_API_KEY` | Server-only Resend API key used to deliver transactional emails. |
 | `SQUAD_INVITE_FROM_EMAIL` | Sender using a domain verified in Resend. |
 | `AUTH_FROM_EMAIL` | Sender for password-reset emails using a domain verified in Resend. |
-| `AZURE_VISION_ENDPOINT` / `AZURE_VISION_KEY` | Server-only Azure AI Vision resource used for handwritten-note OCR. |
-| `AZURE_FOUNDRY_ENDPOINT` / `AZURE_FOUNDRY_API_KEY` / `AZURE_FOUNDRY_MODEL` | Preferred Microsoft Foundry endpoint, key, and model deployment used for summaries and evaluation. |
-| `MODELARTS_ENDPOINT` / `MODELARTS_API_KEY` / `MODELARTS_MODEL` | Optional later fallback analysis provider when the Foundry variables are absent. |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | Preferred Gemini 3.5 Flash key and model for handwritten-note OCR, summaries, and evaluation. |
+| `GEMINI_CHAT_MODEL` | Gemini 3.1 Flash-Lite for Capture Hub Generate Notes and the Spidey help chatbot. Uses `GEMINI_API_KEY`. |
+| `GEMINI_EMBEDDING_MODEL` | Gemini embedding model (`gemini-embedding-001`) used to retrieve staff textbook passages. Ingest also needs `GEMINI_API_KEY`. |
+| `AZURE_VISION_ENDPOINT` / `AZURE_VISION_KEY` | Optional Azure AI Vision OCR fallback when Gemini is unset. |
+| `AZURE_FOUNDRY_ENDPOINT` / `AZURE_FOUNDRY_API_KEY` / `AZURE_FOUNDRY_MODEL` | Optional Microsoft Foundry fallback for summaries and evaluation when Gemini is unset. |
+| `AZURE_FOUNDRY_EMBEDDING_MODEL` | Foundry embedding deployment used only if Gemini embeddings are not configured. |
+| `MODELARTS_ENDPOINT` / `MODELARTS_API_KEY` / `MODELARTS_MODEL` | Optional later fallback analysis provider when Gemini and Foundry are absent. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
 
 ### Capture summary reliability
 
 Summaries reserve 250 output tokens; syllabus evaluations reserve 600 (the verdict
-contains quoted evidence and corrections). Foundry retries HTTP 429/503 at most
-twice, respecting `retry-after-ms` or `Retry-After` within the original request
+contains quoted evidence and corrections). Gemini retries HTTP 429/503 at most
+twice, respecting `Retry-After` within the original request
 deadline. Longer quota waits return `rate_limited` and `retryAfterSeconds`; request
 timeouts return `timeout`. Upstream response bodies are never sent to the browser.
 The Capture Hub reuses successful and in-flight summaries for the same notes during

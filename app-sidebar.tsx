@@ -42,6 +42,7 @@ const teachingNavItems: NavItem[] = [
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
   { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
+  { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 

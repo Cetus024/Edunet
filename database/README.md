@@ -37,3 +37,14 @@ Before applying it to an existing Supabase project, create a recoverable project
 Disable the Data API in the Supabase dashboard. Supabase protects the platform-owned `authenticator` role from SQL changes by project database administrators, so that dashboard switch cannot be automated with `DATABASE_DIRECT_URL`. The hardening command still revokes application access from `anon` and `authenticated` as defense in depth. Do not add `NEXT_PUBLIC_SUPABASE_ACCESS_TOKEN`, a service-role key, or a database password to frontend variables.
 
 Google configuration is documented in `services/edunets-api/README.md`.
+
+## Staff textbook ingest
+
+Capture Hub grades scanned notes against retrieved passages from files you supply. Put searchable PDFs or `.txt` notes in `content/textbooks/`, map them in `content/textbooks/manifest.json`, then run:
+
+```powershell
+npm run db:ingest-textbooks
+```
+
+That command needs `DATABASE_DIRECT_URL` and `GEMINI_API_KEY`. Commercial PDFs are gitignored. Students never upload these files.
+

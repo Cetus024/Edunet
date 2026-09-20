@@ -153,6 +153,22 @@ export const captureEvaluateSchema = z.strictObject({
   text: z.string().trim().min(1).max(20_000),
 });
 
+export const captureGenerateNotesSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+});
+
+export const spideyChatSchema = z.strictObject({
+  messages: z.array(z.strictObject({
+    role: z.enum(['user', 'assistant']),
+    text: z.string().trim().min(1).max(8_000),
+  })).min(1).max(12),
+  materials: z.array(z.strictObject({
+    name: z.string().trim().min(1).max(160),
+    subject: z.string().trim().min(1).max(64),
+    topic: z.string().trim().min(1).max(160),
+  })).max(20).optional(),
+});
+
 export const createStudySquadSchema = z.strictObject({
   name: z.string().trim().min(1).max(80),
 });

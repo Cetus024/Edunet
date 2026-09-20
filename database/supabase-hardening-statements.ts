@@ -42,6 +42,17 @@ export function buildSupabasePrivilegeStatements(databaseName: string): string[]
     'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC',
     `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA ${schema} REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`,
     `GRANT CONNECT ON DATABASE ${database} TO ${role}`,
+    `GRANT USAGE ON SCHEMA extensions TO ${role}`,
+    `DO $grant_vector$ BEGIN IF EXISTS (
+      SELECT 1 FROM pg_type t
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE t.typname = 'vector' AND n.nspname = 'extensions'
+    ) THEN EXECUTE 'GRANT USAGE ON TYPE extensions.vector TO ${role}'; END IF; END $grant_vector$`,
+    `DO $grant_vector_ops$ BEGIN IF EXISTS (
+      SELECT 1 FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'extensions' AND p.proname = 'cosine_distance'
+    ) THEN EXECUTE 'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA extensions TO ${role}'; END IF; END $grant_vector_ops$`,
     `GRANT USAGE ON SCHEMA ${applicationSchemas} TO ${role}`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${role}`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role}`,

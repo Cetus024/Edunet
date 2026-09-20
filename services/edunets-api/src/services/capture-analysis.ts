@@ -1,6 +1,6 @@
 import type { AnalysisModel, TopicGrounding } from './explanation-analysis.js';
-import { buildTopicGrounding } from './explanation-analysis.js';
-import { evaluateNotes, type NoteEvaluation } from './note-evaluation.js';
+import { loadCaptureGrounding } from './capture-grounding.js';
+import { evaluateNotes, type NoteCitation, type NoteEvaluation } from './note-evaluation.js';
 import { summarizeNotes } from './summarize-notes.js';
 import { analysisFailure, type AnalysisFailureReason } from './analysis-error.js';
 
@@ -18,13 +18,14 @@ export type CaptureAnalysisFailure = {
 
 /**
  * The Capture Hub 2.0 pipeline: compress the combined OCR and typed input,
- * then grade that exact summary against the application's stored topic data.
+ * then grade that exact summary against retrieved textbook passages, falling
+ * back to stored syllabus facts when no staff notes have been ingested.
  */
 export async function assessCapturedNotes(
   topicId: string,
   notes: string,
   model: AnalysisModel,
-  loadGrounding: (topicId: string) => Promise<TopicGrounding | null> = buildTopicGrounding,
+  loadGrounding?: (topicId: string) => Promise<TopicGrounding | null>,
 ): Promise<CaptureAssessment> {
   let summaryPoints: string[] | null;
   try {
@@ -44,9 +45,17 @@ export async function assessCapturedNotes(
     };
   }
 
+  const summary = summaryPoints.join('\n');
   let grounding: TopicGrounding | null;
+  let citations: NoteCitation[] = [];
   try {
-    grounding = await loadGrounding(topicId);
+    if (loadGrounding) {
+      grounding = await loadGrounding(topicId);
+    } else {
+      const resolved = await loadCaptureGrounding(topicId, summary);
+      grounding = resolved.grounding;
+      citations = resolved.citations;
+    }
   } catch (error) {
     return {
       summaryPoints,
@@ -66,7 +75,7 @@ export async function assessCapturedNotes(
   try {
     evaluation = await evaluateNotes(
       topicId,
-      summaryPoints.join('\n'),
+      summary,
       model,
       async () => grounding,
     );
@@ -86,5 +95,9 @@ export async function assessCapturedNotes(
     };
   }
 
-  return { summaryPoints, evaluation, failure: null };
+  return {
+    summaryPoints,
+    evaluation: { ...evaluation, citations },
+    failure: null,
+  };
 }

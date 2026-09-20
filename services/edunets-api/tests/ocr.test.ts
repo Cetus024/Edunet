@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createAzureVisionOcr, getOcrProvider, isOcrConfigured } from '../src/services/ocr.js';
+import {
+  createAzureVisionOcr,
+  createGeminiOcr,
+  getOcrProvider,
+  isOcrConfigured,
+} from '../src/services/ocr.js';
 
 const CONFIG = { endpoint: 'https://example.cognitiveservices.azure.com', apiKey: 'test-key' };
 
@@ -9,6 +14,7 @@ describe('createAzureVisionOcr', () => {
     vi.unstubAllGlobals();
     delete process.env.AZURE_VISION_ENDPOINT;
     delete process.env.AZURE_VISION_KEY;
+    delete process.env.GEMINI_API_KEY;
   });
 
   it('sends the image bytes with the subscription key header', async () => {
@@ -68,8 +74,11 @@ describe('createAzureVisionOcr', () => {
 
 describe('getOcrProvider / isOcrConfigured', () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
     delete process.env.AZURE_VISION_ENDPOINT;
     delete process.env.AZURE_VISION_KEY;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_MODEL;
   });
 
   it('is unconfigured with no environment variables set', () => {
@@ -77,15 +86,60 @@ describe('getOcrProvider / isOcrConfigured', () => {
     expect(getOcrProvider()).toBeNull();
   });
 
-  it('is unconfigured when only one of the two variables is set', () => {
+  it('is unconfigured when only one of the two Azure variables is set', () => {
     process.env.AZURE_VISION_ENDPOINT = 'https://example.cognitiveservices.azure.com';
     expect(isOcrConfigured()).toBe(false);
   });
 
-  it('is configured once both variables are set', () => {
+  it('is configured once both Azure variables are set', () => {
     process.env.AZURE_VISION_ENDPOINT = 'https://example.cognitiveservices.azure.com';
     process.env.AZURE_VISION_KEY = 'k';
     expect(isOcrConfigured()).toBe(true);
     expect(getOcrProvider()).not.toBeNull();
+  });
+
+  it('is configured from GEMINI_API_KEY alone and prefers Gemini over Azure Vision', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+    process.env.AZURE_VISION_ENDPOINT = 'https://example.cognitiveservices.azure.com';
+    process.env.AZURE_VISION_KEY = 'k';
+    expect(isOcrConfigured()).toBe(true);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: 'Ionic bonds transfer electrons' }] } }],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const text = await getOcrProvider()?.recognize(Buffer.from('fake-image-bytes'), 'image/png');
+    expect(text).toBe('Ionic bonds transfer electrons');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('generativelanguage.googleapis.com');
+  });
+});
+
+describe('createGeminiOcr', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  it('sends the image as inline_data with a transcribe prompt', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: '  Mitosis produces two cells  ' }] } }],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const text = await createGeminiOcr().recognize(Buffer.from('fake-image-bytes'), 'image/jpeg');
+    expect(text).toBe('Mitosis produces two cells');
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe('minimal');
+    expect(body.contents[0].parts[1].inline_data).toEqual({
+      mime_type: 'image/jpeg',
+      data: Buffer.from('fake-image-bytes').toString('base64'),
+    });
   });
 });

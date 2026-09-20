@@ -53,8 +53,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useAtom } from 'jotai';
 import {
   evaluateNotes as evaluateNotesApi,
+  generateTopicNotes as generateTopicNotesApi,
   ocrImage,
   summarizeNotes as summarizeNotesApi,
   type CaptureFailure,
@@ -70,6 +72,13 @@ import {
 } from '@/lib/capture-image';
 import { CURRICULUM } from '@/lib/curriculum';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
+import {
+  createLibraryMaterial,
+  materialsLibraryAtom,
+  type LibraryMaterial,
+} from '@/features/materials/library-store';
+import { StudyNotesView } from '@/features/notes/study-notes-view';
+import { asMissingBullet, formatStudentFacingText } from '@/lib/study-notes';
 
 // Subject data
 const subjects = [
@@ -99,11 +108,16 @@ function describeCaptureFailure(failure: CaptureFailure): string {
   }
   if (failure.reason === 'not_configured') {
     return failure.stage === 'ocr'
-      ? 'OCR is not connected: Azure Vision server credentials are not configured.'
-      : 'Analysis is not connected: no Microsoft Foundry model is configured on the server.';
+      ? 'OCR is not connected: Gemini server credentials are not configured.'
+      : failure.stage === 'generate'
+        ? 'Note generation is not connected: Gemini 3.1 Flash-Lite is not configured on the server.'
+        : 'Analysis is not connected: no Gemini model is configured on the server.';
+  }
+  if (failure.reason === 'no_textbook') {
+    return 'This topic has no staff textbook in the syllabus database yet, so notes cannot be generated.';
   }
   if (failure.reason === 'no_text') {
-    return 'Azure Vision connected, but it could not detect readable text in this image.';
+    return 'Gemini connected, but it could not detect readable text in this image.';
   }
   if (failure.reason === 'no_summary') {
     return 'The model connected, but it did not produce a usable summary from these notes.';
@@ -114,8 +128,11 @@ function describeCaptureFailure(failure: CaptureFailure): string {
   if (failure.reason === 'invalid_evaluation') {
     return 'The summary was created, but the model evaluation response could not be read safely.';
   }
+  if (failure.stage === 'generate') {
+    return 'Gemini is configured, but generating notes from the textbook failed or timed out.';
+  }
   if (failure.stage === 'ocr') {
-    return 'Azure Vision is configured, but the OCR request failed or timed out.';
+    return 'Gemini is configured, but the OCR request failed or timed out.';
   }
   if (failure.stage === 'summary') {
     return 'The analysis provider is configured, but summary generation failed or timed out.';
@@ -147,31 +164,6 @@ function debugStatusClass(status: DebugLogStatus): string {
   return 'bg-blue-500 animate-pulse';
 }
 
-// Sample materials library
-const materialsSample = [
-  {
-    id: '2',
-    name: 'Organic Chemistry Summary',
-    subject: 'chemistry',
-    topic: 'Organic Chemistry',
-    dateUploaded: '2024-01-14',
-    type: 'document',
-    features: ['summary', 'quiz'],
-  },
-  {
-    id: '7',
-    name: 'Mathematics Geometry and Measurement Formula Sheet',
-    subject: 'e-math',
-    topic: 'GEOMETRY AND MEASUREMENT',
-    dateUploaded: '2024-01-09',
-    type: 'scan',
-    features: ['web', 'summary'],
-  },
-  // Sample entries have no captured text of their own, so their summary
-  // falls back to metadata-only bullets — see buildMaterialSummary below.
-].map((material) => ({ ...material, content: null as string | null }));
-
-// Upload tile component
 function UploadTile({
   icon: Icon,
   emoji,
@@ -261,7 +253,7 @@ function extractKeyPoints(content: string, max = 5): string[] {
 
 // Legacy metadata overview for sample-library entries without captured text.
 // Real notes use the server summary and show failures explicitly.
-function buildMaterialSummary(material: (typeof materialsSample)[number]): string[] {
+function buildMaterialSummary(material: LibraryMaterial): string[] {
   const subject = subjects.find((candidate) => candidate.id === material.subject);
   const subjectLabel = subject ? `${subject.icon} ${subject.name}` : 'this subject';
   const intro = `${material.topic} is the focus topic captured in "${material.name}" (${subjectLabel}).`;
@@ -291,6 +283,8 @@ function getTypeIcon(type: string) {
       return FileType;
     case 'paste':
       return Pencil;
+    case 'generate':
+      return Sparkles;
     default:
       return File;
   }
@@ -332,20 +326,26 @@ export default function CaptureHubPage() {
   // line up with the real catalog, and a room that cannot score anything
   // should stay hidden rather than open to a blank result.
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [isEditingGeneratedNotes, setIsEditingGeneratedNotes] = useState(false);
   const [evaluation, setEvaluation] = useState<NoteEvaluation | null>(null);
   const [evaluationSummaryPoints, setEvaluationSummaryPoints] = useState<string[]>([]);
   const [evaluationUnavailable, setEvaluationUnavailable] = useState(false);
   const [evaluationOpen, setEvaluationOpen] = useState(false);
+  const [latestEvaluation, setLatestEvaluation] = useState<{
+    evaluation: NoteEvaluation;
+    summaryPoints: string[];
+  } | null>(null);
 
   // Keep generated summaries separate from loading/error states and demo metadata.
   const [realSummaryPoints, setRealSummaryPoints] = useState<string[] | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   // Materials library
-  const [materials, setMaterials] = useState(materialsSample);
+  const [materials, setMaterials] = useAtom(materialsLibraryAtom);
   const [libraryFilter, setLibraryFilter] = useState('all');
-  const [noteMaterial, setNoteMaterial] = useState<(typeof materialsSample)[number] | null>(null);
-  const [summaryMaterial, setSummaryMaterial] = useState<(typeof materialsSample)[number] | null>(null);
+  const [noteMaterial, setNoteMaterial] = useState<LibraryMaterial | null>(null);
+  const [summaryMaterial, setSummaryMaterial] = useState<LibraryMaterial | null>(null);
 
   const appendDebugLog = useCallback(
     (stage: string, status: DebugLogStatus, message: string) => {
@@ -465,7 +465,7 @@ export default function CaptureHubPage() {
           if (prepared.optimized) {
             appendDebugLog('Upload', 'success', `${file.name}: ${sizeMessage} before OCR.`);
           }
-          appendDebugLog('OCR', 'running', `Reading ${file.name} with Microsoft Azure AI Vision.`);
+          appendDebugLog('OCR', 'running', `Reading ${file.name} with Gemini 3.5 Flash.`);
           let result;
           try {
             result = await ocrImage({ imageBase64: prepared.base64, mimeType: prepared.mimeType });
@@ -532,12 +532,52 @@ export default function CaptureHubPage() {
     }
   };
 
+  const handleGenerateNotes = async () => {
+    if (!resolvedTopicId) {
+      toast.error('Select a subject and topic first');
+      return;
+    }
+    setIsGeneratingNotes(true);
+    appendDebugLog('Generate', 'running', 'Writing study notes from the staff textbook.');
+    try {
+      const result = await generateTopicNotesApi({ topicId: resolvedTopicId });
+      if (!result.available) {
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'Note generation is unavailable and the server did not provide a diagnostic reason.';
+        appendDebugLog('Generate', 'error', message);
+        toast.error(message);
+        return;
+      }
+      if (result.failure || !result.text?.trim()) {
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'No notes were returned and the server did not provide a diagnostic reason.';
+        appendDebugLog('Generate', 'error', message);
+        toast.error(message);
+        return;
+      }
+      setActiveMethod('generate');
+      setIsEditingGeneratedNotes(false);
+      setExtractedContent(result.text.trim());
+      openTextReview();
+      appendDebugLog('Generate', 'success', `Generated ${result.text.trim().length} characters of textbook notes.`);
+      toast.success('Textbook notes generated. Review them, then save or evaluate.');
+    } catch (error: unknown) {
+      const message = describeRequestError(error, 'Generate notes');
+      appendDebugLog('Connection', 'error', message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingNotes(false);
+    }
+  };
+
   const handleEvaluate = async () => {
     if (!resolvedTopicId || !extractedContent) return;
     setIsEvaluating(true);
     setEvaluationUnavailable(false);
     setEvaluationSummaryPoints([]);
-    appendDebugLog('Summary', 'running', 'Generating a summary before syllabus evaluation.');
+    appendDebugLog('Summary', 'running', 'Generating a summary before textbook evaluation.');
     try {
       const result = await evaluateNotesApi({ topicId: resolvedTopicId, text: extractedContent });
       if (result.summaryPoints?.length) {
@@ -567,12 +607,18 @@ export default function CaptureHubPage() {
       }
       setEvaluation(result.evaluation);
       setEvaluationOpen(true);
+      setLatestEvaluation({
+        evaluation: result.evaluation,
+        summaryPoints: result.summaryPoints ?? [],
+      });
       appendDebugLog(
         'Evaluation',
         'success',
-        `Compared the summary with the syllabus database: ${result.evaluation.percentage}% coverage.`,
+        result.evaluation.improvements?.length
+          ? `Evaluation ${result.evaluation.percentage}% with ${result.evaluation.improvements.length} improvement step(s).`
+          : `Compared the summary with topic grounding: ${result.evaluation.percentage}% coverage.`,
       );
-      toast.success('Summary and syllabus evaluation completed.');
+      toast.success('Summary and evaluation completed.');
     } catch (error: unknown) {
       const message = describeRequestError(error, 'Analysis');
       appendDebugLog('Connection', 'error', message);
@@ -590,20 +636,20 @@ export default function CaptureHubPage() {
 
     setIsProcessing(true);
 
-    const newMaterial = {
-      id: Date.now().toString(),
-      name: selectedTopic ? `${selectedTopic} Notes` : 'New Notes',
-      subject: selectedSubject,
-      topic: selectedTopic || 'General',
-      dateUploaded: new Date().toISOString().split('T')[0],
-      type: activeMethod || 'paste',
-      features: [
-        ...(generateQuiz ? ['quiz'] : []),
-        ...(generateSummary ? ['summary'] : []),
-      ],
-      // Stored so buildMaterialSummary can genuinely summarise this specific
-      // material's own captured text, instead of only describing its metadata.
-      content: extractedContent,
+    const newMaterial: LibraryMaterial = {
+      ...createLibraryMaterial({
+        name: selectedTopic ? `${selectedTopic} Notes` : 'New Notes',
+        subject: selectedSubject,
+        topic: selectedTopic || 'General',
+        type: activeMethod || 'paste',
+        features: [
+          ...(generateQuiz ? ['quiz'] : []),
+          ...(generateSummary ? ['summary'] : []),
+        ],
+        content: extractedContent,
+      }),
+      evaluation: latestEvaluation?.evaluation ?? null,
+      evaluationSummaryPoints: latestEvaluation?.summaryPoints ?? [],
     };
 
     setMaterials((prev) => [newMaterial, ...prev]);
@@ -623,6 +669,7 @@ export default function CaptureHubPage() {
     setPastedText('');
     setSelectedSubject('');
     setSelectedTopic('');
+    setLatestEvaluation(null);
   };
 
   const clearContent = () => {
@@ -631,7 +678,16 @@ export default function CaptureHubPage() {
     setUploads([]);
     setOcrTranscript('');
     setIsTextReviewExpanded(false);
+    setIsEditingGeneratedNotes(false);
     setPastedText('');
+    setLatestEvaluation(null);
+  };
+
+  const openEvaluationSummary = (material: LibraryMaterial) => {
+    setEvaluation(material.evaluation);
+    setEvaluationSummaryPoints(material.evaluationSummaryPoints);
+    setEvaluationUnavailable(false);
+    setEvaluationOpen(true);
   };
 
   const filteredMaterials =
@@ -681,7 +737,7 @@ export default function CaptureHubPage() {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">Capture Hub 2.0</h1>
             <p className="text-muted-foreground text-sm">
-              Turn handwritten and typed notes into a summary, then check them against your syllabus
+              Scan handwriting, type notes, or generate textbook notes, then check them against your syllabus
             </p>
           </div>
         </div>
@@ -692,9 +748,9 @@ export default function CaptureHubPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="grid md:grid-cols-2 gap-4 mb-8"
+        className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8"
       >
-        {/* Scan handwritten notes with Microsoft Azure AI Vision OCR. */}
+        {/* Scan handwritten notes with Gemini 3.5 Flash OCR. */}
         <UploadTile
           emoji="📷"
           title="Scan Handwritten Notes"
@@ -816,6 +872,69 @@ export default function CaptureHubPage() {
             </Button>
           </div>
         </UploadTile>
+
+        <UploadTile
+          emoji="✨"
+          title="Generate Notes"
+          description="Write revision notes from the staff textbook"
+          isActive={activeMethod === 'generate'}
+        >
+          <div className="space-y-3">
+            <Select value={selectedSubject} onValueChange={(value) => { setSelectedSubject(value); setSelectedTopic(''); }}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{subject.icon}</span>
+                      <span>{subject.name}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedTopic}
+              onValueChange={handleTopicSelect}
+              disabled={!selectedSubject}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder={!selectedSubject ? 'Select subject first' : 'Select topic'} />
+              </SelectTrigger>
+              <SelectContent>
+                {availableTopics.map((topic) => (
+                  <SelectItem key={topic} value={topic}>
+                    {topic}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTopic && !resolvedTopicId && (
+              <p className="text-xs text-amber-800">
+                This topic is not connected to syllabus data, so notes cannot be generated.
+              </p>
+            )}
+            <Button
+              onClick={() => void handleGenerateNotes()}
+              disabled={!resolvedTopicId || isGeneratingNotes || isOcrRunning || isProcessing}
+              className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
+            >
+              {isGeneratingNotes ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Writing from the textbook…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate notes
+                </>
+              )}
+            </Button>
+          </div>
+        </UploadTile>
       </motion.div>
 
       <Card className="mb-8 overflow-hidden rounded-2xl border border-[#6486B5]/25 bg-white/80 card-shadow">
@@ -877,7 +996,7 @@ export default function CaptureHubPage() {
                 <span className="w-1.5 h-6 bg-[#EAA93C] rounded-full"></span>
                 Process My Material
               </h2>
-              <Button variant="ghost" size="sm" onClick={clearContent} disabled={isOcrRunning || isProcessing} className="text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={clearContent} disabled={isOcrRunning || isProcessing || isGeneratingNotes} className="text-muted-foreground">
                 <X className="w-4 h-4 mr-1" />
                 Clear
               </Button>
@@ -896,11 +1015,13 @@ export default function CaptureHubPage() {
                     <ClipboardList className="h-4 w-4 text-[#C98618]" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block font-bold text-studynow-dark">Scanned text &amp; transcript</span>
+                    <span className="block font-bold text-studynow-dark">
+                      {activeMethod === 'generate' ? 'Generated notes' : 'Scanned text & transcript'}
+                    </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {ocrTranscript
                         ? `${ocrTranscript.length} OCR characters · ${extractedContent.length} combined characters`
-                        : `${extractedContent.length} typed characters`}
+                        : `${extractedContent.length} characters`}
                     </span>
                   </span>
                   <Badge variant="outline" className="hidden shrink-0 border-[#EAA93C]/40 text-studynow-dark sm:inline-flex">
@@ -939,24 +1060,46 @@ export default function CaptureHubPage() {
                             className="min-h-32 resize-y rounded-xl bg-white/80 font-mono text-xs leading-relaxed"
                           />
                           <p className="mt-2 text-xs text-muted-foreground">
-                            This is exactly what Azure Vision returned. Make corrections in the combined notes below.
+                            This is exactly what Gemini returned. Make corrections in the combined notes below.
                           </p>
                         </div>
                       )}
 
-                      {/* Editable combined OCR + typed notes. */}
+                      {/* Generated notes show as formatted revision notes; OCR/typed stay editable. */}
                       <div>
-                        <Label className="mb-2 block text-sm font-semibold text-studynow-dark">
-                          Review Combined Notes
-                        </Label>
-                        <Textarea
-                          value={extractedContent}
-                          onChange={(event) => setExtractedContent(event.target.value)}
-                          aria-label="Review combined OCR and typed notes"
-                          className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
-                        />
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <Label className="text-sm font-semibold text-studynow-dark">
+                            {activeMethod === 'generate' ? 'Revision notes' : 'Review Combined Notes'}
+                          </Label>
+                          {activeMethod === 'generate' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsEditingGeneratedNotes((current) => !current)}
+                              className="h-8 rounded-lg text-xs"
+                            >
+                              <Pencil className="mr-1 h-3.5 w-3.5" />
+                              {isEditingGeneratedNotes ? 'Show formatted notes' : 'Edit notes'}
+                            </Button>
+                          )}
+                        </div>
+                        {activeMethod === 'generate' && !isEditingGeneratedNotes ? (
+                          <div className="rounded-xl border border-[#6486B5]/20 bg-white p-4">
+                            <StudyNotesView text={extractedContent} />
+                          </div>
+                        ) : (
+                          <Textarea
+                            value={extractedContent}
+                            onChange={(event) => setExtractedContent(event.target.value)}
+                            aria-label={activeMethod === 'generate' ? 'Edit generated notes' : 'Review combined OCR and typed notes'}
+                            className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
+                          />
+                        )}
                         <p className="mt-2 text-xs text-muted-foreground">
-                          Fix any handwriting-recognition mistakes or add missing details before summarizing.
+                          {activeMethod === 'generate'
+                            ? 'Markdown headings, tables, and KaTeX formulas are formatted for revision. Edit only if you need to change wording.'
+                            : 'Fix any handwriting-recognition mistakes or add missing details before summarizing.'}
                         </p>
                       </div>
                     </motion.div>
@@ -1237,6 +1380,17 @@ export default function CaptureHubPage() {
                               <BookOpen className="mr-2 h-4 w-4" />
                               Read note
                             </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEvaluationSummary(material)}
+                              className="mt-2 w-full rounded-xl border-[#EAA93C]/40 text-studynow-dark hover:bg-[#EAA93C]/10"
+                              aria-label={`Evaluation summary for ${material.name}`}
+                            >
+                              <ClipboardList className="mr-2 h-4 w-4" />
+                              Evaluation summary
+                            </Button>
                           </div>
 
                           {/* Menu */}
@@ -1259,11 +1413,9 @@ export default function CaptureHubPage() {
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Summary
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => toast.info('Re-processing is not available for saved materials yet.')}
-                              >
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Re-process
+                              <DropdownMenuItem onClick={() => openEvaluationSummary(material)}>
+                                <ClipboardList className="w-4 h-4 mr-2" />
+                                Evaluation summary
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
@@ -1318,8 +1470,8 @@ export default function CaptureHubPage() {
           </DialogHeader>
 
           {noteMaterial?.content ? (
-            <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-[#6486B5]/20 bg-[#6486B5]/5 p-4 text-sm leading-7 text-studynow-dark">
-              {noteMaterial.content}
+            <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-[#6486B5]/20 bg-[#6486B5]/5 p-4">
+              <StudyNotesView text={noteMaterial.content} />
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-6 text-center">
@@ -1379,10 +1531,12 @@ export default function CaptureHubPage() {
           }
         }}
       >
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Evaluation</DialogTitle>
-            <DialogDescription>Your generated summary compared with the syllabus data for this topic.</DialogDescription>
+            <DialogTitle>Evaluation summary</DialogTitle>
+            <DialogDescription>
+              What you covered well, what is missing, then what to add or rewrite to raise the next score.
+            </DialogDescription>
           </DialogHeader>
           {evaluation && (
             <div className="space-y-4">
@@ -1395,7 +1549,7 @@ export default function CaptureHubPage() {
                     {evaluationSummaryPoints.map((point) => (
                       <li key={point} className="flex gap-2">
                         <span aria-hidden="true">•</span>
-                        <span>{point}</span>
+                        <span>{formatStudentFacingText(point)}</span>
                       </li>
                     ))}
                   </ul>
@@ -1406,36 +1560,48 @@ export default function CaptureHubPage() {
                   {evaluation.percentage}%
                 </div>
               </div>
-              <p className="text-sm font-semibold text-studynow-dark">{evaluation.summary}</p>
-
-              {evaluation.incorrect.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-black uppercase tracking-wide text-destructive">To fix</p>
-                  {evaluation.incorrect.map((item, index) => (
-                    <div key={`wrong-${index}`} className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
-                      <p className="text-sm font-bold text-studynow-dark">{item.point}</p>
-                      {item.quote && <p className="mt-1 text-xs italic text-muted-foreground">“{item.quote}”</p>}
-                      <p className="mt-1.5 text-sm text-studynow-dark">{item.correction}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {evaluation.missing.length > 0 && (
-                <div className="rounded-xl bg-secondary p-3">
-                  <p className="text-xs font-black uppercase tracking-wide text-secondary-foreground">Not in your notes</p>
-                  <p className="mt-1 text-sm text-secondary-foreground">{evaluation.missing.join(' · ')}</p>
-                </div>
-              )}
+              <p className="text-sm font-semibold text-studynow-dark">{formatStudentFacingText(evaluation.summary)}</p>
 
               {evaluation.correct.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Covered well</p>
                   {evaluation.correct.map((item, index) => (
                     <div key={`right-${index}`} className="rounded-xl border border-border p-3">
-                      <p className="text-sm font-bold text-studynow-dark">{item.point}</p>
+                      <p className="text-sm font-bold text-studynow-dark">{formatStudentFacingText(item.point)}</p>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {evaluation.missing.map((gap) => asMissingBullet(gap)).filter(Boolean).length > 0 && (
+                <div className="rounded-xl bg-secondary p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-secondary-foreground">
+                    Not in your notes
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-secondary-foreground">
+                    {evaluation.missing.map((gap) => asMissingBullet(gap)).filter(Boolean).map((gap, index) => (
+                      <li key={`missing-${index}`}>{gap}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(evaluation.improvements?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#6486B5]">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    How to improve your notes
+                  </p>
+                  <ol className="space-y-2">
+                    {evaluation.improvements?.map((step, index) => (
+                      <li key={`improve-${index}`} className="flex gap-3 rounded-xl border border-[#6486B5]/30 bg-[#6486B5]/5 p-3">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#6486B5] text-[11px] font-black text-white">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm leading-relaxed text-studynow-dark">{formatStudentFacingText(step)}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
               )}
             </div>
@@ -1443,6 +1609,11 @@ export default function CaptureHubPage() {
           {evaluationUnavailable && (
             <p className="text-sm text-muted-foreground">
               Evaluation is not configured for this deployment yet.
+            </p>
+          )}
+          {!evaluation && !evaluationUnavailable && (
+            <p className="text-sm text-muted-foreground">
+              No evaluation summary is saved for this material. Evaluate the notes against the syllabus before saving them to the library.
             </p>
           )}
         </DialogContent>

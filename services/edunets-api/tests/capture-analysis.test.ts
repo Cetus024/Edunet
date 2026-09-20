@@ -6,7 +6,10 @@ import { AnalysisProviderError } from '../src/services/analysis-error.js';
 
 const GROUNDING: TopicGrounding = {
   topicId: 'biology-cell-division',
-  subconcepts: [{ name: 'Mitosis', description: 'Produces genetically identical cells.' }],
+  subconcepts: [
+    { id: 'mitosis', name: 'Mitosis', description: 'Produces genetically identical cells.' },
+    { id: 'prep', name: 'Preparation', description: 'Chromosome replication happens before mitosis.' },
+  ],
   facts: [{ concept: 'Mitosis', statement: 'Mitosis produces two genetically identical daughter cells.' }],
 };
 
@@ -37,9 +40,11 @@ describe('assessCapturedNotes', () => {
         ],
       }))
       .mockResolvedValueOnce(JSON.stringify({
-        correct: [{ point: 'Identical daughter cells', quote: 'genetically identical' }],
-        incorrect: [],
-        missing: ['Chromosome replication happens before mitosis'],
+        verdicts: [
+          { id: 'lo-1', verdict: 'accurate', quote: 'genetically identical', correction: '' },
+          { id: 'lo-2', verdict: 'missing', quote: '', correction: '' },
+        ],
+        improvements: [],
         summary: 'You captured the main outcome. Add the preparation step.',
       }));
     const model: AnalysisModel = { complete };
@@ -53,6 +58,11 @@ describe('assessCapturedNotes', () => {
 
     expect(result.summaryPoints).toHaveLength(2);
     expect(result.evaluation?.percentage).toBe(50);
+    expect(result.evaluation?.accurateCount).toBe(1);
+    expect(result.evaluation?.objectiveCount).toBe(2);
+    expect(result.evaluation?.formulaMarkdown).toContain('\\dfrac{1}{2}');
+    expect(result.evaluation?.citations).toEqual([]);
+    expect(result.evaluation?.improvements[0]).toMatch(/Chromosome replication|Preparation|mitosis/i);
     expect(result.failure).toBeNull();
     expect(complete).toHaveBeenCalledTimes(2);
     expect(complete.mock.calls[1][0]).toContain('Mitosis produces two genetically identical daughter cells.');

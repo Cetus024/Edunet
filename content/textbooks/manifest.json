@@ -1,0 +1,21 @@
+[
+  {
+    "file": "Chem_Text.pdf",
+    "title": "O-Level Chemistry textbook",
+    "subjectId": "chemistry",
+    "topicIds": [
+      "chemistry-experimental-chemistry",
+      "chemistry-particulate-nature-matter",
+      "chemistry-chemical-bonding-structure",
+      "chemistry-chemical-calculations",
+      "chemistry-acid-base-chemistry",
+      "chemistry-qualitative-analysis",
+      "chemistry-redox-chemistry",
+      "chemistry-periodic-table-patterns",
+      "chemistry-chemical-energetics",
+      "chemistry-rate-reactions",
+      "chemistry-organic-chemistry",
+      "chemistry-maintaining-air-quality"
+    ]
+  }
+]

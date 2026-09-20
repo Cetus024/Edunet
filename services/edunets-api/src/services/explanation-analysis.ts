@@ -32,7 +32,7 @@ export type AnalysisVerdict = {
 
 export type TopicGrounding = {
   topicId: string;
-  subconcepts: { name: string; description: string }[];
+  subconcepts: { id?: string; name: string; description: string }[];
   facts: { concept: string; statement: string }[];
 };
 
@@ -47,12 +47,14 @@ export function buildTopicRubric(topicId: string): TopicGrounding['subconcepts']
 
   if (topic.subtopics.length > 0) {
     return topic.subtopics.map((subtopic) => ({
+      id: subtopic.id,
       name: `${subtopic.syllabusCode} ${subtopic.name}`,
       description: subtopic.description,
     }));
   }
 
-  return (topic.rubricFacets ?? []).map((name) => ({
+  return (topic.rubricFacets ?? []).map((name, index) => ({
+    id: `${topic.id}-facet-${index + 1}`,
     name,
     description: `${name} is assessed within ${topic.name} learning outcomes.`,
   }));

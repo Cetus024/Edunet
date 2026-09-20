@@ -343,6 +343,7 @@ describe('Supabase connection safety', () => {
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated');
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated');
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC');
+    expect(statements).toContain('GRANT USAGE ON SCHEMA extensions TO "edunets_app"');
     expect(statements).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "edunets_app"');
     expect(statements).toContain('REVOKE ALL ON TABLE "edunets".__drizzle_migrations FROM "edunets_app"');
     expect(statements).toContain('REVOKE ALL ON TABLE "edunets".schema_metadata FROM "edunets_app"');

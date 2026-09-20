@@ -11,7 +11,8 @@ Contributors and coding agents should start from [`CLAUDE.md`](CLAUDE.md) for th
 - Tailwind CSS 4 and Radix UI
 - TanStack Query and Jotai
 - Hono, Better Auth, Drizzle ORM, and Supabase PostgreSQL
-- Microsoft Azure AI Vision OCR and Microsoft Foundry model inference
+- Gemini 3.5 Flash for handwritten-note OCR, Capture Hub summaries/scoring, and textbook embeddings
+- Gemini 3.1 Flash-Lite for Capture Hub Generate Notes and the Spidey help chatbot
 - Microsoft Power Apps code app SDK and generated Dataverse client
 - Static export to `out/` for Power Apps deployment
 
@@ -30,7 +31,7 @@ npm run api:start
 
 Copy `.env.example` to the ignored `.env.local` and replace every placeholder. PostgreSQL, Better Auth, Google, and Resend credentials are server-only; only `NEXT_PUBLIC_EDUNETS_API_URL` is exposed to the browser. Database setup is idempotent and uses separate Supabase runtime and administrative connections. See [`database/README.md`](database/README.md) and [`services/edunets-api/README.md`](services/edunets-api/README.md).
 
-Capture Hub 2.0 is phone-first and does not use voice transcription. Students photograph handwritten notes for Microsoft Azure AI Vision OCR or type/paste notes directly. Both inputs are combined and editable before Microsoft Foundry summarizes them; evaluation then compares that exact summary with the selected O-Level topic data in the backend. The provider boundary prefers `AZURE_FOUNDRY_*` and can later fall back to `MODELARTS_*` without changing the Capture Hub flow. All keys remain server-side.
+Capture Hub 2.0 is phone-first and does not use voice transcription. Students photograph handwritten notes for Gemini 3.5 Flash OCR, type/paste notes, or generate textbook-grounded notes with Gemini 3.1 Flash-Lite. Combined notes can be summarised and evaluated against retrieved staff textbook passages. The Spidey mascot on logged-in pages opens a general help chatbot (Gemini 3.1 Flash-Lite) for EduNets features, study tips, and saved materials. The provider boundary prefers `GEMINI_*` and can fall back to `AZURE_FOUNDRY_*` or `MODELARTS_*` without changing the Capture Hub scoring flow. All keys remain server-side.
 
 ## Structure
 
