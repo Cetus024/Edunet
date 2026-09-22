@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { ACTIVE_SUBJECT_IDS } from '../../../../packages/database/constants.js';
 import { db } from '../../../../packages/database/index.js';
 import {
   schools,
   subjects,
-  topicAliases,
   topics,
 } from '../../../../packages/database/schema/catalog.js';
 import { CURRICULUM } from '../../../../apps/web/lib/curriculum.js';
@@ -14,45 +13,82 @@ import {
   onboardingProfiles,
   profiles,
   quizAttemptAnswers,
+  quizAttemptQuestions,
   quizAttempts,
+  schoolClasses,
+  studentClassAssignments,
   teachingScopes,
 } from '../../../../packages/database/schema/learning.js';
 import { ApiError, readJson } from '../errors.js';
-import { getKeyedQuestions, getQuizOptions, gradeQuestion } from '../lib/question-bank.js';
-import { buildQuizAttemptResponse } from '../lib/quiz-attempt-response.js';
+import { analyzeExplanation } from '../services/explanation-analysis.js';
+import { getAnalysisModel, isAnalysisConfigured } from '../services/analysis-model.js';
+import { assessCapturedNotes } from '../services/capture-analysis.js';
+import { getOcrProvider, isOcrConfigured } from '../services/ocr.js';
+import { summarizeNotes } from '../services/summarize-notes.js';
+import { analysisFailure } from '../services/analysis-error.js';
+import { getGeminiChatModel } from '../services/gemini.js';
+import { generateTopicNotes } from '../services/generate-topic-notes.js';
+import { answerSpideyChat } from '../services/spidey-chat.js';
 import {
-  calculateMemoryScore,
-  calculateNextReviewAt,
+  captureEvaluateSchema,
+  captureGenerateNotesSchema,
+  captureOcrSchema,
+  captureSummarizeSchema,
+  discussionAnalysisSchema,
+  spideyChatSchema,
+} from '../validation.js';
+import {
+  KNOWLEDGE_MODEL_VERSION,
+  PHASE1_PARAMETERS,
+  calculateMcqMastery,
+} from '../lib/knowledge-model.js';
+import {
+  getPlacementQuestions,
+  getQuizOptions,
+  gradeQuestion,
+  serializePlacementQuestions,
+  type QuizQuestion,
+} from '../lib/question-bank.js';
+import {
   calculatePercentCorrect,
-  familiarityScore,
 } from '../lib/scoring.js';
 import { loadSession, requireSession } from '../middleware/session.js';
-import { getChildForParent } from '../services/parent-child.js';
 import { getStudyStateForUser } from '../services/study-state.js';
-import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
 import {
-  addStudentToScope,
-  getClassConceptWebForTeacher,
+  abandonAssessmentSession,
+  completeAssessmentFeedback,
+  createOrResumeAssessmentSession,
+  finishAssessmentSession,
+  submitAssessmentAnswer,
+} from '../services/assessment-quiz.js';
+import { commitModeProgress, lockTopic } from '../services/phase1-progress.js';
+import { getQuizReviewForTeacher, saveQuestionReview } from '../services/quiz-review.js';
+import { localizeQuestions, parseLocale } from '../lib/question-translations.js';
+import {
+  getTeacherConceptWeb,
   getStudentConceptWebForTeacher,
   listStudentsForTeacher,
-  removeStudentFromScope,
-  searchStudentsForTeacher,
 } from '../services/teacher-students.js';
 import type { AppEnv } from '../types.js';
 import {
-  addStudentToScopeSchema,
   onboardingRequestSchema,
+  placementSetRequestSchema,
   quizOptionsQuerySchema,
   quizHistoryQuerySchema,
   quizSetRequestSchema,
-  quizSubmissionSchema,
-  studentSearchQuerySchema,
+  assessmentAnswerSchema,
+  teacherConceptWebQuerySchema,
+  teacherScopeQuerySchema,
   updateQuestionReviewSchema,
   updateSchoolSchema,
-  updateTeachingScopesSchema,
 } from '../validation.js';
 
 const api = new Hono<AppEnv>();
+const activeSubjectIds: string[] = [...ACTIVE_SUBJECT_IDS];
+
+function activeSubjectName(subject: { id: string; name: string }) {
+  return subject.id === 'e-math' ? 'Mathematics' : subject.name;
+}
 
 function requireUserId(context: Context<AppEnv>): string {
   const user = context.get('user');
@@ -60,64 +96,73 @@ function requireUserId(context: Context<AppEnv>): string {
   return user.id;
 }
 
+/**
+ * Localizes the `questions` array on an assessment-session response, if it has
+ * one. Four routes return this shape (create, answer, finish, feedback-complete)
+ * and an idempotent replay or an abandon response carries no `questions` at
+ * all, so the check is structural rather than per-route.
+ *
+ * Applied at the route rather than inside assessment-quiz.ts, so that service
+ * keeps returning one canonical (English) shape and translation stays a
+ * presentation concern at the edge ΓÇö the same boundary the placement-set route
+ * uses.
+ */
+function localizeSessionQuestions<T extends { questions?: unknown }>(result: T, context: Context<AppEnv>): T {
+  if (!Array.isArray(result.questions)) return result;
+  return {
+    ...result,
+    questions: localizeQuestions(
+      result.questions as { questionKey: string; text: string; options?: string[] }[],
+      parseLocale(context.req.header('accept-language')),
+    ),
+  };
+}
+
 async function loadTeachingScopes(userId: string) {
-  return db.select({
+  const rows = await db.select({
     id: teachingScopes.id,
-    schoolId: teachingScopes.schoolId,
+    classId: teachingScopes.classId,
+    schoolId: schoolClasses.schoolId,
     schoolName: schools.name,
     subjectId: teachingScopes.subjectId,
     subjectName: subjects.name,
     subjectIcon: subjects.icon,
-    classroomName: teachingScopes.classroomName,
+    classroomName: schoolClasses.name,
     position: teachingScopes.position,
   })
     .from(teachingScopes)
-    .innerJoin(schools, eq(schools.id, teachingScopes.schoolId))
+    .innerJoin(schoolClasses, eq(schoolClasses.id, teachingScopes.classId))
+    .innerJoin(schools, eq(schools.id, schoolClasses.schoolId))
     .innerJoin(subjects, eq(subjects.id, teachingScopes.subjectId))
-    .where(eq(teachingScopes.userId, userId))
+    .where(and(
+      eq(teachingScopes.userId, userId),
+      inArray(teachingScopes.subjectId, activeSubjectIds),
+    ))
     .orderBy(asc(teachingScopes.position), asc(teachingScopes.id));
+
+  return rows.map((scope) => ({
+    ...scope,
+    subjectName: activeSubjectName({ id: scope.subjectId, name: scope.subjectName }),
+  }));
 }
 
 api.get('/catalog', async (context) => {
-  const [schoolRows, subjectRows, topicRows, aliasRows] = await Promise.all([
-    db.select({ id: schools.id, name: schools.name })
-      .from(schools)
-      .orderBy(asc(schools.position)),
-    db.select({ id: subjects.id, name: subjects.name, icon: subjects.icon })
-      .from(subjects)
-      .orderBy(asc(subjects.position)),
-    db.select({ id: topics.id, subjectId: topics.subjectId, name: topics.name })
-      .from(topics)
-      .orderBy(asc(topics.subjectId), asc(topics.position)),
-    db.select({ topicId: topicAliases.topicId, alias: topicAliases.alias })
-      .from(topicAliases)
-      .orderBy(asc(topicAliases.topicId), asc(topicAliases.alias)),
-  ]);
-
-  const aliasesByTopic = new Map<string, string[]>();
-  for (const alias of aliasRows) {
-    const list = aliasesByTopic.get(alias.topicId) ?? [];
-    list.push(alias.alias);
-    aliasesByTopic.set(alias.topicId, list);
-  }
-
-  const topicsBySubject = new Map<string, Array<{
-    id: string;
-    subjectId: string;
-    name: string;
-    aliases: string[];
-  }>>();
-  for (const topic of topicRows) {
-    const list = topicsBySubject.get(topic.subjectId) ?? [];
-    list.push({ ...topic, aliases: aliasesByTopic.get(topic.id) ?? [] });
-    topicsBySubject.set(topic.subjectId, list);
-  }
+  const schoolRows = await db.select({ id: schools.id, name: schools.name })
+    .from(schools)
+    .orderBy(asc(schools.position));
 
   return context.json({
     schools: schoolRows,
-    subjects: subjectRows.map((subject) => ({
+    // The two-subject curriculum is versioned with the application. Returning
+    // it from that source of truth keeps authentication/onboarding available
+    // while an existing deployment is between the additive schema migration
+    // and the catalog seed. Schools remain database-backed reference data.
+    subjects: CURRICULUM.map((subject) => ({
       ...subject,
-      topics: topicsBySubject.get(subject.id) ?? [],
+      topics: subject.topics.map((topic) => ({
+        ...topic,
+        subtopics: topic.subtopics.map((child) => ({ ...child, topicId: topic.id })),
+      })),
     })),
   });
 });
@@ -126,6 +171,11 @@ api.get('/me', loadSession, requireSession, async (context) => {
   const user = context.get('user');
   if (!user) throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required.');
   const scopeRowsPromise = loadTeachingScopes(user.id);
+  const assignedClassPromise = db.select({ name: schoolClasses.name, schoolId: schoolClasses.schoolId })
+    .from(studentClassAssignments)
+    .innerJoin(schoolClasses, eq(schoolClasses.id, studentClassAssignments.classId))
+    .where(eq(studentClassAssignments.studentUserId, user.id))
+    .limit(1);
 
   const [profile] = await db.select({
     role: profiles.role,
@@ -143,8 +193,8 @@ api.get('/me', loadSession, requireSession, async (context) => {
     subjectName: subjects.name,
     topicId: onboardingProfiles.topicId,
     topicName: topics.name,
-    familiarity: onboardingProfiles.familiarity,
-    initialMemoryScore: onboardingProfiles.initialMemoryScore,
+    initialMastery: onboardingProfiles.initialMastery,
+    placementAttemptId: onboardingProfiles.placementAttemptId,
     completedAt: onboardingProfiles.completedAt,
   })
     .from(profiles)
@@ -154,7 +204,7 @@ api.get('/me', loadSession, requireSession, async (context) => {
     .leftJoin(topics, eq(onboardingProfiles.topicId, topics.id))
     .where(eq(profiles.userId, user.id))
     .limit(1);
-  const scopeRows = await scopeRowsPromise;
+  const [scopeRows, assignedClasses] = await Promise.all([scopeRowsPromise, assignedClassPromise]);
 
   return context.json({
     user: {
@@ -162,6 +212,9 @@ api.get('/me', loadSession, requireSession, async (context) => {
       name: user.name,
       email: user.email,
       image: user.image ?? null,
+      class: profile?.role === 'student' && assignedClasses[0]?.schoolId === profile.schoolId
+        ? assignedClasses[0].name
+        : user.class,
     },
     onboardingCompleted: profile?.onboardingCompleted ?? false,
     profile: profile ? {
@@ -187,67 +240,16 @@ api.get('/me', loadSession, requireSession, async (context) => {
             mimeType: profile.recordingMimeType,
           }
         : null,
-      subjectId: profile.subjectId,
-      subjectName: profile.subjectName,
-      topicId: profile.topicId,
-      topicName: profile.topicName,
-      familiarity: profile.familiarity,
-      initialMemoryScore: profile.initialMemoryScore,
+      subjectId: profile.role === 'teacher' ? null : profile.subjectId,
+      subjectName: profile.role === 'teacher' ? null : profile.subjectName,
+      topicId: profile.role === 'teacher' ? null : profile.topicId,
+      topicName: profile.role === 'teacher' ? null : profile.topicName,
+      initialMastery: profile.role === 'teacher' ? null : profile.initialMastery,
+      placementAttemptId: profile.role === 'teacher' ? null : profile.placementAttemptId,
       completedAt: profile.completedAt,
       teachingScopes: scopeRows,
     } : null,
   });
-});
-
-api.put('/me/teaching-scopes', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = updateTeachingScopesSchema.parse(await readJson(context));
-  const [profile] = await db.select({ role: profiles.role, schoolId: profiles.schoolId })
-    .from(profiles)
-    .where(eq(profiles.userId, userId))
-    .limit(1);
-
-  if (!profile || (profile.role !== 'teacher' && profile.role !== 'tutor')) {
-    throw new ApiError(403, 'TEACHER_ONLY', 'Only teachers and tutors can update teaching contexts.');
-  }
-
-  const requestedSubjectIds = [...new Set(input.scopes.map((scope) => scope.subjectId))];
-  const subjectRows = await db.select({ id: subjects.id })
-    .from(subjects)
-    .where(inArray(subjects.id, requestedSubjectIds));
-  if (subjectRows.length !== requestedSubjectIds.length) {
-    throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
-  }
-
-  const firstScope = input.scopes[0]!;
-  const [firstTopic] = await db.select({ id: topics.id })
-    .from(topics)
-    .where(eq(topics.subjectId, firstScope.subjectId))
-    .orderBy(asc(topics.position))
-    .limit(1);
-  if (!firstTopic) throw new ApiError(400, 'SUBJECT_HAS_NO_TOPICS', 'The primary subject has no topics.');
-
-  const now = new Date();
-  await db.transaction(async (transaction) => {
-    await transaction.delete(teachingScopes).where(eq(teachingScopes.userId, userId));
-    await transaction.insert(teachingScopes).values(input.scopes.map((scope, position) => ({
-      id: randomUUID(),
-      userId,
-      schoolId: profile.schoolId,
-      subjectId: scope.subjectId,
-      classroomName: scope.classroomName,
-      position,
-      createdAt: now,
-      updatedAt: now,
-    })));
-    await transaction.update(onboardingProfiles).set({
-      subjectId: firstScope.subjectId,
-      topicId: firstTopic.id,
-      updatedAt: now,
-    }).where(eq(onboardingProfiles.userId, userId));
-  });
-
-  return context.json({ scopes: await loadTeachingScopes(userId) });
 });
 
 api.put('/me/school', loadSession, requireSession, async (context) => {
@@ -268,190 +270,371 @@ api.put('/me/school', loadSession, requireSession, async (context) => {
     .limit(1);
   if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Selected school was not found.');
 
+  const [assignedClass] = await db.select({ schoolId: schoolClasses.schoolId })
+    .from(studentClassAssignments)
+    .innerJoin(schoolClasses, eq(schoolClasses.id, studentClassAssignments.classId))
+    .where(eq(studentClassAssignments.studentUserId, userId))
+    .limit(1);
+  if (assignedClass && assignedClass.schoolId !== school.id) {
+    throw new ApiError(
+      409,
+      'CLASS_ASSIGNMENT_MANAGED_BY_ADMIN',
+      'Ask your school admin to update your Class before changing schools.',
+    );
+  }
+
   await db.update(profiles).set({ schoolId: school.id, updatedAt: new Date() }).where(eq(profiles.userId, userId));
 
   return context.json({ schoolId: school.id, schoolName: school.name });
 });
 
+type PlacementAttemptSummary = {
+  id: string;
+  submissionId: string;
+  topicId: string;
+  correctAnswers: number;
+  totalQuestions: number;
+  percentCorrect: number;
+  currentMastery: number | null;
+  calculationTrace: Record<string, unknown> | null;
+  submittedAt: Date;
+};
+
+type StoredPlacementAnswer = {
+  questionKey: string;
+  questionIndex: number;
+  submittedAnswer: string | number;
+  isCorrect: boolean | null;
+};
+
+function buildPlacementResult(
+  attempt: PlacementAttemptSummary,
+  storedAnswers: StoredPlacementAnswer[],
+  questions: QuizQuestion[],
+) {
+  const questionByKey = new Map(questions.map((question) => [question.questionKey, question]));
+  const mastery = attempt.currentMastery ?? PHASE1_PARAMETERS.initialMastery;
+  return {
+    id: attempt.id,
+    submissionId: attempt.submissionId,
+    topicId: attempt.topicId,
+    correctAnswers: attempt.correctAnswers,
+    totalQuestions: attempt.totalQuestions,
+    percentCorrect: attempt.percentCorrect,
+    resultingMastery: mastery,
+    masteryScore: mastery * 100,
+    submittedAt: attempt.submittedAt,
+    model: attempt.calculationTrace,
+    answers: storedAnswers.map((answer) => {
+      const question = questionByKey.get(answer.questionKey);
+      if (!question) throw new Error(`Placement question ${answer.questionKey} could not be reconstructed.`);
+      return {
+        questionKey: answer.questionKey,
+        questionIndex: answer.questionIndex,
+        submittedAnswer: Number(answer.submittedAnswer),
+        isCorrect: Boolean(answer.isCorrect),
+        correctAnswer: question.correctAnswer,
+        explanation: question.explanation,
+      };
+    }),
+  };
+}
+
+api.post('/me/onboarding/placement-set', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const input = placementSetRequestSchema.parse(await readJson(context));
+  const [profile] = await db.select({ onboardingCompleted: profiles.onboardingCompleted })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+  if (profile?.onboardingCompleted) {
+    throw new ApiError(409, 'ONBOARDING_ALREADY_COMPLETED', 'Your starting profile is already complete.');
+  }
+
+  const questionSet = await getPlacementQuestions(input.topicId, input.subjectId, input.submissionId);
+  if (!questionSet) {
+    throw new ApiError(409, 'PLACEMENT_SET_UNAVAILABLE', 'The database has no complete 10-question placement set for this topic.');
+  }
+
+  return context.json({
+    submissionId: input.submissionId,
+    subjectId: questionSet.subjectId,
+    topicId: questionSet.topicId,
+    questions: localizeQuestions(
+      serializePlacementQuestions(questionSet.questions),
+      parseLocale(context.req.header('accept-language')),
+    ),
+  });
+});
+
 api.put('/me/onboarding', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const input = onboardingRequestSchema.parse(await readJson(context));
+  const placementSet = input.role === 'student'
+    ? await getPlacementQuestions(input.topicId, input.subjectId, input.placement.submissionId)
+    : null;
+  if (input.role === 'student' && !placementSet) {
+    throw new ApiError(409, 'PLACEMENT_SET_UNAVAILABLE', 'The database has no complete 10-question placement set for this topic.');
+  }
+
+  const submittedByKey = input.role === 'student'
+    ? new Map(input.placement.answers.map((answer) => [answer.questionKey, answer.answer]))
+    : new Map<string, number>();
+  if (input.role === 'student' && placementSet && (
+    submittedByKey.size !== input.placement.answers.length
+    || placementSet.questions.some((question) => !submittedByKey.has(question.questionKey))
+  )) {
+    throw new ApiError(400, 'INVALID_ANSWER_SET', 'Submit exactly one answer for every placement question.');
+  }
 
   const result = await db.transaction(async (transaction) => {
     const [existing] = await transaction.select({
       role: profiles.role,
       schoolId: profiles.schoolId,
+      schoolName: schools.name,
       onboardingCompleted: profiles.onboardingCompleted,
       onboardingCompletedAt: profiles.onboardingCompletedAt,
       learningSource: onboardingProfiles.learningSource,
       subjectId: onboardingProfiles.subjectId,
+      subjectName: subjects.name,
       topicId: onboardingProfiles.topicId,
-      familiarity: onboardingProfiles.familiarity,
-      initialMemoryScore: onboardingProfiles.initialMemoryScore,
+      topicName: topics.name,
+      initialMastery: onboardingProfiles.initialMastery,
+      placementAttemptId: onboardingProfiles.placementAttemptId,
       completedAt: onboardingProfiles.completedAt,
     })
       .from(profiles)
+      .leftJoin(schools, eq(profiles.schoolId, schools.id))
       .leftJoin(onboardingProfiles, eq(profiles.userId, onboardingProfiles.userId))
+      .leftJoin(subjects, eq(onboardingProfiles.subjectId, subjects.id))
+      .leftJoin(topics, eq(onboardingProfiles.topicId, topics.id))
       .where(eq(profiles.userId, userId))
       .limit(1);
 
-    // PUT is idempotent after completion. This avoids resetting a later quiz
-    // score when a browser retries an already-committed onboarding request.
     if (existing?.onboardingCompleted) {
+      let placementResult = null;
+      if (input.role === 'student' && placementSet && existing.placementAttemptId) {
+        const [attempt] = await transaction.select({
+          id: quizAttempts.id,
+          submissionId: quizAttempts.submissionId,
+          topicId: quizAttempts.topicId,
+          correctAnswers: quizAttempts.correctAnswers,
+          totalQuestions: quizAttempts.totalQuestions,
+          percentCorrect: quizAttempts.percentCorrect,
+          currentMastery: quizAttempts.currentMastery,
+          calculationTrace: quizAttempts.calculationTrace,
+          submittedAt: quizAttempts.submittedAt,
+        }).from(quizAttempts).where(and(
+          eq(quizAttempts.id, existing.placementAttemptId),
+          eq(quizAttempts.submissionId, input.placement.submissionId),
+          eq(quizAttempts.userId, userId),
+        )).limit(1);
+        if (attempt) {
+          const storedAnswers = await transaction.select({
+            questionKey: quizAttemptAnswers.questionKey,
+            questionIndex: quizAttemptAnswers.questionIndex,
+            submittedAnswer: quizAttemptAnswers.submittedAnswer,
+            isCorrect: quizAttemptAnswers.isCorrect,
+          }).from(quizAttemptAnswers)
+            .where(eq(quizAttemptAnswers.attemptId, attempt.id))
+            .orderBy(asc(quizAttemptAnswers.questionIndex));
+          placementResult = buildPlacementResult(attempt, storedAnswers, placementSet.questions);
+        }
+      }
       return {
         alreadyCompleted: true,
         onboardingCompleted: true,
         profile: existing,
+        placementResult,
       };
     }
 
     const [school] = input.schoolId
       ? await transaction.select({ id: schools.id, name: schools.name })
-        .from(schools)
-        .where(eq(schools.id, input.schoolId))
-        .limit(1)
+        .from(schools).where(eq(schools.id, input.schoolId)).limit(1)
       : await transaction.select({ id: schools.id, name: schools.name })
-        .from(schools)
-        .where(eq(schools.name, input.school!))
-        .limit(1);
-
+        .from(schools).where(eq(schools.name, input.school!)).limit(1);
     if (!school) throw new ApiError(400, 'INVALID_SCHOOL', 'Select a school from the catalog.');
 
+    const now = new Date();
+    if (input.role === 'teacher') {
+      await transaction.insert(profiles).values({
+        userId, role: 'teacher', schoolId: school.id, onboardingCompleted: true,
+        onboardingCompletedAt: now, updatedAt: now,
+      }).onConflictDoUpdate({
+        target: profiles.userId,
+        set: { role: 'teacher', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
+      });
+      await transaction.insert(onboardingProfiles).values({
+        userId, learningSource: 'none', subjectId: null, topicId: null,
+        initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now,
+      }).onConflictDoUpdate({
+        target: onboardingProfiles.userId,
+        set: { subjectId: null, topicId: null, initialMastery: null, placementAttemptId: null, completedAt: now, updatedAt: now },
+      });
+
+      return {
+        alreadyCompleted: false,
+        onboardingCompleted: true,
+        profile: {
+          role: 'teacher' as const,
+          schoolId: school.id,
+          schoolName: school.name,
+          learningSource: 'none' as const,
+          subjectId: null,
+          subjectName: null,
+          topicId: null,
+          topicName: null,
+          initialMastery: null,
+          placementAttemptId: null,
+          completedAt: now,
+          teachingScopes: [],
+        },
+        placementResult: null,
+      };
+    }
+
+    const studentPlacementSet = placementSet!;
     const [selectedTopic] = await transaction.select({
       id: topics.id,
       name: topics.name,
       subjectId: subjects.id,
       subjectName: subjects.name,
-    })
-      .from(topics)
+    }).from(topics)
       .innerJoin(subjects, eq(topics.subjectId, subjects.id))
       .where(and(eq(topics.id, input.topicId), eq(topics.subjectId, input.subjectId)))
       .limit(1);
+    if (!selectedTopic) throw new ApiError(400, 'INVALID_TOPIC', 'The topic does not belong to the selected subject.');
 
-    if (!selectedTopic) {
-      throw new ApiError(400, 'INVALID_TOPIC', 'The topic does not belong to the selected subject.');
-    }
-
-    const requestedTeachingScopes = input.role === 'teacher' || input.role === 'tutor'
-      ? input.teachingScopes ?? [{
-        subjectId: selectedTopic.subjectId,
-        classroomName: `${selectedTopic.subjectName} class`,
-      }]
-      : [];
-    if (requestedTeachingScopes.length > 0) {
-      const requestedSubjectIds = [...new Set(requestedTeachingScopes.map((scope) => scope.subjectId))];
-      const validTeachingSubjects = await transaction.select({ id: subjects.id })
-        .from(subjects)
-        .where(inArray(subjects.id, requestedSubjectIds));
-      if (validTeachingSubjects.length !== requestedSubjectIds.length) {
-        throw new ApiError(400, 'INVALID_TEACHING_SUBJECT', 'One or more teaching subjects were not found.');
-      }
-    }
-
-    const now = new Date();
-    const initialMemoryScore = familiarityScore(input.familiarity);
-    const nextReviewAt = calculateNextReviewAt(initialMemoryScore, now);
-
-    await transaction.insert(profiles).values({
-      userId,
-      role: input.role,
-      schoolId: school.id,
-      onboardingCompleted: true,
-      onboardingCompletedAt: now,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: profiles.userId,
-      set: {
-        role: input.role,
-        schoolId: school.id,
-        onboardingCompleted: true,
-        onboardingCompletedAt: now,
-        updatedAt: now,
-      },
+    const gradedAnswers = studentPlacementSet.questions.map((question, questionIndex) => {
+      const submittedAnswer = submittedByKey.get(question.questionKey)!;
+      return {
+        questionKey: question.questionKey,
+        questionIndex,
+        submittedAnswer,
+        isCorrect: gradeQuestion(question, submittedAnswer),
+      };
     });
+    const correctAnswers = gradedAnswers.filter((answer) => answer.isCorrect).length;
+    const percentCorrect = calculatePercentCorrect(correctAnswers, gradedAnswers.length);
+    const model = calculateMcqMastery({
+      correct: correctAnswers,
+      wrong: gradedAnswers.length - correctAnswers,
+      feedbackCompleted: true,
+    });
+    const resultingMastery = model.currentMastery;
+    await lockTopic(transaction, userId, selectedTopic.id);
 
-    // Registration onboarding no longer accepts learning artifacts. Keep the
-    // legacy nullable columns intact for historical profiles, but normalize
-    // every new onboarding record to `none` without touching Capture Hub.
-    await transaction.insert(onboardingProfiles).values({
+    const [attempt] = await transaction.insert(quizAttempts).values({
+      id: randomUUID(),
+      submissionId: input.placement.submissionId,
       userId,
-      learningSource: 'none',
-      materialName: null,
-      materialType: null,
-      materialSize: null,
-      materialLastModified: null,
-      recordingDurationSeconds: null,
-      recordingMimeType: null,
       subjectId: selectedTopic.subjectId,
       topicId: selectedTopic.id,
-      familiarity: input.familiarity,
-      initialMemoryScore,
-      childName: input.child?.name ?? null,
-      childEmail: input.child?.email ?? null,
+      quizMode: 'placement',
+      questionSetVersion: 'placement-phase1-v2',
+      correctAnswers,
+      totalQuestions: gradedAnswers.length,
+      percentCorrect,
+      resultingMemoryScore: null,
+      status: 'completed',
+      modelVersion: KNOWLEDGE_MODEL_VERSION,
+      initialMastery: PHASE1_PARAMETERS.initialMastery,
+      priorMastery: model.priorMastery,
+      priorElapsedDays: 0,
+      posteriorMastery: model.posteriorMastery,
+      currentMastery: resultingMastery,
+      feedbackStatus: 'completed',
+      feedbackCompletedAt: now,
+      calculationTrace: model,
+      startedAt: input.placement.startedAt ? new Date(input.placement.startedAt) : null,
+      submittedAt: now,
       completedAt: now,
-      updatedAt: now,
+    }).onConflictDoNothing({ target: quizAttempts.submissionId }).returning({
+      id: quizAttempts.id,
+      submissionId: quizAttempts.submissionId,
+      topicId: quizAttempts.topicId,
+      correctAnswers: quizAttempts.correctAnswers,
+      totalQuestions: quizAttempts.totalQuestions,
+      percentCorrect: quizAttempts.percentCorrect,
+      currentMastery: quizAttempts.currentMastery,
+      calculationTrace: quizAttempts.calculationTrace,
+      submittedAt: quizAttempts.submittedAt,
+    });
+    if (!attempt) throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
+
+    await transaction.insert(quizAttemptQuestions).values(studentPlacementSet.questions.map((question, questionIndex) => ({
+      attemptId: attempt.id,
+      questionIndex,
+      questionKey: question.questionKey,
+      type: question.type,
+      topic: question.topic,
+      subtopicId: question.subtopic?.id ?? null,
+      subtopicSyllabusCode: question.subtopic?.syllabusCode ?? null,
+      subtopicName: question.subtopic?.name ?? null,
+      text: question.text,
+      options: question.options ?? null,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      linkedConcept: question.linkedConcept,
+      source: question.source ?? null,
+      resourceNumber: question.resourceNumber ?? null,
+      maxMarks: null,
+    })));
+
+    await transaction.insert(profiles).values({
+      userId, role: 'student', schoolId: school.id, onboardingCompleted: true,
+      onboardingCompletedAt: now, updatedAt: now,
+    }).onConflictDoUpdate({
+      target: profiles.userId,
+      set: { role: 'student', schoolId: school.id, onboardingCompleted: true, onboardingCompletedAt: now, updatedAt: now },
+    });
+    await transaction.insert(quizAttemptAnswers).values(gradedAnswers.map((answer) => ({
+      attemptId: attempt.id,
+      ...answer,
+      answeredAt: now,
+    })));
+    await transaction.insert(onboardingProfiles).values({
+      userId, learningSource: 'none', subjectId: selectedTopic.subjectId, topicId: selectedTopic.id,
+      initialMastery: resultingMastery, placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
     }).onConflictDoUpdate({
       target: onboardingProfiles.userId,
       set: {
-        learningSource: 'none',
-        materialName: null,
-        materialType: null,
-        materialSize: null,
-        materialLastModified: null,
-        recordingDurationSeconds: null,
-        recordingMimeType: null,
-        subjectId: selectedTopic.subjectId,
-        topicId: selectedTopic.id,
-        familiarity: input.familiarity,
-        initialMemoryScore,
-        childName: input.child?.name ?? null,
-        childEmail: input.child?.email ?? null,
-        completedAt: now,
-        updatedAt: now,
+        subjectId: selectedTopic.subjectId, topicId: selectedTopic.id, initialMastery: resultingMastery,
+        placementAttemptId: attempt.id, completedAt: now, updatedAt: now,
       },
     });
-
-    if (requestedTeachingScopes.length > 0) {
-      await transaction.insert(teachingScopes).values(requestedTeachingScopes.map((scope, position) => ({
-        id: randomUUID(),
-        userId,
-        schoolId: school.id,
-        subjectId: scope.subjectId,
-        classroomName: scope.classroomName,
-        position,
-        createdAt: now,
-        updatedAt: now,
-      })));
-    }
-
-    await transaction.insert(userTopicProgress).values({
+    const published = await commitModeProgress({
+      transaction,
       userId,
       topicId: selectedTopic.id,
-      memoryScore: initialMemoryScore,
-      lastReviewedAt: now,
-      nextReviewAt,
-      quizAttempts: 0,
+      mode: 'mcq',
+      mastery: resultingMastery,
       updatedAt: now,
-    }).onConflictDoNothing({
-      target: [userTopicProgress.userId, userTopicProgress.topicId],
+      incrementAttempt: true,
     });
+    await transaction.update(quizAttempts).set({
+      resultingMemoryScore: published.concept.conceptMemoryScore,
+    }).where(eq(quizAttempts.id, attempt.id));
 
     return {
       alreadyCompleted: false,
       onboardingCompleted: true,
       profile: {
-        role: input.role,
+        role: 'student' as const,
         schoolId: school.id,
         schoolName: school.name,
-        learningSource: 'none',
+        learningSource: 'none' as const,
         subjectId: selectedTopic.subjectId,
         subjectName: selectedTopic.subjectName,
         topicId: selectedTopic.id,
         topicName: selectedTopic.name,
-        familiarity: input.familiarity,
-        initialMemoryScore,
+        initialMastery: resultingMastery,
+        placementAttemptId: attempt.id,
         completedAt: now,
+        teachingScopes: [],
       },
+      placementResult: buildPlacementResult(attempt, gradedAnswers, studentPlacementSet.questions),
     };
   });
 
@@ -464,62 +647,39 @@ api.get('/me/study-state', loadSession, requireSession, async (context) => {
   return context.json(state);
 });
 
-api.get('/me/child', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const result = await getChildForParent(userId);
-  return context.json(result);
-});
-
 api.get('/me/students', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const students = await listStudentsForTeacher(userId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const students = await listStudentsForTeacher(userId, input.scopeId);
   return context.json({ students });
-});
-
-// Registered before the /me/students/:studentId/concept-web param route
-// below so "search" is never captured as a literal studentId.
-api.get('/me/students/search', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = studentSearchQuerySchema.parse({
-    q: context.req.query('q'),
-    scopeId: context.req.query('scopeId'),
-  });
-  const students = await searchStudentsForTeacher(userId, input.q, input.scopeId);
-  return context.json({ students });
-});
-
-api.post('/me/students', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const input = addStudentToScopeSchema.parse(await readJson(context));
-  await addStudentToScope(userId, input.studentId, input.scopeId);
-  return context.json({ ok: true });
-});
-
-api.delete('/me/students/:studentId', loadSession, requireSession, async (context) => {
-  const userId = requireUserId(context);
-  const studentId = context.req.param('studentId');
-  const scopeId = context.req.query('scopeId');
-  if (!scopeId) throw new ApiError(400, 'SCOPE_ID_REQUIRED', 'scopeId is required.');
-  await removeStudentFromScope(userId, studentId, scopeId);
-  return context.json({ ok: true });
 });
 
 api.get('/me/class-concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const result = await getClassConceptWebForTeacher(userId, context.req.query('scopeId'));
+  const view = context.req.query('view');
+  const input = teacherConceptWebQuerySchema.parse(
+    view === 'school'
+      ? { view, subjectId: context.req.query('subjectId') }
+      : view === 'class'
+        ? { view, scopeId: context.req.query('scopeId') }
+        : { view },
+  );
+  const result = await getTeacherConceptWeb(userId, input);
   return context.json(result);
 });
 
 api.get('/me/students/:studentId/concept-web', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const studentId = context.req.param('studentId');
-  const result = await getStudentConceptWebForTeacher(userId, studentId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const result = await getStudentConceptWebForTeacher(userId, studentId, input.scopeId);
   return context.json(result);
 });
 
 api.get('/me/quiz-review', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const result = await getQuizReviewForTeacher(userId, context.req.query('scopeId'));
+  const input = teacherScopeQuerySchema.parse({ scopeId: context.req.query('scopeId') });
+  const result = await getQuizReviewForTeacher(userId, input.scopeId);
   return context.json(result);
 });
 
@@ -540,190 +700,34 @@ api.get('/me/quiz-options', loadSession, requireSession, async (context) => {
 });
 
 api.post('/me/quiz-sets', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
   const input = quizSetRequestSchema.parse(await readJson(context));
-  const questionSet = await getKeyedQuestions(
-    input.topicId,
-    input.mode,
-    input.submissionId,
-    input.paperId,
-  );
-  if (!questionSet) {
-    throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The database has no complete question set for this quiz mode.');
-  }
-
-  return context.json({
-    submissionId: input.submissionId,
-    subjectId: questionSet.subjectId,
-    topicId: questionSet.topicId,
-    mode: input.mode,
-    ...(input.paperId ? { paperId: input.paperId } : {}),
-    questions: questionSet.questions,
-  });
+  const result = await createOrResumeAssessmentSession(userId, input);
+  return context.json(localizeSessionQuestions(result, context), result.resumed ? 200 : 201);
 });
 
-api.post('/me/quiz-attempts', loadSession, requireSession, async (context) => {
+api.post('/me/quiz-attempts/:submissionId/answers', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
-  const input = quizSubmissionSchema.parse(await readJson(context));
+  const input = assessmentAnswerSchema.parse(await readJson(context));
+  const result = await submitAssessmentAnswer(userId, context.req.param('submissionId'), input);
+  return context.json(localizeSessionQuestions(result, context), result.idempotentReplay ? 200 : 201);
+});
 
-  const questionSet = await getKeyedQuestions(
-    input.topicId,
-    input.mode,
-    input.submissionId,
-    input.paperId,
-  );
-  if (!questionSet) {
-    throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', 'The question set is unavailable.');
-  }
-  const questions = questionSet.questions;
+api.post('/me/quiz-attempts/:submissionId/finish', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await finishAssessmentSession(userId, context.req.param('submissionId'));
+  return context.json(localizeSessionQuestions(result, context));
+});
 
-  const submittedByKey = new Map(input.answers.map((answer) => [answer.questionKey, answer]));
-  if (submittedByKey.size !== input.answers.length
-    || input.answers.length !== questions.length
-    || questions.some((question) => !submittedByKey.has(question.questionKey))) {
-    throw new ApiError(400, 'INVALID_ANSWER_SET', 'Submit exactly one answer for every question.');
-  }
+api.post('/me/quiz-attempts/:submissionId/feedback-complete', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const result = await completeAssessmentFeedback(userId, context.req.param('submissionId'));
+  return context.json(localizeSessionQuestions(result, context));
+});
 
-  const gradedAnswers = questions.map((question, index) => {
-    const submitted = submittedByKey.get(question.questionKey)!;
-    return {
-      questionKey: question.questionKey,
-      questionIndex: index,
-      submittedAnswer: submitted.answer,
-      isCorrect: gradeQuestion(question, submitted.answer),
-    };
-  });
-  const correctAnswers = gradedAnswers.filter((answer) => answer.isCorrect).length;
-  const percentCorrect = calculatePercentCorrect(correctAnswers, questions.length);
-  const resultingMemoryScore = calculateMemoryScore(percentCorrect);
-  const now = new Date();
-
-  const result = await db.transaction(async (transaction) => {
-    const loadStoredAnswerGrading = (attemptId: string) => transaction.select({
-      questionKey: quizAttemptAnswers.questionKey,
-      questionIndex: quizAttemptAnswers.questionIndex,
-      isCorrect: quizAttemptAnswers.isCorrect,
-    })
-      .from(quizAttemptAnswers)
-      .where(eq(quizAttemptAnswers.attemptId, attemptId))
-      .orderBy(asc(quizAttemptAnswers.questionIndex));
-
-    const [prior] = await transaction.select({
-      id: quizAttempts.id,
-      submissionId: quizAttempts.submissionId,
-      userId: quizAttempts.userId,
-      topicId: quizAttempts.topicId,
-      mode: quizAttempts.quizMode,
-      correctAnswers: quizAttempts.correctAnswers,
-      totalQuestions: quizAttempts.totalQuestions,
-      percentCorrect: quizAttempts.percentCorrect,
-      resultingMemoryScore: quizAttempts.resultingMemoryScore,
-      submittedAt: quizAttempts.submittedAt,
-    })
-      .from(quizAttempts)
-      .where(eq(quizAttempts.submissionId, input.submissionId))
-      .limit(1);
-
-    if (prior) {
-      if (prior.userId !== userId) {
-        throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
-      }
-      return {
-        ...prior,
-        idempotentReplay: true,
-        answers: await loadStoredAnswerGrading(prior.id),
-      };
-    }
-
-    const [attempt] = await transaction.insert(quizAttempts).values({
-      id: randomUUID(),
-      submissionId: input.submissionId,
-      userId,
-      subjectId: questionSet.subjectId,
-      topicId: questionSet.topicId,
-      quizMode: input.mode,
-      questionSetVersion: 'db-v1',
-      correctAnswers,
-      totalQuestions: questions.length,
-      percentCorrect,
-      resultingMemoryScore,
-      startedAt: input.startedAt ? new Date(input.startedAt) : null,
-      submittedAt: now,
-    }).onConflictDoNothing({ target: quizAttempts.submissionId }).returning({
-      id: quizAttempts.id,
-      submissionId: quizAttempts.submissionId,
-      userId: quizAttempts.userId,
-      topicId: quizAttempts.topicId,
-      mode: quizAttempts.quizMode,
-      correctAnswers: quizAttempts.correctAnswers,
-      totalQuestions: quizAttempts.totalQuestions,
-      percentCorrect: quizAttempts.percentCorrect,
-      resultingMemoryScore: quizAttempts.resultingMemoryScore,
-      submittedAt: quizAttempts.submittedAt,
-    });
-
-    if (!attempt) {
-      const [racedAttempt] = await transaction.select({
-        id: quizAttempts.id,
-        submissionId: quizAttempts.submissionId,
-        userId: quizAttempts.userId,
-        topicId: quizAttempts.topicId,
-        mode: quizAttempts.quizMode,
-        correctAnswers: quizAttempts.correctAnswers,
-        totalQuestions: quizAttempts.totalQuestions,
-        percentCorrect: quizAttempts.percentCorrect,
-        resultingMemoryScore: quizAttempts.resultingMemoryScore,
-        submittedAt: quizAttempts.submittedAt,
-      }).from(quizAttempts).where(eq(quizAttempts.submissionId, input.submissionId)).limit(1);
-
-      if (!racedAttempt || racedAttempt.userId !== userId) {
-        throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
-      }
-      return {
-        ...racedAttempt,
-        idempotentReplay: true,
-        answers: await loadStoredAnswerGrading(racedAttempt.id),
-      };
-    }
-
-    await transaction.insert(quizAttemptAnswers).values(gradedAnswers.map((answer) => ({
-      attemptId: attempt.id,
-      ...answer,
-    })));
-
-    await transaction.insert(userTopicProgress).values({
-      userId,
-      topicId: questionSet.topicId,
-      memoryScore: resultingMemoryScore,
-      lastReviewedAt: now,
-      nextReviewAt: calculateNextReviewAt(resultingMemoryScore, now),
-      quizAttempts: 1,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: [userTopicProgress.userId, userTopicProgress.topicId],
-      set: {
-        memoryScore: resultingMemoryScore,
-        lastReviewedAt: now,
-        nextReviewAt: calculateNextReviewAt(resultingMemoryScore, now),
-        quizAttempts: sql`${userTopicProgress.quizAttempts} + 1`,
-        updatedAt: now,
-      },
-    });
-
-    return {
-      ...attempt,
-      idempotentReplay: false,
-      answers: gradedAnswers.map(({ questionKey, questionIndex, isCorrect }) => ({
-        questionKey,
-        questionIndex,
-        isCorrect,
-      })),
-    };
-  });
-
-  return context.json(
-    buildQuizAttemptResponse(result),
-    result.idempotentReplay ? 200 : 201,
-  );
+api.post('/me/quiz-attempts/:submissionId/abandon', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  return context.json(await abandonAssessmentSession(userId, context.req.param('submissionId')));
 });
 
 api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {
@@ -744,6 +748,14 @@ api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     totalQuestions: quizAttempts.totalQuestions,
     percentCorrect: quizAttempts.percentCorrect,
     resultingMemoryScore: quizAttempts.resultingMemoryScore,
+    status: quizAttempts.status,
+    feedbackStatus: quizAttempts.feedbackStatus,
+    priorMastery: quizAttempts.priorMastery,
+    posteriorMastery: quizAttempts.posteriorMastery,
+    currentMastery: quizAttempts.currentMastery,
+    marksObtained: quizAttempts.marksObtained,
+    maximumMarks: quizAttempts.maximumMarks,
+    calculationTrace: quizAttempts.calculationTrace,
     startedAt: quizAttempts.startedAt,
     submittedAt: quizAttempts.submittedAt,
   })
@@ -758,6 +770,8 @@ api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {
     questionIndex: quizAttemptAnswers.questionIndex,
     submittedAnswer: quizAttemptAnswers.submittedAnswer,
     isCorrect: quizAttemptAnswers.isCorrect,
+    marksObtained: quizAttemptAnswers.marksObtained,
+    maximumMarks: quizAttemptAnswers.maximumMarks,
   })
     .from(quizAttemptAnswers)
     .where(inArray(quizAttemptAnswers.attemptId, attemptRows.map((attempt) => attempt.id)))
@@ -778,9 +792,238 @@ api.get('/me/quiz-attempts', loadSession, requireSession, async (context) => {
         questionIndex: answer.questionIndex,
         submittedAnswer: answer.submittedAnswer,
         isCorrect: answer.isCorrect,
+        marksObtained: answer.marksObtained,
+        maximumMarks: answer.maximumMarks,
       })),
     })),
   });
+});
+
+// Marks a spoken explanation against the syllabus content this project already
+// holds. Separate from the client-side rubric on purpose: the rubric answers
+// "was it mentioned", deterministically and offline; this answers "was it
+// right", and needs a model.
+//
+// Never fails the request. If analysis is unconfigured, times out, or comes
+// back unparseable, the response says so and the room keeps showing rubric
+// coverage. Losing the marking should never cost a student the session.
+api.post('/me/discussion-analysis', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = discussionAnalysisSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({ available: false, analysis: null });
+  }
+
+  const model = getAnalysisModel();
+  if (!model) return context.json({ available: false, analysis: null });
+
+  try {
+    const analysis = await analyzeExplanation(input.topicId, input.transcript, model);
+    return context.json({ available: true, analysis });
+  } catch {
+    // The upstream error can echo the prompt, which carries the transcript, so
+    // it is not logged or returned.
+    return context.json({ available: true, analysis: null });
+  }
+});
+
+// Capture Hub: OCR a photographed or scanned page of notes.
+//
+// `available: false` means this deployment has no OCR provider configured;
+// `available: true, text: null` means a provider was called and it failed.
+// The frontend tells those apart -- one says "not set up here", the other
+// says "try again" -- and either way the student's typed/pasted text still
+// works, since OCR only ever adds to that rather than replacing it.
+api.post('/me/capture/ocr', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureOcrSchema.parse(await readJson(context));
+
+  if (!isOcrConfigured()) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'ocr', reason: 'not_configured' },
+    });
+  }
+  const provider = getOcrProvider();
+  if (!provider) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'ocr', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const text = await provider.recognize(Buffer.from(input.imageBase64, 'base64'), input.mimeType);
+    return context.json({
+      available: true,
+      text,
+      failure: text.trim() ? null : { stage: 'ocr', reason: 'no_text' },
+    });
+  } catch {
+    // The upstream error can carry account details; not logged or returned.
+    return context.json({
+      available: true,
+      text: null,
+      failure: { stage: 'ocr', reason: 'provider_error' },
+    });
+  }
+});
+
+// Capture Hub: compress OCR'd and/or typed notes into key points. Not graded
+// against the syllabus -- see /me/capture/evaluate for that -- a summary
+// reflects what the student wrote, nothing more.
+api.post('/me/capture/summarize', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureSummarizeSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({
+      available: false,
+      points: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
+  const model = getAnalysisModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      points: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const points = await summarizeNotes(input.text, model);
+    return context.json({
+      available: true,
+      points,
+      failure: points?.length ? null : { stage: 'summary', reason: 'no_summary' },
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      points: null,
+      failure: { stage: 'summary', ...analysisFailure(error) },
+    });
+  }
+});
+
+// Capture Hub: summarize the combined OCR + typed notes first, then compare
+// that summary with the syllabus/database grounding. Returning both artifacts
+// makes the data flow visible to the student and keeps evaluation consistent
+// with the exact summary they reviewed.
+api.post('/me/capture/evaluate', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureEvaluateSchema.parse(await readJson(context));
+
+  if (!isAnalysisConfigured()) {
+    return context.json({
+      available: false,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
+  const model = getAnalysisModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'summary', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const assessment = await assessCapturedNotes(input.topicId, input.text, model);
+    return context.json({
+      available: true,
+      summaryPoints: assessment.summaryPoints,
+      evaluation: assessment.evaluation,
+      failure: assessment.failure,
+    });
+  } catch {
+    return context.json({
+      available: true,
+      summaryPoints: null,
+      evaluation: null,
+      failure: { stage: 'evaluation', reason: 'provider_error' },
+    });
+  }
+});
+
+// Capture Hub: write study notes from retrieved staff textbook passages.
+// Uses Gemini 3.1 Flash-Lite, not the 3.5 Flash OCR/scoring model.
+api.post('/me/capture/generate-notes', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureGenerateNotesSchema.parse(await readJson(context));
+
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { stage: 'generate', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await generateTopicNotes(input.topicId, model);
+    if (!result.grounded) {
+      return context.json({
+        available: true,
+        text: null,
+        failure: { stage: 'generate', reason: 'no_textbook' },
+      });
+    }
+    return context.json({
+      available: true,
+      text: result.text,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: { stage: 'generate', ...analysisFailure(error) },
+    });
+  }
+});
+
+// Spidey: general study-guide chat (EduNets features, tips, saved materials).
+// Uses Gemini 3.1 Flash-Lite on GEMINI_API_KEY, not the 3.5 Flash OCR model.
+api.post('/me/spidey/chat', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = spideyChatSchema.parse(await readJson(context));
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      text: null,
+      failure: { reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await answerSpideyChat({
+      messages: input.messages,
+      ...(input.materials === undefined ? {} : { materials: input.materials }),
+    }, model);
+    return context.json({
+      available: true,
+      text: result.text,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: analysisFailure(error),
+    });
+  }
 });
 
 export { api as apiV1 };

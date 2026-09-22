@@ -26,6 +26,17 @@
 
 ---
 
+## 2026-09-22 · monorepo 收尾 · Cursor
+
+**完成 API 对齐并删掉根目录多余残留**
+
+- **做了什么**：从 `main` 对齐 `apps/api`（路径改到 `packages/database` 与 `apps/web/lib`），去掉与 main 不一致的遗留文件；删根目录重复的 `landing/`（已在 `apps/web/components/landing`）和空壳 `src/`。全仓 `npm run typecheck` 通过。
+- **为什么**：Option A monorepo 迁完后 API 与前端路径曾错位；根上还留着迁走后的重复目录。
+- **影响面**：根目录不再有 `landing/`、`src/`。落地页只从 `@/components/landing` 引用。保留 `api/`、`services/huawei-sis-gateway/`、`app-gen-sdk/`、`generated/`。
+- **坑**：根 `landing/` 与 `apps/web/components/landing` 内容重复，删前已对照文件名；IDE 里若仍打开旧路径文件属于已删副本。
+
+---
+
 ## 2026-09-22 · 冲突解决 · Cursor
 
 **解开把 main 上的 stash 应用到 `alex-AI` 时的合并冲突**

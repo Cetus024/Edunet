@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { topicSubconcepts } from '../../../apps/web/features/concept-web/content.js';
+import { topicSubconcepts } from '../../../features/concept-web/content.js';
 import {
   alignedOuterRingStart,
   CONCEPT_WEB_LAYOUT,
   getConceptNodeTypography,
   type ConceptNodeKind,
-} from '../../../apps/web/features/concept-web/graph-utils.js';
+} from '../../../features/concept-web/graph-utils.js';
 import { CURRICULUM } from '../../../apps/web/lib/curriculum.js';
 
 function angularDistance(left: number, right: number): number {

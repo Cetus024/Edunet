@@ -6,7 +6,7 @@ import { quizAttemptAnswers, quizAttempts, questionReviews } from '../../../../p
 import { users } from '../../../../packages/database/schema/auth.js';
 import { ApiError } from '../errors.js';
 import { getQuestionByKey, getQuestionsForTopic } from '../lib/question-bank.js';
-import { loadTeacherActor, listStudentsInScope } from './teacher-students.js';
+import { loadTeacherActor, listStudentsForTeacher, requireTeacherProfile } from './teacher-students.js';
 
 export type ReviewQuestion = {
   questionKey: string;
@@ -31,19 +31,17 @@ export type QuizReviewResponse = {
 };
 
 /**
- * Aggregates real wrong answers from the roster's concept-check attempts,
+ * Aggregates real wrong answers from the roster's MCQ attempts,
  * grouped by topic, so teachers can review/refine the explanation shown for
- * each question. Scoped to concept-check only: past-paper and speed-round
- * attempts key every question under whichever single topic was selected in
-   * the quiz-setup UI, so topic attribution
- * for those modes is not reliable enough to group by here.
+ * each question. Essay self-marks are excluded until trusted AI grading is
+ * introduced.
  */
 export async function getQuizReviewForTeacher(
   teacherUserId: string,
-  scopeId?: string,
+  scopeId: string,
 ): Promise<QuizReviewResponse> {
-  const teacher = await loadTeacherActor(teacherUserId, scopeId);
-  const roster = await listStudentsInScope(teacher);
+  const teacher = await loadTeacherActor(teacherUserId, { scopeId });
+  const roster = await listStudentsForTeacher(teacherUserId, scopeId);
 
   const [subjectRow] = await db.select({ id: subjects.id, name: subjects.name })
     .from(subjects)
@@ -62,7 +60,7 @@ export async function getQuizReviewForTeacher(
     .innerJoin(quizAttemptAnswers, eq(quizAttemptAnswers.attemptId, quizAttempts.id))
     .where(and(
       inArray(quizAttempts.userId, roster.map((student) => student.id)),
-      eq(quizAttempts.quizMode, 'concept-check'),
+      eq(quizAttempts.quizMode, 'mcq'),
       eq(quizAttempts.subjectId, subjectRow.id),
       eq(quizAttemptAnswers.isCorrect, false),
     ))
@@ -131,7 +129,7 @@ export async function saveQuestionReview(
   questionKey: string,
   explanation: string,
 ): Promise<void> {
-  await loadTeacherActor(teacherUserId); // throws TEACHER_ONLY for non-teaching roles
+  await requireTeacherProfile(teacherUserId);
 
   const question = await getQuestionByKey(questionKey);
   if (!question) throw new ApiError(400, 'INVALID_QUESTION_KEY', 'This question was not found.');

@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
 import type { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,12 +12,12 @@ import {
   assertSupabaseRuntimeConnection,
   parseSupabaseConnection,
 } from '../../../packages/database/supabase-safety.js';
-import { EXPECTED_CATALOG_COUNTS } from '../../../packages/database/constants.js';
 import {
   quizQuestionSeed,
   schoolSeed,
   subjectSeed,
   subtopicSeed,
+  topicAliasSeed,
   topicSeed,
 } from '../../../packages/database/seed-data.js';
 import { resolveCurriculumTopic } from '../../../apps/web/lib/curriculum.js';
@@ -29,11 +28,12 @@ function expectUnique(values: readonly string[]): void {
 
 describe('database catalog seed', () => {
   it('contains the exact fixed catalog counts', () => {
-    expect(schoolSeed).toHaveLength(EXPECTED_CATALOG_COUNTS.schools);
-    expect(subjectSeed).toHaveLength(EXPECTED_CATALOG_COUNTS.subjects);
-    expect(topicSeed).toHaveLength(EXPECTED_CATALOG_COUNTS.topics);
-    expect(subtopicSeed).toHaveLength(EXPECTED_CATALOG_COUNTS.subtopics);
-    expect(quizQuestionSeed).toHaveLength(EXPECTED_CATALOG_COUNTS.questions);
+    expect(schoolSeed).toHaveLength(151);
+    expect(subjectSeed).toHaveLength(2);
+    expect(topicSeed).toHaveLength(15);
+    expect(subtopicSeed).toHaveLength(41);
+    expect(quizQuestionSeed).toHaveLength(225);
+    expect(subjectSeed.map((subject) => subject.name)).toEqual(['Mathematics', 'Chemistry']);
   });
 
   it('uses unique school, subject, and topic IDs', () => {
@@ -41,6 +41,7 @@ describe('database catalog seed', () => {
     expectUnique(subjectSeed.map((subject) => subject.id));
     expectUnique(topicSeed.map((topic) => topic.id));
     expectUnique(subtopicSeed.map((subtopic) => subtopic.id));
+    expectUnique(topicAliasSeed.map((alias) => alias.id));
   });
 
   it('assigns every topic to an existing subject', () => {
@@ -58,6 +59,7 @@ describe('database catalog seed', () => {
     for (const question of quizQuestionSeed) {
       expect(topicIds.has(question.topicId), question.id).toBe(true);
       expect(question.id).toMatch(new RegExp(`^${question.topicId}-q\\d{3}$`));
+      expect(['practice', 'placement', 'both']).toContain(question.usage);
       if (question.type === 'mcq') {
         const options = JSON.parse(question.options ?? 'null') as unknown;
         expect(Array.isArray(options), question.id).toBe(true);
@@ -66,6 +68,49 @@ describe('database catalog seed', () => {
         expect(Number(question.correctAnswer), question.id).toBeLessThan((options as unknown[]).length);
       }
     }
+  });
+
+  it('provides ten MCQs and five ten-mark Essay questions per topic', () => {
+    for (const topic of topicSeed) {
+      const rows = quizQuestionSeed.filter((question) => question.topicId === topic.id);
+      const placement = rows.filter((question) => question.type === 'mcq' && question.usage === 'both');
+      const practice = rows.filter((question) => question.usage === 'practice' || question.usage === 'both');
+      const essays = rows.filter((question) => question.type === 'structured');
+      expect(placement, topic.id).toHaveLength(10);
+      expect(practice, topic.id).toHaveLength(15);
+      expect(essays, topic.id).toHaveLength(5);
+      expect(essays.every((question) => question.maxMarks === 10), topic.id).toBe(true);
+    }
+  });
+
+  it('keeps every question subtopic inside its parent and covers all formal subtopics with MCQs', () => {
+    const subtopicById = new Map(subtopicSeed.map((subtopic) => [subtopic.id, subtopic]));
+    const coveredByMcq = new Set<string>();
+    for (const question of quizQuestionSeed) {
+      if (question.subtopicId === null) continue;
+      expect(subtopicById.get(question.subtopicId)?.topicId, question.id).toBe(question.topicId);
+      if (question.type === 'mcq') coveredByMcq.add(question.subtopicId);
+    }
+    expect(coveredByMcq.size).toBe(41);
+    expect(subtopicSeed.every((subtopic) => coveredByMcq.has(subtopic.id))).toBe(true);
+    const unsplitTopicIds = new Set([
+      'chemistry-qualitative-analysis',
+      'chemistry-chemical-energetics',
+      'chemistry-rate-reactions',
+      'chemistry-maintaining-air-quality',
+    ]);
+    expect(quizQuestionSeed
+      .filter((question) => unsplitTopicIds.has(question.topicId))
+      .every((question) => question.subtopicId === null)).toBe(true);
+  });
+
+  it('resolves legacy Topic IDs and names to the new parent Topics', () => {
+    expect(resolveCurriculumTopic('e-math-numbers')?.id).toBe('math-number-algebra');
+    expect(resolveCurriculumTopic('Algebra')?.id).toBe('math-number-algebra');
+    expect(resolveCurriculumTopic('e-math-geometry')?.id).toBe('math-geometry-measurement');
+    expect(resolveCurriculumTopic('chemistry-stoichiometry')?.id).toBe('chemistry-chemical-calculations');
+    expect(resolveCurriculumTopic('Acids & Bases')?.id).toBe('chemistry-acid-base-chemistry');
+    expect(resolveCurriculumTopic('chemistry-rate-of-reaction')?.id).toBe('chemistry-rate-reactions');
   });
 });
 
@@ -257,8 +302,8 @@ describe('curriculum v2 migration', () => {
   });
 
   it('installs exactly the canonical 15 Topic parents and remaps legacy enquiry links', () => {
-    expect(migration).toContain("('e-math', 'Mathematics', '4052', '📐', 0)");
-    expect(migration).toContain("('chemistry', 'Chemistry', '6092', '⚗️', 1)");
+    expect(migration).toContain("('e-math', 'Mathematics', '4052', '≡ƒôÉ', 0)");
+    expect(migration).toContain("('chemistry', 'Chemistry', '6092', 'ΓÜù∩╕Å', 1)");
     expect(migration).toContain("('math-number-algebra', 'e-math', 'N', 'NUMBER AND ALGEBRA'");
     expect(migration).toContain("('chemistry-maintaining-air-quality', 'chemistry', '12', 'Maintaining Air Quality'");
     expect(migration).toContain("WHEN 'chemistry-stoichiometry' THEN 'chemistry-chemical-calculations'");
@@ -298,6 +343,7 @@ describe('Supabase connection safety', () => {
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated');
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated');
     expect(statements).toContain('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC');
+    expect(statements).toContain('GRANT USAGE ON SCHEMA extensions TO "edunets_app"');
     expect(statements).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "edunets_app"');
     expect(statements).toContain('REVOKE ALL ON TABLE "edunets".__drizzle_migrations FROM "edunets_app"');
     expect(statements).toContain('REVOKE ALL ON TABLE "edunets".schema_metadata FROM "edunets_app"');

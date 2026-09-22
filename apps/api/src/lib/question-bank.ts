@@ -6,12 +6,17 @@ import { db } from '../../../../packages/database/index.js';
 import { quizQuestions, subjects, subtopics, topics } from '../../../../packages/database/schema/catalog.js';
 
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
-export type QuizQuestionMode = 'past-paper' | 'concept-check' | 'speed-round';
+export type QuizQuestionMode = 'mcq' | 'essay' | 'placement';
 
 export interface QuizQuestion {
   questionKey: string;
   type: QuizQuestionType;
   topic: string;
+  subtopic: {
+    id: string;
+    syllabusCode: string;
+    name: string;
+  } | null;
   text: string;
   correctAnswer: string | number;
   explanation: string;
@@ -21,12 +26,40 @@ export interface QuizQuestion {
   options?: string[];
   blankWord?: string;
   wordLimit?: number;
+  maxMarks?: number;
   diagramUrl?: string;
 }
+
+export type PublicPlacementQuestion = Pick<QuizQuestion,
+  'questionKey' | 'topic' | 'subtopic' | 'text' | 'source'> & {
+    type: 'mcq';
+    options: string[];
+  };
+
+export function serializePlacementQuestions(questions: readonly QuizQuestion[]): PublicPlacementQuestion[] {
+  return questions.map((question) => {
+    if (question.type !== 'mcq' || !question.options) {
+      throw new Error(`Placement question ${question.questionKey} is not a valid MCQ.`);
+    }
+    return {
+      questionKey: question.questionKey,
+      type: 'mcq',
+      topic: question.topic,
+      subtopic: question.subtopic,
+      text: question.text,
+      options: question.options,
+      ...(question.source ? { source: question.source } : {}),
+    };
+  });
+}
+
+export const serializeSpeedQuestions = serializePlacementQuestions;
 
 export type QuestionPoolRow = typeof quizQuestions.$inferSelect & {
   topicName: string;
   topicPosition: number;
+  subtopicSyllabusCode: string | null;
+  subtopicName: string | null;
 };
 
 type QuestionPool = {
@@ -37,11 +70,6 @@ type QuestionPool = {
   topicPosition: number;
   rows: QuestionPoolRow[];
 };
-
-export const PAST_PAPER_DEFINITIONS = [
-  { id: 'paper-1', label: 'Practice Paper 1 (MCQ)' },
-  { id: 'paper-2', label: 'Practice Paper 2 (Structured)' },
-] as const;
 
 function parseOptions(row: QuestionPoolRow): string[] | undefined {
   if (row.options === null) return undefined;
@@ -69,7 +97,7 @@ export function questionKeyFromDatabaseId(id: string, topicId: string): string {
   if (!Number.isInteger(ordinal) || ordinal < 1) {
     throw new Error(`Quiz question ${id} has an invalid ordinal.`);
   }
-  return `${topicId}:v1:q${String(ordinal).padStart(2, '0')}`;
+  return `${topicId}:v2:q${String(ordinal).padStart(2, '0')}`;
 }
 
 function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
@@ -87,6 +115,9 @@ function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
     questionKey: questionKeyFromDatabaseId(row.id, row.topicId),
     type: row.type,
     topic: row.topicName,
+    subtopic: row.subtopicId && row.subtopicSyllabusCode && row.subtopicName
+      ? { id: row.subtopicId, syllabusCode: row.subtopicSyllabusCode, name: row.subtopicName }
+      : null,
     text: row.text,
     correctAnswer,
     explanation: row.explanation,
@@ -96,6 +127,7 @@ function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
     ...(options ? { options } : {}),
     ...(row.blankWord ? { blankWord: row.blankWord } : {}),
     ...(row.wordLimit !== null ? { wordLimit: row.wordLimit } : {}),
+    ...(row.maxMarks !== null ? { maxMarks: row.maxMarks } : {}),
     ...(row.diagramUrl ? { diagramUrl: row.diagramUrl } : {}),
   };
 }
@@ -126,7 +158,9 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
   const rows = await db.select({
     id: quizQuestions.id,
     topicId: quizQuestions.topicId,
+    subtopicId: quizQuestions.subtopicId,
     type: quizQuestions.type,
+    usage: quizQuestions.usage,
     text: quizQuestions.text,
     correctAnswer: quizQuestions.correctAnswer,
     explanation: quizQuestions.explanation,
@@ -134,59 +168,43 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
     options: quizQuestions.options,
     blankWord: quizQuestions.blankWord,
     wordLimit: quizQuestions.wordLimit,
+    maxMarks: quizQuestions.maxMarks,
     source: quizQuestions.source,
     resourceNumber: quizQuestions.resourceNumber,
     diagramUrl: quizQuestions.diagramUrl,
     topicName: topics.name,
     topicPosition: topics.position,
+    subtopicSyllabusCode: subtopics.syllabusCode,
+    subtopicName: subtopics.name,
   })
     .from(quizQuestions)
     .innerJoin(topics, eq(topics.id, quizQuestions.topicId))
+    .leftJoin(subtopics, eq(subtopics.id, quizQuestions.subtopicId))
     .where(eq(topics.subjectId, selectedTopic.subjectId))
     .orderBy(asc(topics.position), asc(quizQuestions.id));
 
   return { ...selectedTopic, rows };
 }
 
-function relatedTopicIds(rows: readonly QuestionPoolRow[], selectedTopicPosition: number): Set<string> {
-  const topicPositions = new Map<string, number>();
-  for (const row of rows) topicPositions.set(row.topicId, row.topicPosition);
-
-  const nearest = [...topicPositions.entries()]
-    .sort(([leftId, leftPosition], [rightId, rightPosition]) => (
-      Math.abs(leftPosition - selectedTopicPosition) - Math.abs(rightPosition - selectedTopicPosition)
-      || leftPosition - rightPosition
-      || leftId.localeCompare(rightId)
-    ))
-    .slice(0, 3)
-    .map(([relatedTopicId]) => relatedTopicId);
-
-  return new Set(nearest);
-}
-
 function candidateRows(
   rows: readonly QuestionPoolRow[],
   selectedTopicId: string,
-  selectedTopicPosition: number,
+  _selectedTopicPosition: number,
   mode: QuizQuestionMode,
-  paperId?: string,
 ): QuestionPoolRow[] | null {
-  if (mode === 'concept-check') {
-    return rows.filter((row) => row.topicId === selectedTopicId);
+  if (mode === 'placement' || mode === 'mcq') {
+    return rows.filter((row) => (
+      row.topicId === selectedTopicId
+      && row.type === 'mcq'
+      && (row.usage === 'placement' || row.usage === 'both')
+    ));
   }
 
-  if (mode === 'speed-round') {
-    const topicIds = relatedTopicIds(rows, selectedTopicPosition);
-    return rows.filter((row) => topicIds.has(row.topicId) && row.type === 'mcq');
+  if (mode === 'essay') {
+    return rows.filter((row) => row.topicId === selectedTopicId && row.type === 'structured');
   }
 
-  if (paperId !== undefined && !PAST_PAPER_DEFINITIONS.some((paper) => paper.id === paperId)) {
-    return null;
-  }
-  const resolvedPaperId = paperId ?? PAST_PAPER_DEFINITIONS[0].id;
-  return rows.filter((row) => resolvedPaperId === 'paper-1'
-    ? row.type === 'mcq'
-    : row.type !== 'mcq');
+  return null;
 }
 
 export function selectQuestionRows(
@@ -195,34 +213,33 @@ export function selectQuestionRows(
   selectedTopicPosition: number,
   mode: QuizQuestionMode,
   seed: string,
-  paperId?: string,
 ): QuestionPoolRow[] | null {
-  const candidates = candidateRows(rows, selectedTopicId, selectedTopicPosition, mode, paperId);
-  if (!candidates || candidates.length === 0 || (mode === 'speed-round' && candidates.length < 5)) {
+  const candidates = candidateRows(rows, selectedTopicId, selectedTopicPosition, mode);
+  if (!candidates
+    || candidates.length === 0
+    || (mode === 'mcq' && candidates.length < 10)
+    || (mode === 'essay' && candidates.length < 5)
+    || (mode === 'placement' && candidates.length < 10)) {
     return null;
   }
 
-  const shuffled = seededShuffle(candidates, `${seed}:${mode}:${paperId ?? ''}`);
-  return mode === 'past-paper' ? shuffled : shuffled.slice(0, 5);
+  const shuffled = seededShuffle(candidates, `${seed}:${mode}`);
+  return shuffled.slice(0, mode === 'essay' ? 5 : 10);
 }
 
 export async function getQuizOptions(topicId: string, subjectId: string) {
   const pool = await loadQuestionPool(topicId);
   if (!pool || pool.subjectId !== subjectId) return null;
 
-  const conceptCount = Math.min(5, candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'concept-check')?.length ?? 0);
-  const speedCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'speed-round')?.length ?? 0;
+  const mcqCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'mcq')?.length ?? 0;
+  const essayCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'essay')?.length ?? 0;
 
   return {
     subjectId: pool.subjectId,
     topicId: pool.topicId,
     modes: {
-      conceptCheck: { available: conceptCount > 0, questionCount: conceptCount },
-      speedRound: { available: speedCandidateCount >= 5, questionCount: speedCandidateCount >= 5 ? 5 : 0 },
-      pastPaper: PAST_PAPER_DEFINITIONS.map((paper) => {
-        const count = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'past-paper', paper.id)?.length ?? 0;
-        return { ...paper, available: count > 0, questionCount: count };
-      }),
+      mcq: { available: mcqCandidateCount >= 10, questionCount: mcqCandidateCount >= 10 ? 10 : 0 },
+      essay: { available: essayCandidateCount >= 5, questionCount: essayCandidateCount >= 5 ? 5 : 0 },
     },
   };
 }
@@ -231,12 +248,11 @@ export async function getKeyedQuestions(
   topicId: string,
   mode: QuizQuestionMode,
   seed: string,
-  paperId?: string,
 ): Promise<{ subjectId: string; topicId: string; questions: QuizQuestion[] } | null> {
   const pool = await loadQuestionPool(topicId);
   if (!pool) return null;
 
-  const selected = selectQuestionRows(pool.rows, pool.topicId, pool.topicPosition, mode, seed, paperId);
+  const selected = selectQuestionRows(pool.rows, pool.topicId, pool.topicPosition, mode, seed);
   if (!selected) return null;
 
   return {
@@ -244,6 +260,18 @@ export async function getKeyedQuestions(
     topicId: pool.topicId,
     questions: selected.map(hydrateQuestion),
   };
+}
+
+export async function getPlacementQuestions(
+  topicId: string,
+  subjectId: string,
+  seed: string,
+): Promise<{ subjectId: string; topicId: string; questions: QuizQuestion[] } | null> {
+  const questionSet = await getKeyedQuestions(topicId, 'placement', seed);
+  if (!questionSet || questionSet.subjectId !== subjectId || questionSet.questions.length !== 10) {
+    return null;
+  }
+  return questionSet;
 }
 
 export async function getQuestionsForTopic(topicId: string): Promise<QuizQuestion[]> {

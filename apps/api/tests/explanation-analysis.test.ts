@@ -41,14 +41,17 @@ describe('buildTopicRubric', () => {
   it('uses local rubric facets for an intentionally unsplit Topic', () => {
     expect(buildTopicRubric('chemistry-qualitative-analysis')).toEqual([
       {
+        id: 'chemistry-qualitative-analysis-facet-1',
         name: 'Cation Tests',
         description: 'Cation Tests is assessed within Qualitative Analysis learning outcomes.',
       },
       {
+        id: 'chemistry-qualitative-analysis-facet-2',
         name: 'Anion Tests',
         description: 'Anion Tests is assessed within Qualitative Analysis learning outcomes.',
       },
       {
+        id: 'chemistry-qualitative-analysis-facet-3',
         name: 'Gas Tests',
         description: 'Gas Tests is assessed within Qualitative Analysis learning outcomes.',
       },
@@ -150,7 +153,7 @@ describe('analyzeExplanation', () => {
 
   it('marks a full transcript end to end without touching the database', async () => {
     // Grounding is injected, so this suite runs offline and without
-    // DATABASE_URL — the model is the only thing being exercised here.
+    // DATABASE_URL ΓÇö the model is the only thing being exercised here.
     const result = await analyzeExplanation(
       'chemistry-particulate-nature-matter',
       'the proton number identifies the element and isotopes have different proton numbers',

@@ -8,7 +8,7 @@ import type { AnalysisModel } from './explanation-analysis.js';
  * analysis is available at all. Nothing here is required: with no endpoint
  * configured `getAnalysisModel()` returns null, the route skips the call, and
  * the discussion room falls back to the deterministic rubric. A student then
- * still sees coverage — never a broken panel.
+ * still sees coverage ΓÇö never a broken panel.
  *
  * The credentials stay server-side. They must never be given a NEXT_PUBLIC_
  * prefix: the frontend is a static export, so anything with that prefix is

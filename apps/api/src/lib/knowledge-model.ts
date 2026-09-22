@@ -127,11 +127,11 @@ function calculateModeResult(input: {
   const currentMastery = posteriorMastery + learningGain;
   const decayMultiplier = Math.exp(-input.elapsedDays / PHASE1_PARAMETERS.stabilityDays);
   const knownSymbolic = input.mode === 'mcq'
-    ? 'A_MC = [(1-Slip_MC)^c × Slip_MC^w]^λ'
-    : 'A_E = (1-Slip_E)^q × Slip_E^(1-q)';
+    ? 'A_MC = [(1-Slip_MC)^c ├ù Slip_MC^w]^╬╗'
+    : 'A_E = (1-Slip_E)^q ├ù Slip_E^(1-q)';
   const unknownSymbolic = input.mode === 'mcq'
-    ? 'B_MC = [Guess_MC^c × (1-Guess_MC)^w]^λ'
-    : 'B_E = Guess_E^q × (1-Guess_E)^(1-q)';
+    ? 'B_MC = [Guess_MC^c ├ù (1-Guess_MC)^w]^╬╗'
+    : 'B_E = Guess_E^q ├ù (1-Guess_E)^(1-q)';
 
   return {
     version: KNOWLEDGE_MODEL_VERSION,
@@ -154,15 +154,15 @@ function calculateModeResult(input: {
       {
         step: 'prior_decay',
         label: 'Time-decayed prior mastery',
-        symbolic: 'P(L_prior) = P(L_previous) × exp(-Δt/S)',
-        substitution: `${formatFormulaNumber(input.previousMastery)} × exp(-${formatFormulaNumber(input.elapsedDays)}/${formatFormulaNumber(PHASE1_PARAMETERS.stabilityDays)})`,
-        calculation: `${formatFormulaNumber(input.previousMastery)} × ${formatFormulaNumber(decayMultiplier)} = ${formatFormulaNumber(priorMastery)}`,
+        symbolic: 'P(L_prior) = P(L_previous) ├ù exp(-╬öt/S)',
+        substitution: `${formatFormulaNumber(input.previousMastery)} ├ù exp(-${formatFormulaNumber(input.elapsedDays)}/${formatFormulaNumber(PHASE1_PARAMETERS.stabilityDays)})`,
+        calculation: `${formatFormulaNumber(input.previousMastery)} ├ù ${formatFormulaNumber(decayMultiplier)} = ${formatFormulaNumber(priorMastery)}`,
         explanation: input.elapsedDays === 0
           ? 'No time decay is needed; the saved mastery or the initial P(L0)=0.35 is used as this assessment\'s fixed prior.'
           : 'Previous mastery is decayed before new assessment evidence is applied.',
         symbols: [
           { symbol: 'P(L_previous)', meaning: 'Mastery saved after the previous assessment or correction.', value: input.previousMastery, unit: 'probability' },
-          { symbol: 'Δt', meaning: 'Days since this mode was last updated.', value: input.elapsedDays, unit: 'days' },
+          { symbol: '╬öt', meaning: 'Days since this mode was last updated.', value: input.elapsedDays, unit: 'days' },
           { symbol: 'S', meaning: 'Fixed Phase 1 memory stability.', value: PHASE1_PARAMETERS.stabilityDays, unit: 'days' },
         ],
         value: priorMastery,
@@ -173,15 +173,15 @@ function calculateModeResult(input: {
         label: 'Likelihood if the concept is known',
         symbolic: knownSymbolic,
         substitution: input.mode === 'mcq'
-          ? `[(1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)})^${input.mcq!.correct} × ${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)}^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
-          : `(1-${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)})^${formatFormulaNumber(input.observationScore)} × ${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)}^(1-${formatFormulaNumber(input.observationScore)})`,
+          ? `[(1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)})^${input.mcq!.correct} ├ù ${formatFormulaNumber(PHASE1_PARAMETERS.mcqSlip)}^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
+          : `(1-${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)})^${formatFormulaNumber(input.observationScore)} ├ù ${formatFormulaNumber(PHASE1_PARAMETERS.essaySlip)}^(1-${formatFormulaNumber(input.observationScore)})`,
         calculation: `A = ${formatFormulaNumber(input.evidenceKnown)}`,
         explanation: 'Measures how compatible the complete result is with a learner who knows the concept.',
         symbols: input.mode === 'mcq'
           ? [
               { symbol: 'c', meaning: 'Correct MCQ answers.', value: input.mcq!.correct, unit: 'count' },
               { symbol: 'w', meaning: 'Wrong MCQ answers.', value: input.mcq!.wrong, unit: 'count' },
-              { symbol: 'λ', meaning: 'MCQ evidence-strength control.', value: PHASE1_PARAMETERS.mcqEvidenceStrength },
+              { symbol: '╬╗', meaning: 'MCQ evidence-strength control.', value: PHASE1_PARAMETERS.mcqEvidenceStrength },
             ]
           : [{ symbol: 'q', meaning: 'Essay marks divided by maximum marks.', value: input.observationScore, unit: 'probability' }],
         value: input.evidenceKnown,
@@ -191,8 +191,8 @@ function calculateModeResult(input: {
         label: 'Likelihood if the concept is not known',
         symbolic: unknownSymbolic,
         substitution: input.mode === 'mcq'
-          ? `[${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)}^${input.mcq!.correct} × (1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)})^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
-          : `${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)}^${formatFormulaNumber(input.observationScore)} × (1-${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)})^(1-${formatFormulaNumber(input.observationScore)})`,
+          ? `[${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)}^${input.mcq!.correct} ├ù (1-${formatFormulaNumber(PHASE1_PARAMETERS.mcqGuess)})^${input.mcq!.wrong}]^${formatFormulaNumber(PHASE1_PARAMETERS.mcqEvidenceStrength)}`
+          : `${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)}^${formatFormulaNumber(input.observationScore)} ├ù (1-${formatFormulaNumber(PHASE1_PARAMETERS.essayGuess)})^(1-${formatFormulaNumber(input.observationScore)})`,
         calculation: `B = ${formatFormulaNumber(input.evidenceUnknown)}`,
         explanation: 'Measures how compatible the complete result is with guessing or partial performance without mastery.',
         symbols: input.mode === 'mcq'
@@ -203,8 +203,8 @@ function calculateModeResult(input: {
       {
         step: 'bayesian_update',
         label: 'Bayesian observation update',
-        symbolic: 'P(L|result) = prior×A / [prior×A + (1-prior)×B]',
-        substitution: `${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(input.evidenceKnown)} / [${formatFormulaNumber(priorMastery)}×${formatFormulaNumber(input.evidenceKnown)} + (1-${formatFormulaNumber(priorMastery)})×${formatFormulaNumber(input.evidenceUnknown)}]`,
+        symbolic: 'P(L|result) = prior├ùA / [prior├ùA + (1-prior)├ùB]',
+        substitution: `${formatFormulaNumber(priorMastery)}├ù${formatFormulaNumber(input.evidenceKnown)} / [${formatFormulaNumber(priorMastery)}├ù${formatFormulaNumber(input.evidenceKnown)} + (1-${formatFormulaNumber(priorMastery)})├ù${formatFormulaNumber(input.evidenceUnknown)}]`,
         calculation: `${formatFormulaNumber(numerator)} / ${formatFormulaNumber(denominator)} = ${formatFormulaNumber(posteriorMastery)}`,
         explanation: 'Combines the decayed prior with the evidence from the complete assessment.',
         symbols: [
@@ -217,8 +217,8 @@ function calculateModeResult(input: {
       {
         step: 'learning_transition',
         label: input.transitionUsed > 0 ? 'Learning after completed corrections' : 'Assessment-only result',
-        symbolic: 'P(L_new) = posterior + (1-posterior) × P(T_used)',
-        substitution: `${formatFormulaNumber(posteriorMastery)} + (1-${formatFormulaNumber(posteriorMastery)}) × ${formatFormulaNumber(input.transitionUsed)}`,
+        symbolic: 'P(L_new) = posterior + (1-posterior) ├ù P(T_used)',
+        substitution: `${formatFormulaNumber(posteriorMastery)} + (1-${formatFormulaNumber(posteriorMastery)}) ├ù ${formatFormulaNumber(input.transitionUsed)}`,
         calculation: `${formatFormulaNumber(posteriorMastery)} + ${formatFormulaNumber(learningGain)} = ${formatFormulaNumber(currentMastery)}`,
         explanation: input.transitionUsed > 0
           ? 'P(T)=0.20 is applied exactly once after corrections are explicitly completed.'

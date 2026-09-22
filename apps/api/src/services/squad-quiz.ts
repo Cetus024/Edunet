@@ -540,7 +540,7 @@ export async function inviteSquadQuizParticipants(
       channel: 'study_squad',
       type: 'squad_quiz_invitation',
       title: `${userName} invited you to a Rescue drawing room`,
-      body: `${room.subjectName} · ${room.topicName}`,
+      body: `${room.subjectName} ┬╖ ${room.topicName}`,
       href: `/rescue-join?roomId=${encodeURIComponent(roomId)}`,
       resourceId: roomId,
       dedupeKey: `squad-quiz-invitation:${roomId}:${member.userId}`,

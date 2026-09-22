@@ -10,7 +10,7 @@ import { CURRICULUM_TOPIC_BY_ID } from '../../../../apps/web/lib/curriculum.js';
  *
  * The keyword rubric on the client answers "was this subconcept talked about".
  * It cannot answer "was what you said right", which is the half a student
- * revising actually needs. That requires a model — but a model asked to grade
+ * revising actually needs. That requires a model ΓÇö but a model asked to grade
  * an O-Level response from memory can invent syllabus detail, so everything it
  * judges against is supplied in the prompt: formal Subtopic descriptions (or
  * internal outcome facets for an unsplit Topic), plus the distinct explanation
@@ -32,7 +32,7 @@ export type AnalysisVerdict = {
 
 export type TopicGrounding = {
   topicId: string;
-  subconcepts: { name: string; description: string }[];
+  subconcepts: { id?: string; name: string; description: string }[];
   facts: { concept: string; statement: string }[];
 };
 
@@ -47,12 +47,14 @@ export function buildTopicRubric(topicId: string): TopicGrounding['subconcepts']
 
   if (topic.subtopics.length > 0) {
     return topic.subtopics.map((subtopic) => ({
+      id: subtopic.id,
       name: `${subtopic.syllabusCode} ${subtopic.name}`,
       description: subtopic.description,
     }));
   }
 
-  return (topic.rubricFacets ?? []).map((name) => ({
+  return (topic.rubricFacets ?? []).map((name, index) => ({
+    id: `${topic.id}-facet-${index + 1}`,
     name,
     description: `${name} is assessed within ${topic.name} learning outcomes.`,
   }));
@@ -110,7 +112,7 @@ export function buildAnalysisPrompt(grounding: TopicGrounding, transcript: strin
     'REFERENCE FACTS:',
     factLines,
     '',
-    'STUDENT TRANSCRIPT (speech-to-text: unpunctuated, may drop or mishear words —',
+    'STUDENT TRANSCRIPT (speech-to-text: unpunctuated, may drop or mishear words ΓÇö',
     'do not treat transcription noise as a mistake, and quote only what bears on meaning):',
     `"""${transcript.trim()}"""`,
     '',

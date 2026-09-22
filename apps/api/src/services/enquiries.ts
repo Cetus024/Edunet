@@ -31,6 +31,7 @@ import type {
   CreateEnquiryRequest,
   SendEnquiryMessageRequest,
 } from '../validation.js';
+import { buildNotificationValues } from './notifications.js';
 
 type EnquiryActorWithEmail = EnquiryActor & { email: string };
 
@@ -84,7 +85,6 @@ export async function loadEnquiryActor(userId: string): Promise<EnquiryActorWith
 
   if (!row?.onboardingCompleted
     || !row.schoolId
-    || !row.subjectId
     || (!isRequesterRole(row.role) && !isRecipientRole(row.role))) {
     throw new ApiError(409, 'ONBOARDING_REQUIRED', 'Complete onboarding before using enquiries.');
   }
@@ -123,7 +123,7 @@ async function loadDirectoryCandidates(subjectId: string): Promise<{
     .innerJoin(teachingScopes, eq(teachingScopes.userId, users.id))
     .where(and(
       eq(profiles.onboardingCompleted, true),
-      inArray(profiles.role, ['teacher', 'tutor']),
+      eq(profiles.role, 'teacher'),
       eq(teachingScopes.subjectId, subjectId),
     ));
 
@@ -150,7 +150,7 @@ export async function getQuestionRecipients(
   subjectId: string,
 ): Promise<{ scope: 'school' | 'global'; recipients: QuestionRecipient[] }> {
   if (!isRequesterRole(actor.role)) {
-    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students and parents can choose a recipient.');
+    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students can choose a recipient.');
   }
 
   const { candidates } = await loadDirectoryCandidates(subjectId);
@@ -181,20 +181,9 @@ async function loadMessageRecords(threadIds: readonly string[]): Promise<Message
     .orderBy(asc(enquiryMessages.createdAt), asc(enquiryMessages.id));
 }
 
-async function ensureRecipientDemos(actor: EnquiryActorWithEmail): Promise<void> {
-  if (!isRecipientRole(actor.role)) return;
-  await ensureDemoEnquiryThreads(db, {
-    userId: actor.userId,
-    displayName: actor.name,
-    email: actor.email,
-    role: actor.role,
-  });
-}
-
 export async function listEnquiries(
   actor: EnquiryActorWithEmail,
 ): Promise<EnquiryThreadResponse[]> {
-  await ensureRecipientDemos(actor);
   const threads = await loadVisibleThreadRecords(actor);
   const messages = await loadMessageRecords(threads.map((thread) => thread.id));
   const messagesByThread = new Map<string, MessageRecord[]>();
@@ -271,7 +260,7 @@ export async function createEnquiry(
   input: CreateEnquiryRequest,
 ): Promise<{ thread: EnquiryThreadResponse; idempotentReplay: boolean }> {
   if (!isRequesterRole(actor.role)) {
-    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students and parents can create an enquiry.');
+    throw new ApiError(403, 'ROLE_NOT_ALLOWED', 'Only students can create an enquiry.');
   }
   const requesterRole = actor.role;
 
@@ -296,7 +285,7 @@ export async function createEnquiry(
     throw new ApiError(
       400,
       'RECIPIENT_UNAVAILABLE',
-      'Select an available teacher or tutor for this subject.',
+      'Select an available teacher for this subject.',
     );
   }
 
@@ -365,8 +354,9 @@ export async function createEnquiry(
 
     if (!createdThread) throw new Error('Enquiry thread insert returned no row.');
 
+    const initialMessageId = randomUUID();
     await transaction.insert(enquiryMessages).values({
-      id: randomUUID(),
+      id: initialMessageId,
       threadId: createdThread.id,
       senderUserId: actor.userId,
       senderRole: requesterRole,
@@ -379,6 +369,19 @@ export async function createEnquiry(
       createdAt: now,
       updatedAt: now,
     });
+
+    await transaction.insert(notifications).values(buildNotificationValues({
+      recipientUserId: selectedRecipient.userId,
+      actorUserId: actor.userId,
+      channel: 'teacher',
+      type: 'teacher_enquiry',
+      title: `${actor.name} asked a question`,
+      body: input.body,
+      href: `/ask-teacher?threadId=${createdThread.id}`,
+      resourceId: createdThread.id,
+      dedupeKey: `teacher-enquiry:${initialMessageId}`,
+      createdAt: now,
+    })).onConflictDoNothing();
 
     return { threadId: createdThread.id, idempotentReplay: false };
   });
@@ -394,7 +397,7 @@ export async function sendEnquiryMessage(
   threadId: string,
   input: SendEnquiryMessageRequest,
 ): Promise<{ message: EnquiryMessageResponse; idempotentReplay: boolean }> {
-  await loadAuthorizedThread(actor, threadId);
+  const visibleThread = await loadAuthorizedThread(actor, threadId);
 
   const result = await db.transaction(async (transaction) => {
     await transaction.execute(
@@ -451,6 +454,26 @@ export async function sendEnquiryMessage(
       .set({ updatedAt: now })
       .where(eq(enquiryThreads.id, threadId));
 
+    const recipientUserId = actor.userId === visibleThread.requesterUserId
+      ? visibleThread.recipientUserId
+      : visibleThread.requesterUserId;
+    if (recipientUserId) {
+      await transaction.insert(notifications).values(buildNotificationValues({
+        recipientUserId,
+        actorUserId: actor.userId,
+        channel: 'teacher',
+        type: actor.role === 'teacher' ? 'teacher_reply' : 'teacher_enquiry',
+        title: actor.role === 'teacher'
+          ? `${actor.name} replied to your question`
+          : `${actor.name} sent another message`,
+        body: input.body,
+        href: `/ask-teacher?threadId=${threadId}`,
+        resourceId: threadId,
+        dedupeKey: `teacher-message:${message.id}`,
+        createdAt: now,
+      })).onConflictDoNothing();
+    }
+
     return { message, idempotentReplay: false };
   });
 
@@ -467,8 +490,8 @@ export async function markEnquiryRead(
   await loadAuthorizedThread(actor, threadId);
   const now = new Date();
   const incomingRoles = isRequesterRole(actor.role)
-    ? ['teacher', 'tutor'] as const
-    : ['student', 'parent'] as const;
+    ? ['teacher'] as const
+    : ['student'] as const;
 
   await db.update(enquiryMessages).set({
     unread: false,

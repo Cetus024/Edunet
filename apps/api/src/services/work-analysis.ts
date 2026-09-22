@@ -55,7 +55,7 @@ export async function analyseWork(input: Parameters<typeof buildWorkPrompt>[0], 
   if (!input.grounding) {
     result.verdict = 'needs_clarification';
     result.limitations.push(input.locale === 'zh'
-      ? '此课题缺少课程参考资料；概念判断需要老师或参考答案确认。'
+      ? 'µ¡ñΦ»╛Θóÿτ╝║σ░æΦ»╛τ¿ïσÅéΦÇâΦ╡äµûÖ∩╝¢µªéσ┐╡σêñµû¡Θ£ÇΦªüΦÇüσ╕êµêûσÅéΦÇâτ¡öµíêτí«Φ«ñπÇé'
       : 'Syllabus references are unavailable for this topic; conceptual claims need a teacher or reference answer.');
   }
   return result;

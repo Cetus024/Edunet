@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 // The mediator is frontend logic, but it is pure and worth pinning, and this is
-// the only vitest project in the repo — `npm run check` runs it. The API
+// the only vitest project in the repo ΓÇö `npm run check` runs it. The API
 // already imports from features/ for grounding, so the boundary is not new.
 import {
   HINT_AFTER_SECONDS,
@@ -127,7 +127,7 @@ describe('findRepeatedPhrase', () => {
   });
 
   it('ignores a phrase reused long ago rather than just now', () => {
-    // Only the recent tail counts — reusing a phrase a minute apart is not
+    // Only the recent tail counts ΓÇö reusing a phrase a minute apart is not
     // stalling, it is just talking. The filler between the two uses has to be
     // genuinely varied, or it supplies a repeat of its own.
     const long = [

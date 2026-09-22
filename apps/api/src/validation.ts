@@ -1,95 +1,59 @@
 import { z } from 'zod';
 
-const optionalNullable = <T extends z.ZodType>(schema: T) => schema.nullish();
-
 export const signupReferralCodeSchema = z.string().trim().max(64);
 
-export const materialMetadataSchema = z.strictObject({
-  name: z.string().trim().min(1).max(255),
-  type: z.string().trim().min(1).max(127),
-  size: z.number().int().min(0).max(25 * 1024 * 1024),
-  lastModified: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-});
-
-export const recordingMetadataSchema = z.strictObject({
-  durationSeconds: z.number().int().min(1).max(600),
-  mimeType: z.string().trim().min(1).max(127),
-});
-
-export const childInfoSchema = z.strictObject({
-  name: z.string().trim().min(1).max(120),
-  email: z.email().trim().toLowerCase().max(255),
-});
-
-export const teachingScopeInputSchema = z.strictObject({
-  subjectId: z.string().trim().min(1).max(64),
-  classroomName: z.string().trim().min(1).max(80),
-});
-
-export const onboardingRequestSchema = z.strictObject({
-  role: z.enum(['student', 'teacher', 'tutor', 'parent']),
+const onboardingSchoolFields = {
   schoolId: z.string().trim().min(1).max(128).optional(),
-  // Accepted as a compatibility input for the existing selector. It is always
-  // resolved against the fixed schools table; arbitrary values remain invalid.
   school: z.string().trim().min(1).max(255).optional(),
-  // Compatibility-only fields for clients cached before the simplified
-  // onboarding rollout. The route normalizes every new profile to `none` and
-  // ignores artifact metadata.
-  learningSource: z.enum(['material', 'recording', 'none']).optional(),
-  material: optionalNullable(materialMetadataSchema),
-  recording: optionalNullable(recordingMetadataSchema),
+} as const;
+
+const placementAnswerSchema = z.strictObject({
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
+  answer: z.number().int().min(0).max(3),
+});
+
+const studentOnboardingSchema = z.strictObject({
+  role: z.literal('student'),
+  ...onboardingSchoolFields,
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
-  familiarity: z.enum(['new', 'some', 'well']),
-  teachingScopes: z.array(teachingScopeInputSchema).min(1).max(16).optional(),
-  // Parent role only: who they want to follow.
-  child: optionalNullable(childInfoSchema),
-}).superRefine((value, context) => {
+  placement: z.strictObject({
+    submissionId: z.uuid(),
+    startedAt: z.iso.datetime({ offset: true }).optional(),
+    answers: z.array(placementAnswerSchema).length(10),
+  }),
+});
+
+const teacherOnboardingSchema = z.strictObject({
+  role: z.literal('teacher'),
+  ...onboardingSchoolFields,
+});
+
+export const onboardingRequestSchema = z.discriminatedUnion('role', [
+  studentOnboardingSchema,
+  teacherOnboardingSchema,
+]).superRefine((value, context) => {
   if (!value.schoolId && !value.school) {
     context.addIssue({ code: 'custom', path: ['schoolId'], message: 'Select a school.' });
   }
   if (value.schoolId && value.school) {
     context.addIssue({ code: 'custom', path: ['school'], message: 'Supply either schoolId or school, not both.' });
   }
-
-  if (value.role === 'parent' && !value.child) {
-    context.addIssue({ code: 'custom', path: ['child'], message: "A parent must provide their child's name and email." });
-  }
-  if (value.role !== 'parent' && value.child) {
-    context.addIssue({ code: 'custom', path: ['child'], message: 'Only parents provide child details.' });
-  }
-  const isTeachingRole = value.role === 'teacher' || value.role === 'tutor';
-  if (!isTeachingRole && value.teachingScopes) {
-    context.addIssue({ code: 'custom', path: ['teachingScopes'], message: 'Only teachers and tutors provide teaching scopes.' });
-  }
-  if (isTeachingRole && value.teachingScopes && value.teachingScopes[0]?.subjectId !== value.subjectId) {
-    context.addIssue({ code: 'custom', path: ['teachingScopes', 0, 'subjectId'], message: 'The primary teaching context must match the primary subject.' });
-  }
 });
 
-export const updateTeachingScopesSchema = z.strictObject({
-  scopes: z.array(teachingScopeInputSchema).min(1).max(16),
+export const placementSetRequestSchema = z.strictObject({
+  submissionId: z.uuid(),
+  subjectId: z.string().trim().min(1).max(64),
+  topicId: z.string().trim().min(1).max(128),
 });
 
 export const updateQuestionReviewSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
   explanation: z.string().trim().min(1).max(2_000),
 });
 
 export const updateSchoolSchema = z.strictObject({
   schoolId: z.string().trim().min(1).max(128),
-});
-
-export const quizSubmissionSchema = z.strictObject({
-  submissionId: z.uuid(),
-  topicId: z.string().trim().min(1).max(128),
-  mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
-  paperId: z.enum(['paper-1', 'paper-2']).optional(),
-  startedAt: z.iso.datetime({ offset: true }).optional(),
-  answers: z.array(z.strictObject({
-    questionKey: z.string().regex(/^[a-z0-9-]+:v1:q\d{2,3}$/),
-    answer: z.union([z.string().max(4_000), z.number().int().nonnegative()]),
-  })).min(1).max(50),
 });
 
 export const quizOptionsQuerySchema = z.strictObject({
@@ -100,8 +64,14 @@ export const quizOptionsQuerySchema = z.strictObject({
 export const quizSetRequestSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
-  mode: z.enum(['past-paper', 'concept-check', 'speed-round']),
-  paperId: z.enum(['paper-1', 'paper-2']).optional(),
+  mode: z.enum(['mcq', 'essay']),
+});
+
+export const assessmentAnswerSchema = z.strictObject({
+  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
+  questionIndex: z.number().int().min(0).max(9),
+  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(3)]),
+  marksObtained: z.number().min(0).max(10).multipleOf(0.01).optional(),
 });
 
 export const quizHistoryQuerySchema = z.object({
@@ -133,18 +103,130 @@ export const sendEnquiryMessageSchema = z.strictObject({
 
 export const enquiryThreadIdSchema = z.uuid();
 
-export const studentSearchQuerySchema = z.strictObject({
-  q: z.string().trim().min(1).max(120),
+export const teacherScopeQuerySchema = z.strictObject({
   scopeId: z.string().trim().min(1).max(64),
 });
 
-export const addStudentToScopeSchema = z.strictObject({
-  studentId: z.string().trim().min(1).max(255),
-  scopeId: z.string().trim().min(1).max(64),
-});
+export const teacherConceptWebQuerySchema = z.discriminatedUnion('view', [
+  z.strictObject({
+    view: z.literal('school'),
+    subjectId: z.string().trim().min(1).max(64),
+  }),
+  z.strictObject({
+    view: z.literal('class'),
+    scopeId: z.string().trim().min(1).max(64),
+  }),
+]);
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
-export type QuizSubmission = z.infer<typeof quizSubmissionSchema>;
 export type QuizSetRequest = z.infer<typeof quizSetRequestSchema>;
 export type CreateEnquiryRequest = z.infer<typeof createEnquirySchema>;
 export type SendEnquiryMessageRequest = z.infer<typeof sendEnquiryMessageSchema>;
+
+// Transcript of a spoken explanation, marked against the topic's syllabus
+// content. The upper bound is generous next to a three-minute session (~450
+// words) so a longer room does not start rejecting work, while still capping
+// what reaches the model.
+export const discussionAnalysisSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  transcript: z.string().trim().min(1).max(20_000),
+});
+
+// Capture Hub: OCR, summarize, and evaluate a page of notes.
+//
+// captureOcrSchema takes Base64 image bytes rather than a multipart upload.
+// Vercel Functions cap the complete request body at 4.5MB, so the browser
+// compresses the binary image to at most 3MiB (at most 4,194,304 Base64
+// characters) before sending it. Keep this validation boundary aligned with
+// that client cap and leave a little room for the JSON envelope.
+export const captureOcrSchema = z.strictObject({
+  imageBase64: z.string().min(1).max(4_200_000),
+  mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+});
+
+export const captureSummarizeSchema = z.strictObject({
+  text: z.string().trim().min(1).max(20_000),
+});
+
+export const captureEvaluateSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  text: z.string().trim().min(1).max(20_000),
+});
+
+export const captureGenerateNotesSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+});
+
+export const spideyChatSchema = z.strictObject({
+  messages: z.array(z.strictObject({
+    role: z.enum(['user', 'assistant']),
+    text: z.string().trim().min(1).max(8_000),
+  })).min(1).max(12),
+  materials: z.array(z.strictObject({
+    name: z.string().trim().min(1).max(160),
+    subject: z.string().trim().min(1).max(64),
+    topic: z.string().trim().min(1).max(160),
+  })).max(20).optional(),
+});
+
+export const createStudySquadSchema = z.strictObject({
+  name: z.string().trim().min(1).max(80),
+});
+
+export const inviteToStudySquadSchema = z.strictObject({
+  email: z.string().trim().toLowerCase().pipe(z.email().max(320)),
+});
+
+export const studySquadInvitationTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const inviteSchoolUserToStudySquadSchema = z.strictObject({
+  userId: z.string().trim().min(1).max(255),
+});
+
+export const studySquadInvitationIdSchema = z.uuid();
+
+export const notificationIdSchema = z.uuid();
+
+export const notificationsQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const squadQuizRoomIdSchema = z.uuid();
+
+export const createSquadQuizRoomSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  invitedUserIds: z.array(z.string().trim().min(1).max(255)).max(4).default([]),
+  message: z.string().trim().max(500).optional(),
+});
+
+export const joinSquadQuizRoomSchema = z.strictObject({
+  avatarColor: z.enum(['Yellow', 'LightBlue', 'White']),
+});
+
+export const submitSquadQuizAnswerSchema = z.strictObject({
+  questionIndex: z.number().int().min(0).max(9),
+  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(5)]),
+});
+
+export const inviteSquadQuizParticipantsSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1).max(255)).min(1).max(4),
+});
+
+export const revisionRoomIdSchema = z.uuid();
+
+export const createRevisionRoomSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  invitedUserIds: z.array(z.string().trim().min(1).max(255)).max(4).default([]),
+});
+
+export const revisionRoomInviteSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1).max(255)).min(1).max(4),
+});
+
+export const revisionUtteranceSchema = z.strictObject({
+  submissionId: z.uuid(),
+  text: z.string().trim().min(1).max(20_000),
+  locale: z.string().trim().min(2).max(20).default('en'),
+  provider: z.enum(['browser', 'huawei']).default('browser'),
+  speakingMs: z.number().int().min(0).max(1_800_000).default(0),
+});

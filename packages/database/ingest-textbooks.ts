@@ -1,4 +1,4 @@
-﻿import { createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -16,13 +16,13 @@ import {
   referenceDocuments,
 } from './schema/reference.js';
 import { CURRICULUM_TOPIC_BY_ID } from '../../apps/web/lib/curriculum.js';
-import { chunkText } from '../services/edunets-api/src/lib/text-chunks.js';
-import { AnalysisProviderError } from '../services/edunets-api/src/services/analysis-error.js';
-import { getEmbeddingProvider } from '../services/edunets-api/src/services/embeddings.js';
+import { chunkText } from '../apps/api/src/lib/text-chunks.js';
+import { AnalysisProviderError } from '../apps/api/src/services/analysis-error.js';
+import { getEmbeddingProvider } from '../apps/api/src/services/embeddings.js';
 import {
   generateGeminiContent,
   isGeminiConfigured,
-} from '../services/edunets-api/src/services/gemini.js';
+} from '../apps/api/src/services/gemini.js';
 
 const TEXTBOOKS_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), '../content/textbooks');
 const MANIFEST_PATH = join(TEXTBOOKS_DIRECTORY, 'manifest.json');

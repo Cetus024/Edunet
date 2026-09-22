@@ -18,16 +18,16 @@ const candidates: DirectoryCandidate[] = [
     name: 'Global Teacher',
     role: 'teacher',
     schoolId: 'school-b',
-    subjectId: 'amath',
-    subjectName: 'Additional Mathematics',
+    subjectId: 'e-math',
+    subjectName: 'Mathematics',
   },
   {
-    userId: 'tutor-school',
-    name: 'School Tutor',
-    role: 'tutor',
+    userId: 'teacher-school',
+    name: 'School Teacher',
+    role: 'teacher',
     schoolId: 'school-a',
-    subjectId: 'amath',
-    subjectName: 'Additional Mathematics',
+    subjectId: 'e-math',
+    subjectName: 'Mathematics',
   },
 ];
 
@@ -40,10 +40,10 @@ const thread: ThreadRecord = {
   requesterDisplayName: 'Student One',
   requesterClassName: null,
   recipientDisplayName: 'Teacher One',
-  subjectId: 'amath',
-  subjectName: 'Additional Mathematics',
-  topicId: 'amath-trig',
-  topicName: 'Trigonometry',
+  subjectId: 'e-math',
+  subjectName: 'Mathematics',
+  topicId: 'math-geometry-measurement',
+  topicName: 'GEOMETRY AND MEASUREMENT',
   title: 'How do I begin?',
   isDemo: false,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -54,7 +54,7 @@ describe('question recipient directory', () => {
   it('returns only matching-school recipients when any are available', () => {
     const result = selectQuestionRecipients(candidates, 'school-a');
     expect(result.scope).toBe('school');
-    expect(result.recipients.map((recipient) => recipient.id)).toEqual(['tutor-school']);
+    expect(result.recipients.map((recipient) => recipient.id)).toEqual(['teacher-school']);
   });
 
   it('falls back to all same-subject candidates and never copies undeclared fields', () => {

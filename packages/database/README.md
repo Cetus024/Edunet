@@ -36,7 +36,7 @@ Before applying it to an existing Supabase project, create a recoverable project
 
 Disable the Data API in the Supabase dashboard. Supabase protects the platform-owned `authenticator` role from SQL changes by project database administrators, so that dashboard switch cannot be automated with `DATABASE_DIRECT_URL`. The hardening command still revokes application access from `anon` and `authenticated` as defense in depth. Do not add `NEXT_PUBLIC_SUPABASE_ACCESS_TOKEN`, a service-role key, or a database password to frontend variables.
 
-Google configuration is documented in `services/edunets-api/README.md`.
+Google configuration is documented in `apps/api/README.md`.
 
 ## Staff textbook ingest
 

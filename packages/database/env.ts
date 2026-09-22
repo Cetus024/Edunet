@@ -6,9 +6,14 @@ function findRepositoryRoot(startDirectory: string): string {
   let current = resolve(startDirectory);
 
   while (true) {
-    if (existsSync(join(current, 'next.config.ts')) && existsSync(join(current, 'package.json'))) {
-      return current;
-    }
+    // Repo root keeps package.json + drizzle.config; Next lives under apps/web.
+    const hasRootMarkers = existsSync(join(current, 'package.json'))
+      && (
+        existsSync(join(current, 'drizzle.config.ts'))
+        || existsSync(join(current, 'apps', 'web', 'next.config.ts'))
+        || existsSync(join(current, 'CLAUDE.md'))
+      );
+    if (hasRootMarkers) return current;
 
     const parent = dirname(current);
     if (parent === current) return resolve(startDirectory);

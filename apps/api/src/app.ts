@@ -14,19 +14,30 @@ import {
 import type { AppEnv } from './types.js';
 import { apiV1 } from './routes/api-v1.js';
 import { enquiriesApi } from './routes/enquiries.js';
+import { studySquadsApi } from './routes/study-squads.js';
+import { squadQuizApi } from './routes/squad-quiz.js';
+import { notificationsApi } from './routes/notifications.js';
+import { revisionRoomsApi } from './routes/revision-rooms.js';
+import { learningWorkApi } from './routes/learning-work.js';
 
 const app = new Hono<AppEnv>({ strict: false });
 
 app.use('*', requestContext);
-app.use('*', bodyLimit({
-  maxSize: 1024 * 1024,
-  onError: (context) => errorResponse(
-    context,
-    413,
-    'PAYLOAD_TOO_LARGE',
-    'Request body must not exceed 1 MiB.',
-  ),
-}));
+app.use('*', (context, next) => {
+  // OCR transports one image as base64; allow room for an 8 MiB image and JSON.
+  const isOcrUpload = context.req.method === 'POST'
+    && context.req.path.replace(/\/$/, '') === '/api/v1/me/capture/ocr';
+  const limitMiB = isOcrUpload ? 12 : 1;
+  return bodyLimit({
+    maxSize: limitMiB * 1024 * 1024,
+    onError: (context) => errorResponse(
+      context,
+      413,
+      'PAYLOAD_TOO_LARGE',
+      `Request body must not exceed ${limitMiB} MiB.`,
+    ),
+  })(context, next);
+});
 app.use('*', exactOriginGuard);
 app.use('*', corsMiddleware);
 app.use('*', securityHeaders);
@@ -79,6 +90,11 @@ app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
 
 app.route('/api/v1', apiV1);
 app.route('/api/v1', enquiriesApi);
+  app.route('/api/v1', studySquadsApi);
+  app.route('/api/v1', squadQuizApi);
+app.route('/api/v1', notificationsApi);
+app.route('/api/v1', revisionRoomsApi);
+app.route('/api/v1', learningWorkApi);
 
 app.notFound((context) => errorResponse(context, 404, 'NOT_FOUND', 'Route not found.'));
 app.onError(handleError);

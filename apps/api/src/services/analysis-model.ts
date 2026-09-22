@@ -4,6 +4,10 @@ import {
   isAzureFoundryConfigured,
 } from './azure-foundry.js';
 import {
+  getGeminiModel,
+  isGeminiConfigured,
+} from './gemini.js';
+import {
   getAnalysisModel as getModelArtsModel,
   isAnalysisConfigured as isModelArtsConfigured,
 } from './modelarts.js';
@@ -11,14 +15,14 @@ import {
 /**
  * Provider boundary for all generated analysis.
  *
- * Microsoft Foundry is the current provider. ModelArts remains a documented
- * fallback so a later migration is an environment-only switch: remove the
- * AZURE_FOUNDRY_* values and supply MODELARTS_* instead.
+ * Gemini 3.5 Flash is the current Capture Hub provider for summaries and
+ * scoring. Microsoft Foundry and ModelArts remain environment-only fallbacks
+ * so a later migration does not change Capture Hub routes.
  */
 export function isAnalysisConfigured(): boolean {
-  return isAzureFoundryConfigured() || isModelArtsConfigured();
+  return isGeminiConfigured() || isAzureFoundryConfigured() || isModelArtsConfigured();
 }
 
 export function getAnalysisModel(): AnalysisModel | null {
-  return getAzureFoundryModel() ?? getModelArtsModel();
+  return getGeminiModel() ?? getAzureFoundryModel() ?? getModelArtsModel();
 }
