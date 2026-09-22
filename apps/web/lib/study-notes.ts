@@ -7,14 +7,14 @@ function unwrapFence(text: string): string {
 const MATH_CHUNK = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g;
 
 const SUBSCRIPT: Record<string, string> = {
-  '0': 'ΓéÇ', '1': 'Γéü', '2': 'Γéé', '3': 'Γéâ', '4': 'Γéä',
-  '5': 'Γéà', '6': 'Γéå', '7': 'Γéç', '8': 'Γéê', '9': 'Γéë',
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
 };
 
 const SUPERSCRIPT: Record<string, string> = {
-  '0': 'Γü░', '1': '┬╣', '2': '┬▓', '3': '┬│', '4': 'Γü┤',
-  '5': 'Γü╡', '6': 'Γü╢', '7': 'Γü╖', '8': 'Γü╕', '9': 'Γü╣',
-  '+': 'Γü║', '-': 'Γü╗',
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+  '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻',
 };
 
 export function sanitiseStudyNotesMarkup(raw: string): string {
@@ -42,9 +42,9 @@ export function latexToPlainChemistry(math: string): string {
     .replace(/\\ce\{([^}]+)\}/g, '$1')
     .replace(/\\text\{([^}]+)\}/g, '$1')
     .replace(/\\mathrm\{([^}]+)\}/g, '$1')
-    .replace(/\\rightarrow/g, 'ΓåÆ')
-    .replace(/\\to\b/g, 'ΓåÆ')
-    .replace(/\\times/g, '├ù')
+    .replace(/\\rightarrow/g, '→')
+    .replace(/\\to\b/g, '→')
+    .replace(/\\times/g, '×')
     .replace(/_\{([^}]+)\}/g, (_full, value: string) => mapScript(value, SUBSCRIPT))
     .replace(/_(\d)/g, (_full, digit: string) => SUBSCRIPT[digit] ?? digit)
     .replace(/\^\{([^}]+)\}/g, (_full, value: string) => mapScript(value, SUPERSCRIPT))
@@ -62,7 +62,7 @@ export function stripTextbookPointers(text: string): string {
     .replace(/\s*\((?:see\s+)?(?:figure|fig\.?|diagram|page|pp?\.?)\s*[\d.]+[a-z]?[^)]*\)/gi, '')
     .replace(/\b(?:as shown in|shown in|see|from|in)\s+(?:the\s+)?(?:figure|fig\.?|diagram)\s*[\d.]+[a-z]?\b/gi, '')
     .replace(/\b(?:figure|fig\.)\s*[\d.]+[a-z]?\b[^.!?\n]*[.!?]?/gi, '')
-    .replace(/\bon\s+pages?\s+\d+(?:\s*[-ΓÇô]\s*\d+)?\b/gi, '')
+    .replace(/\bon\s+pages?\s+\d+(?:\s*[-–]\s*\d+)?\b/gi, '')
     .replace(/\bp\.\s*\d+\b/gi, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/ +([,.;:])/g, '$1')

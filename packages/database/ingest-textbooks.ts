@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+﻿import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -16,15 +16,15 @@ import {
   referenceDocuments,
 } from './schema/reference.js';
 import { CURRICULUM_TOPIC_BY_ID } from '../../apps/web/lib/curriculum.js';
-import { chunkText } from '../apps/api/src/lib/text-chunks.js';
-import { AnalysisProviderError } from '../apps/api/src/services/analysis-error.js';
-import { getEmbeddingProvider } from '../apps/api/src/services/embeddings.js';
+import { chunkText } from '../../apps/api/src/lib/text-chunks.js';
+import { AnalysisProviderError } from '../../apps/api/src/services/analysis-error.js';
+import { getEmbeddingProvider } from '../../apps/api/src/services/embeddings.js';
 import {
   generateGeminiContent,
   isGeminiConfigured,
-} from '../apps/api/src/services/gemini.js';
+} from '../../apps/api/src/services/gemini.js';
 
-const TEXTBOOKS_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), '../content/textbooks');
+const TEXTBOOKS_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), '../../content/textbooks');
 const MANIFEST_PATH = join(TEXTBOOKS_DIRECTORY, 'manifest.json');
 const MIN_PAGE_CHARS = 40;
 const OCR_PAGE_WIDTH = 1400;
@@ -258,7 +258,7 @@ async function ingestTextbooks(): Promise<void> {
     console.log(`Ingested ${entry.file}: ${prepared.length} chunks across ${entry.topicIds.join(', ')}`);
   }
 
-  console.log(`Γ£à Textbook ingest finished (${ingestedDocuments} documents, ${ingestedChunks} chunks).`);
+  console.log(`✅ Textbook ingest finished (${ingestedDocuments} documents, ${ingestedChunks} chunks).`);
 }
 
 ingestTextbooks()
@@ -266,7 +266,7 @@ ingestTextbooks()
   .catch(async (error: unknown) => {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined;
-    console.error('Γ¥î Textbook ingest failed:', cause ? `${message} (${cause})` : message);
+    console.error('❌ Textbook ingest failed:', cause ? `${message} (${cause})` : message);
     await adminPool.end();
     process.exitCode = 1;
   });

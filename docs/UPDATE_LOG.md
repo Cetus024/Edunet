@@ -26,6 +26,17 @@
 
 ---
 
+## 2026-09-22 · merge main · Cursor
+
+**把 `origin/main` 合进 `alex-AI`，接入 Spidey 聊天 UI 与 Capture Hub 更新**
+
+- **做了什么**：merge `f4f0c56`。前端拿到 `apps/web/features/mascot/spidey-chat.tsx` 与 `lib/api/spidey.ts`（已挂在 GlobalMascot）；后端保留／对齐 Gemini、embeddings、generate-topic-notes、reference retrieval、note-evaluation；补 `db:ingest-textbooks`；旧路径导入改到 `packages/database`／`apps/web/lib`／`apps/api`。
+- **为什么**：Spidey 聊天 UI 在 `main` 而不在 `Testing`；需要合进来才能在 mascot 上对话。
+- **影响面**：登录后 mascot 在应用路由打开 Spidey 聊天。教材 ingest 走 `packages/database/ingest-textbooks.ts`。
+- **坑**：main 仍是扁平布局，冲突对功能文件取 theirs 后再改 monorepo 导入。
+
+---
+
 ## 2026-09-22 · merge Testing · Cursor
 
 **把 `origin/Testing` 合进 `alex-AI`，并保持 monorepo 目录**
@@ -78,6 +89,28 @@
 - **为什么**：根目录堆满调试输出和历史交接文档，组件又散落在根上，新同学很难一眼看懂前后端边界。
 - **影响面**：`@/components/*` 仍可用，现指向 `components/`；历史工作摘要只保留在本更新日志与 git 历史中。本地若仍有无法删除的 `.pytest-questionbank-*` 目录，已被 gitignore。
 - **坑**：Windows 下某些 pytest 目录可能因权限删不掉，忽略即可，勿提交。
+
+---
+
+## 2026-09-21 · 工作区未提交 · 评价准确率改为按 LO 比例给分
+
+**评价百分比从「整项全对才给分」改为每条学习目标按完成比例给分**
+
+- **做了什么**：`scoreFromObjectiveVerdicts` 对每条 syllabus LO 计 `credit = (accurate + 0.5×partial) / 该 LO 的证据点数`，再 `percentage = Σcredit / 总 LO × 100`。错误和未写仍为 0。分母仍是 unique LO，教材句子不再当额外满分。
+- **为什么**：原先一项里有一句不全整项归零，分数偏低；按句计满分又容易刷分。半对半分是两者之间。
+- **影响面**：Capture Hub 评价百分比会比全有或全无更高，仍不能靠重复同一技能抬分。UI 未改。
+- **坑**：Vitest `note-evaluation` / `capture-analysis` 已通过。无浏览器端到端验证。
+
+---
+
+## 2026-09-21 · 工作区未提交 · Capture Hub 评价面板还原
+
+**把 Capture Hub 评价摘要还原成原先的 Covered well / missing / How to improve 布局**
+
+- **做了什么**：评价对话框去掉 KaTeX 公式卡、「Needs correction」和教材引用列表；百分比、Covered well、Not in your notes、How to improve 保持原样。`evaluationFormulaMarkdown` 从前端 `lib/study-notes.ts` 移除。后端仍按准确 LO / 总 LO × 100 计分。
+- **为什么**：评价面板外观要回到首次给出准确率公式时的样子，计分逻辑保留。
+- **影响面**：仅 Capture Hub 评价 UI；Generate Notes、KaTeX 笔记、Spidey 未改。
+- **坑**：无浏览器工具做端到端点击验证；相关 Vitest（note-evaluation / capture-analysis / study-notes）已通过。
 
 ---
 

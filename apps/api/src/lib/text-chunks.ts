@@ -66,5 +66,5 @@ export function excerptForCitation(content: string): string {
   if (compact.length <= CITATION_EXCERPT_CHARS) return compact;
   const sliced = compact.slice(0, CITATION_EXCERPT_CHARS);
   const breakAt = sliced.lastIndexOf(' ');
-  return `${(breakAt > 80 ? sliced.slice(0, breakAt) : sliced).trim()}ΓÇª`;
+  return `${(breakAt > 80 ? sliced.slice(0, breakAt) : sliced).trim()}…`;
 }

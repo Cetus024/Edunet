@@ -35,7 +35,7 @@ describe('excerptForCitation', () => {
   it('does not return a full long passage to the browser', () => {
     const content = Array.from({ length: 80 }, () => 'hydrocarbon').join(' ');
     const excerpt = excerptForCitation(content);
-    expect(excerpt.endsWith('ΓÇª')).toBe(true);
+    expect(excerpt.endsWith('…')).toBe(true);
     expect(excerpt.length).toBeLessThan(content.length);
     expect(excerpt.length).toBeLessThanOrEqual(281);
   });

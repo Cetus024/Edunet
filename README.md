@@ -9,7 +9,9 @@ Start with [`CLAUDE.md`](CLAUDE.md). Verified changes go in [`docs/UPDATE_LOG.md
 - Next.js 16 App Router and React 19 (`apps/web`)
 - Hono, Better Auth, Drizzle ORM, Supabase PostgreSQL (`apps/api` + `packages/database`)
 - TanStack Query, Jotai, Tailwind 4, Radix UI
-- Azure AI Vision OCR + Microsoft Foundry (ModelArts fallback)
+- Gemini 3.5 Flash for handwritten-note OCR, Capture Hub summaries/scoring, and textbook embeddings
+- Gemini 3.1 Flash-Lite for Capture Hub Generate Notes and the Spidey help chatbot
+- Azure AI Vision OCR + Microsoft Foundry (ModelArts fallback when Gemini is unset)
 - Static export to `apps/web/out/` for Power Apps
 
 ## Commands
@@ -26,6 +28,8 @@ npm run api:start
 `npm run dev` starts web on `:3000` and API on `:8787`. Build outputs: `apps/web/out/` and `apps/api/dist/`.
 
 Copy `.env.example` to `.env.local` at the **repo root**. See [`packages/database/README.md`](packages/database/README.md) and [`apps/api/README.md`](apps/api/README.md).
+
+Capture Hub is phone-first: photograph handwritten notes for OCR, type/paste notes, or generate textbook-grounded notes. Combined notes can be summarised and evaluated against retrieved staff textbook passages. The Spidey mascot on logged-in pages opens a help chatbot for EduNets features, study tips, and saved materials. Provider preference is `GEMINI_*`, with fallback to `AZURE_FOUNDRY_*` or `MODELARTS_*`. All keys stay server-side.
 
 ## Structure
 

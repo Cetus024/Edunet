@@ -1,4 +1,4 @@
-﻿CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
 --> statement-breakpoint
 CREATE TABLE "edunets"."reference_chunks" (
 	"id" text PRIMARY KEY NOT NULL,

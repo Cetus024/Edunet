@@ -15,9 +15,9 @@ import {
  * and content outside the mark scheme cannot raise it.
  *
  * Each objective scores a fraction of 1:
- *   credit = (accurate + 0.5 ├ù partial) / points in that objective
+ *   credit = (accurate + 0.5 × partial) / points in that objective
  * Incorrect and missing points score 0. Then:
- *   percentage = (sum of credits / total learning objectives) ├ù 100
+ *   percentage = (sum of credits / total learning objectives) × 100
  *
  * That sits between all-or-nothing (too harsh when one sentence is incomplete)
  * and counting every textbook sentence as its own mark (too easy to farm).
@@ -233,7 +233,7 @@ export function buildNoteEvaluationPrompt(
     'You are a Cambridge O-Level examiner marking revision notes against a fixed mark scheme.',
     'Award each mark scheme point independently. The app scores each learning objective as the share of its points that are accurate; a partial answer is worth half. Extra waffle cannot raise the mark.',
     '',
-    'Judge ONLY against the textbook / syllabus points below. Ignore student content that is not in the mark scheme ΓÇö extra detail cannot raise the mark.',
+    'Judge ONLY against the textbook / syllabus points below. Ignore student content that is not in the mark scheme — extra detail cannot raise the mark.',
     'Quote the notes only as evidence. Corrections must come from the labelled point, not unstated knowledge.',
     'Never mention page numbers, figure numbers, Fig., image captions, or chapter headings. Write formulas with ordinary letters and numbers, like O2, CH4, e-, O2-.',
     '',
@@ -267,8 +267,8 @@ export function buildNoteEvaluationPrompt(
 function splitMissingBullets(input: unknown): string[] {
   const value = typeof input === 'string' ? input.trim() : '';
   if (!value) return [];
-  if (value.includes(' ┬╖ ')) {
-    return value.split(' ┬╖ ').map((item) => item.trim()).filter(Boolean);
+  if (value.includes(' · ')) {
+    return value.split(' · ').map((item) => item.trim()).filter(Boolean);
   }
   return [value];
 }

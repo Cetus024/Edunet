@@ -1,4 +1,4 @@
-﻿import type { PoolConfig } from 'pg';
+import type { PoolConfig } from 'pg';
 
 /**
  * pg treats sslmode=require as verify-full. Local Windows TLS inspection then

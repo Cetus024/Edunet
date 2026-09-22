@@ -21,6 +21,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { cn } from '@/lib/utils';
 
 import { MascotVisual } from './mascot-visual';
+import { SpideyChat } from './spidey-chat';
 import {
   landingMascotSceneAtom,
   mascotFeedbackAtom,
@@ -578,8 +579,8 @@ function GlobalMascotContent() {
         {bubbleOpen && !collapsed && (
           <motion.aside
             ref={bubbleRef}
-            aria-live="polite"
-            aria-atomic="true"
+            aria-live={routeConfig.appRoute ? 'off' : 'polite'}
+            aria-atomic={routeConfig.appRoute ? undefined : true}
             style={
               bubbleOffset
                 ? { left: bubbleOffset.x, top: bubbleOffset.y }
@@ -590,10 +591,12 @@ function GlobalMascotContent() {
             exit={reduceMotion ? undefined : { opacity: 0, y: 5, scale: 0.97 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
             onAnimationComplete={updateBubbleOffset}
-            className="pointer-events-auto absolute z-10 w-[min(18rem,calc(100vw-2rem))] rounded-[1.25rem] border border-border bg-card p-4 text-card-foreground shadow-[0_20px_55px_rgba(29,58,98,0.2)]"
+            className="pointer-events-auto absolute z-10 w-[min(22rem,calc(100vw-2rem))] rounded-[1.25rem] border border-border bg-card p-4 text-card-foreground shadow-[0_20px_55px_rgba(29,58,98,0.2)]"
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-primary">EduNets guide</span>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+                {routeConfig.appRoute ? 'Spidey' : 'EduNets guide'}
+              </span>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -613,7 +616,11 @@ function GlobalMascotContent() {
                 </button>
               </div>
             </div>
-            <p className="text-sm font-bold leading-relaxed">{message}</p>
+            {routeConfig.appRoute ? (
+              <SpideyChat />
+            ) : (
+              <p className="text-sm font-bold leading-relaxed">{message}</p>
+            )}
           </motion.aside>
         )}
       </AnimatePresence>
@@ -633,7 +640,9 @@ function GlobalMascotContent() {
         onPointerCancel={finishPointerDrag}
         onLostPointerCapture={finishPointerDrag}
         whileTap={reduceMotion || dragging ? undefined : { scale: 0.94 }}
-        title="Drag to move the EduNets guide. Click to open or close its message."
+        title={routeConfig.appRoute
+          ? 'Drag to move Spidey. Click to open or close the help chatbot.'
+          : 'Drag to move the EduNets guide. Click to open or close its message.'}
         className={cn(
           'pointer-events-auto relative flex touch-none select-none items-center justify-center rounded-full border border-white/70 bg-secondary/80 shadow-[0_18px_45px_rgba(29,58,98,0.22)] backdrop-blur-sm transition-[width,height,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           dragging ? 'cursor-grabbing' : 'cursor-grab',
@@ -643,7 +652,11 @@ function GlobalMascotContent() {
               ? 'h-14 w-14 p-0.5'
               : 'h-16 w-16 p-0.5 lg:h-24 lg:w-24',
         )}
-        aria-label={collapsed ? 'Expand EduNets guide' : bubbleOpen ? 'Close EduNets guide message' : 'Open EduNets guide message'}
+        aria-label={collapsed
+          ? 'Expand EduNets guide'
+          : bubbleOpen
+            ? (routeConfig.appRoute ? 'Close Spidey chatbot' : 'Close EduNets guide message')
+            : (routeConfig.appRoute ? 'Open Spidey help chatbot' : 'Open EduNets guide message')}
         aria-describedby="edunets-mascot-drag-help"
         aria-expanded={!collapsed && bubbleOpen}
       >

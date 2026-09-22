@@ -2,17 +2,28 @@
 
 import { apiRequest } from '@/lib/api/client';
 
+export type NoteCitation = {
+  title: string;
+  page: number | null;
+  excerpt: string;
+};
+
 export type NoteEvaluation = {
   percentage: number;
+  accurateCount?: number;
+  objectiveCount?: number;
+  formulaMarkdown?: string;
   correct: { point: string; quote: string }[];
   incorrect: { point: string; quote: string; correction: string }[];
   missing: string[];
+  improvements?: string[];
   summary: string;
+  citations?: NoteCitation[];
 };
 
 export type CaptureFailure = {
   retryAfterSeconds?: number;
-  stage: 'ocr' | 'summary' | 'grounding' | 'evaluation';
+  stage: 'ocr' | 'summary' | 'grounding' | 'evaluation' | 'generate';
   reason:
     | 'not_configured'
     | 'provider_error'
@@ -22,7 +33,8 @@ export type CaptureFailure = {
     | 'no_text'
     | 'no_summary'
     | 'topic_not_found'
-    | 'invalid_evaluation';
+    | 'invalid_evaluation'
+    | 'no_textbook';
 };
 
 export function ocrImage(input: { imageBase64: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp' }) {
@@ -43,6 +55,14 @@ export function summarizeNotes(text: string) {
 
 export function evaluateNotes(input: { topicId: string; text: string }) {
   return apiRequest<{ available: boolean; summaryPoints: string[] | null; evaluation: NoteEvaluation | null; failure: CaptureFailure | null }>('/api/v1/me/capture/evaluate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function generateTopicNotes(input: { topicId: string }) {
+  return apiRequest<{ available: boolean; text: string | null; failure: CaptureFailure | null }>('/api/v1/me/capture/generate-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

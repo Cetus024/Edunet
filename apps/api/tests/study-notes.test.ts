@@ -52,8 +52,8 @@ describe('formatStudentFacingText', () => {
       'Methane ($\\text{CH}_4$) is normally one of the fuels burnt in the gas supplied.',
     ].join(' '));
 
-    expect(text).toContain('OΓéé + 4eΓü╗ ΓåÆ 2O┬▓Γü╗');
-    expect(text).toContain('CHΓéä');
+    expect(text).toContain('O₂ + 4e⁻ → 2O²⁻');
+    expect(text).toContain('CH₄');
     expect(text).toContain('While the iron loses electrons');
     expect(text).not.toMatch(/Figure 12\.6/i);
     expect(text).not.toMatch(/Image of four gold-plated keychains/i);

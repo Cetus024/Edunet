@@ -24,7 +24,7 @@ export const EDUNETS_GUIDE = [
   'For syllabus facts, point the student to Capture Hub Generate Notes or their saved materials rather than inventing textbook content.',
 ].join(' ');
 
-const BULLET_PREFIX = /^(?:[-*ΓÇó]|\d+[.)])\s+/;
+const BULLET_PREFIX = /^(?:[-*•]|\d+[.)])\s+/;
 
 function stripReplyMarkup(text: string): string {
   return text
@@ -95,16 +95,16 @@ export function buildSpideyChatPrompt(
     .map((message) => `${message.role === 'user' ? 'Student' : 'Spidey'}: ${message.text}`)
     .join('\n');
   const materialLines = materials.length > 0
-    ? materials.map((item) => `- ${item.name} (${item.subject} ┬╖ ${item.topic})`).join('\n')
+    ? materials.map((item) => `- ${item.name} (${item.subject} · ${item.topic})`).join('\n')
     : '- (no saved materials on this device yet)';
 
   return [
     'You are Spidey, a study guide inside EduNets.',
     'Answer questions about EduNets features, O-Level study tips, and the student\'s saved materials listed below.',
     'Do not invent syllabus facts from a textbook. If they need topic notes, tell them to use Capture Hub Generate Notes.',
-    'Do not claim you can scan handwriting, mark a quiz, or email a teacher yourself ΓÇö point them to the matching screen.',
+    'Do not claim you can scan handwriting, mark a quiz, or email a teacher yourself — point them to the matching screen.',
     '',
-    'FORMAT ΓÇö follow this every time:',
+    'FORMAT — follow this every time:',
     '- One short opening sentence (at most 18 words).',
     '- Then 3 to 5 bullets. Each bullet is one line and one idea.',
     '- Stop after the bullets. No extra paragraphs, headings, numbered essays, greetings, or sign-offs.',

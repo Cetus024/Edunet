@@ -5,7 +5,7 @@ import { passagesToCitations, passagesToFacts, retrieveTopicPassages } from '../
 import type { TopicGrounding } from '../src/services/explanation-analysis.js';
 
 const ORGANIC_PASSAGE = {
-  title: 'Organic Chemistry ΓÇö staff notes',
+  title: 'Organic Chemistry — staff notes',
   page: 12,
   content: 'Alkenes are unsaturated hydrocarbons with a carbon-carbon double bond. They undergo addition reactions with hydrogen, steam and bromine.',
 };
@@ -13,7 +13,7 @@ const ORGANIC_PASSAGE = {
 describe('passagesToFacts', () => {
   it('labels facts with title and page so the grader can cite a passage', () => {
     expect(passagesToFacts([ORGANIC_PASSAGE])).toEqual([{
-      concept: 'Organic Chemistry ΓÇö staff notes p.12',
+      concept: 'Organic Chemistry — staff notes p.12',
       statement: ORGANIC_PASSAGE.content,
     }]);
   });
@@ -26,7 +26,7 @@ describe('passagesToCitations', () => {
     expect(citation?.title).toBe(ORGANIC_PASSAGE.title);
     expect(citation?.page).toBe(12);
     expect(citation?.excerpt.length).toBeLessThan(longContent.length);
-    expect(longContent.includes(citation?.excerpt.replace(/ΓÇª$/, '') ?? 'missing')).toBe(true);
+    expect(longContent.includes(citation?.excerpt.replace(/…$/, '') ?? 'missing')).toBe(true);
   });
 });
 
