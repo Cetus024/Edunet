@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock } from 'lucide-react';
+import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock, Inbox } from 'lucide-react';
 import Image from 'next/image';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
@@ -11,13 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
+import { useSubjectName, useTranslation, type TranslationKey } from '@/lib/i18n';
 import TeacherDashboardPage from '@/features/teacher-dashboard';
-import ParentDashboardPage from '@/features/parent-dashboard';
 import {
   subjectSummariesAtom,
   priorityQueueAtom,
   estimateReviewTime,
   getEffectiveScore,
+  isAtRisk as isReviewDue,
   atRiskTopicsAtom,
   subjectsAtom,
   type SubjectSummary,
@@ -26,19 +28,11 @@ import {
 } from '@/lib/study-data';
 
 // Get greeting based on time of day
-function getGreeting(): string {
+function getGreetingKey(): TranslationKey {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-// Get the score color based on memory score
-function getScoreColor(score: number | null): { fill: string; text: string; bg: string } {
-  if (score === null) return { fill: 'var(--muted-foreground)', text: 'text-muted-foreground', bg: 'bg-muted' };
-  if (score >= 70) return { fill: 'var(--primary)', text: 'text-foreground', bg: 'bg-primary' };
-  if (score >= 40) return { fill: 'var(--accent)', text: 'text-foreground', bg: 'bg-accent' };
-  return { fill: 'var(--destructive)', text: 'text-foreground', bg: 'bg-destructive' };
+  if (hour < 12) return 'dashboard.greeting.morning';
+  if (hour < 17) return 'dashboard.greeting.afternoon';
+  return 'dashboard.greeting.evening';
 }
 
 // At-risk topic info for the alert cards
@@ -51,12 +45,14 @@ interface AtRiskTopicInfo {
 
 // Topic Alert Card component
 function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const reviewTime = estimateReviewTime(info.effectiveScore);
+  const scoreColor = getKnowledgeScoreColor(info.effectiveScore);
 
   const handleReviewNow = () => {
     // Navigate to quiz with subject, topic, and the exact displayed memory score pre-filled
-    navigate(`/quiz?subject=${encodeURIComponent(info.subjectName)}&topic=${encodeURIComponent(info.topic.name)}&score=${info.effectiveScore}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(info.subjectName)}&topic=${encodeURIComponent(info.topic.name)}&score=${info.effectiveScore}&mode=${info.topic.recommendedMode ?? 'mcq'}`);
   };
 
   return (
@@ -84,7 +80,7 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
           {/* Progress bar with score */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Memory Score</span>
+              <span className="text-xs text-muted-foreground">{t('dashboard.memoryScore')}</span>
               <span className="text-xs font-black text-foreground">{info.effectiveScore}%</span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -92,7 +88,8 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
                 initial={{ width: 0 }}
                 animate={{ width: `${info.effectiveScore}%` }}
                 transition={{ duration: 0.8, delay: 0.3 + index * 0.1 }}
-                className="h-full bg-destructive rounded-full"
+                className="h-full rounded-full"
+                style={{ backgroundColor: scoreColor.fill }}
               />
             </div>
           </div>
@@ -104,7 +101,7 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs italic font-bold leading-snug">
-                {reviewTime} mins of review could recover this!
+                {t('dashboard.couldRecover', { minutes: reviewTime })}
               </p>
             </div>
             <Button
@@ -112,7 +109,7 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
               onClick={handleReviewNow}
               className="flex-shrink-0 bg-primary hover:bg-accent text-primary-foreground font-bold rounded-full h-8 text-xs px-3 transition-all hover:-translate-y-0.5"
             >
-              Review Now →
+              {t('dashboard.reviewNowArrow')}
             </Button>
           </div>
         </CardContent>
@@ -121,26 +118,14 @@ function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number 
   );
 }
 
-// Circular gauge component with enhanced styling
-// For low scores, background ring shows red to indicate "missing" memory
+// Circular gauge uses the same continuous score scale as every other view.
 function CircularGauge({ score, size = 100 }: { score: number | null; size?: number }) {
+  const { t } = useTranslation();
   const radius = (size - 14) / 2;
   const circumference = 2 * Math.PI * radius;
   const displayScore = score ?? 0;
   const strokeDashoffset = circumference - (displayScore / 100) * circumference;
-  const color = getScoreColor(score);
-  
-  // For low scores (< 42), show red background ring to emphasize danger
-  const isLowScore = score !== null && score < 42;
-  // For medium scores (42-70), show amber background
-  const isMediumScore = score !== null && score >= 42 && score <= 70;
-  
-  // Get background ring color based on score
-  const getBackgroundRingColor = () => {
-    if (isLowScore) return 'rgba(217, 95, 89, 0.22)';
-    if (isMediumScore) return 'rgba(100, 134, 181, 0.24)';
-    return 'rgba(29, 58, 98, 0.14)';
-  };
+  const color = getKnowledgeScoreColor(score);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -151,26 +136,9 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={getBackgroundRingColor()}
+          stroke={color.background}
           strokeWidth={10}
         />
-        {/* For low scores, show red "missing" portion */}
-        {isLowScore && (
-          <motion.circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="#D9534F"
-            strokeWidth={10}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            initial={{ strokeDashoffset: 0 }}
-            animate={{ strokeDashoffset: (displayScore / 100) * circumference }}
-            transition={{ duration: 1.2, ease: 'easeOut', delay: 0.2 }}
-            opacity={0.35}
-          />
-        )}
         {/* Progress circle - what the student has retained */}
         {score !== null && (
           <motion.circle
@@ -192,7 +160,8 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {score !== null ? (
           <motion.span
-            className={`text-2xl font-bold ${color.text}`}
+            className="text-2xl font-bold"
+            style={{ color: color.fill }}
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 }}
@@ -206,7 +175,7 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            Not<br/>Started
+            {t('dashboard.notStarted')}
           </motion.span>
         )}
       </div>
@@ -219,37 +188,42 @@ function SubjectCard({ subject, index }: {
   subject: SubjectSummary; 
   index: number;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const score = subject.avgScore;
-  const isAtRisk = score !== null && score < 42;
-  const needsReview = score !== null && score >= 42 && score <= 70;
-  const isOnTrack = score !== null && score > 70;
+  const reviewDue = subject.atRiskCount > 0;
+  const isAtRisk = reviewDue && score !== null && score < 30;
+  const needsReview = reviewDue && !isAtRisk;
+  const isOnTrack = score !== null && !reviewDue;
 
   // Handle review button click
   const handleReviewClick = () => {
-    const topicsWithScores = subject.topics
+    const reviewCandidates = subject.atRiskCount > 0 ? subject.topics.filter(isReviewDue) : subject.topics;
+    const topicsWithScores = reviewCandidates
       .filter((topic: TopicData) => topic.memoryScore !== null)
-      .map((t: TopicData) => ({
-      name: t.name,
-      score: getEffectiveScore(t) ?? 0,
+      .map((entry: TopicData) => ({
+        name: entry.name,
+        score: getEffectiveScore(entry) ?? 0,
+        mode: entry.recommendedMode ?? 'mcq',
       }));
-    topicsWithScores.sort((a: { name: string; score: number }, b: { name: string; score: number }) => a.score - b.score);
+    topicsWithScores.sort((a, b) => a.score - b.score);
     const topicToReview = topicsWithScores[0] ?? {
       name: subject.topics[0]?.name ?? '',
       score: null,
+      mode: subject.topics[0]?.recommendedMode ?? 'mcq',
     };
     if (!topicToReview.name) return;
     const scoreParameter = topicToReview.score === null ? '' : `&score=${topicToReview.score}`;
-    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topicToReview.name)}${scoreParameter}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topicToReview.name)}${scoreParameter}&mode=${topicToReview.mode}`);
   };
 
   // Format last reviewed text based on memory strength
   const getLastReviewedText = () => {
-    if (score === null) return `${subject.notStartedCount} topics not started`;
-    if (subject.lastReviewed === null) return 'No review date yet';
-    if (subject.lastReviewed <= 0) return 'Last reviewed today';
-    if (subject.lastReviewed === 1) return 'Last reviewed yesterday';
-    return `Last reviewed ${subject.lastReviewed} days ago`;
+    if (score === null) return t('dashboard.notStartedCount', { count: subject.notStartedCount });
+    if (subject.lastReviewed === null) return t('dashboard.lastReviewed.none');
+    if (subject.lastReviewed <= 0) return t('dashboard.lastReviewed.today');
+    if (subject.lastReviewed === 1) return t('dashboard.lastReviewed.yesterday');
+    return t('dashboard.lastReviewed.days', { days: subject.lastReviewed });
   };
 
   // Get card glow class based on score
@@ -284,14 +258,14 @@ function SubjectCard({ subject, index }: {
         {isAtRisk && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-destructive text-destructive-foreground text-[9px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-              AT RISK ⚠️
+              {t('dashboard.atRisk')}
             </span>
           </div>
         )}
         {needsReview && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-accent text-accent-foreground text-[9px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-              Needs Review
+              {t('dashboard.needsReview')}
             </span>
           </div>
         )}
@@ -324,7 +298,7 @@ function SubjectCard({ subject, index }: {
             onClick={handleReviewClick}
             className={`mt-2 w-full font-semibold rounded-xl h-9 text-xs ${getButtonClass()}`}
           >
-            {score === null ? 'Start Topic' : 'Review Now'} <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            {score === null ? t('dashboard.startTopic') : t('dashboard.reviewNow')} <ChevronRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         </CardContent>
       </Card>
@@ -339,7 +313,7 @@ interface PriorityDisplayItem {
   subjectIcon: string;
   memoryScore: number;
   reviewTime: number;
-  isRed: boolean; // true = red (#D9534F), false = gold (#EAA93C)
+  recommendedMode: 'mcq' | 'essay';
 }
 
 function PriorityItemRow({
@@ -351,12 +325,12 @@ function PriorityItemRow({
   index: number;
   rank: number;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const dotColor = item.isRed ? 'bg-destructive' : 'bg-accent';
-  const scoreBgColor = item.isRed ? 'bg-destructive' : 'bg-accent';
+  const scoreColor = getKnowledgeScoreColor(item.memoryScore);
 
   const handleStart = () => {
-    navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=concept-check`);
+    navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=${item.recommendedMode}`);
   };
 
   return (
@@ -374,16 +348,17 @@ function PriorityItemRow({
       {/* Topic info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`w-2 h-2 rounded-full ${dotColor} flex-shrink-0`} />
+          <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: scoreColor.fill }} />
           <span className="font-bold text-foreground">{item.topicName}</span>
           <Badge className="bg-secondary text-secondary-foreground border-0 text-xs font-bold shrink-0">
             {item.subjectIcon} {item.subjectName}
           </Badge>
         </div>
         <div className="flex items-center gap-3 mt-1.5 ml-4">
-          <span className="text-xs text-muted-foreground">Memory Score:</span>
+          <span className="text-xs text-muted-foreground">{t('dashboard.memoryScoreColon')}</span>
           <Badge 
-            className={`border-0 text-xs font-bold ${scoreBgColor} ${item.isRed ? 'text-destructive-foreground' : 'text-accent-foreground'}`}
+            className="border-0 text-xs font-bold"
+            style={{ backgroundColor: scoreColor.fill, color: scoreColor.text }}
           >
             {item.memoryScore}%
           </Badge>
@@ -400,14 +375,25 @@ function PriorityItemRow({
         onClick={handleStart}
         className="font-bold rounded-full shrink-0 bg-primary hover:bg-accent text-primary-foreground transition-all hover:-translate-y-0.5"
       >
-        Start →
+        {t('dashboard.startArrow')}
       </Button>
     </motion.div>
   );
 }
 
-// Generate dynamic insight message
-function getDynamicInsight(priorityQueue: PriorityQueueItem[], subjectSummaries: SubjectSummary[]): string {
+// Generate dynamic insight message.
+//
+// Takes the translator rather than returning a key, because each branch below
+// builds one sentence out of live numbers. Assembling these from fragments
+// would not survive translation — Chinese orders the subject, the figure and
+// the recommendation differently from English — so the whole sentence is the
+// translation unit and the values are interpolated into it.
+function getDynamicInsight(
+  priorityQueue: PriorityQueueItem[],
+  subjectSummaries: SubjectSummary[],
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
+  subjectName: (name: string) => string,
+): string {
   // Find subject with biggest drop or lowest score
   const atRiskSubjects = subjectSummaries.filter(s => s.avgScore !== null && s.avgScore < 40);
   const warningSubjects = subjectSummaries.filter(s => s.avgScore !== null && s.avgScore >= 40 && s.avgScore < 70);
@@ -417,20 +403,33 @@ function getDynamicInsight(priorityQueue: PriorityQueueItem[], subjectSummaries:
       (a.avgScore ?? 0) < (b.avgScore ?? 0) ? a : b
     );
     const recoveryTime = estimateReviewTime(worstSubject.avgScore ?? 0);
-    return `Your ${worstSubject.name} memory score dropped to ${worstSubject.avgScore}%. ${recoveryTime} mins of review can recover it.`;
+    return t('dashboard.insight.dropped', {
+      subject: subjectName(worstSubject.name),
+      score: worstSubject.avgScore ?? 0,
+      minutes: recoveryTime,
+    });
   }
-  
+
   if (warningSubjects.length > 0) {
     const needsAttention = warningSubjects[0];
     const timeSinceReview = needsAttention.lastReviewed ?? 0;
     if (timeSinceReview >= 2) {
-      return `Your ${needsAttention.name} score is ${needsAttention.avgScore}% and hasn't been reviewed in ${timeSinceReview} days. Quick review recommended!`;
+      return t('dashboard.insight.stale', {
+        subject: subjectName(needsAttention.name),
+        score: needsAttention.avgScore ?? 0,
+        days: timeSinceReview,
+      });
     }
   }
-  
+
   if (priorityQueue.length > 0) {
     const topPriority = priorityQueue[0];
-    return `${topPriority.topic.name} in ${topPriority.subjectName} is at ${topPriority.effectiveScore}%. A quick ${estimateReviewTime(topPriority.effectiveScore)}-min review will strengthen your memory.`;
+    return t('dashboard.insight.priority', {
+      topic: topPriority.topic.name,
+      subject: subjectName(topPriority.subjectName),
+      score: topPriority.effectiveScore,
+      minutes: estimateReviewTime(topPriority.effectiveScore),
+    });
   }
 
   const totalTopics = subjectSummaries.reduce((sum, subject) => sum + subject.topics.length, 0);
@@ -439,13 +438,19 @@ function getDynamicInsight(priorityQueue: PriorityQueueItem[], subjectSummaries:
     0,
   );
   if (notStartedTopics > 0) {
-    return `Your first learning path is ready. You have started ${totalTopics - notStartedTopics} of ${totalTopics} O-Level topics.`;
+    return t('dashboard.insight.firstPath', {
+      started: totalTopics - notStartedTopics,
+      total: totalTopics,
+    });
   }
-  
-  return "All topics are in great shape! Keep up the excellent study habits.";
+
+  return t('dashboard.insight.allGood');
 }
 
 function StudentDashboard() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const localizeSubjectName = useSubjectName();
   const { data: account } = useCurrentAccount();
   const firstName = account?.user.name.split(/\s+/)[0] || 'Student';
 
@@ -470,7 +475,7 @@ function StudentDashboard() {
       subjectIcon: item.subjectIcon,
       memoryScore: item.effectiveScore,
       reviewTime: estimateReviewTime(item.effectiveScore),
-      isRed: item.effectiveScore < 42,
+      recommendedMode: item.topic.recommendedMode ?? 'mcq',
     }));
   }, [priorityQueue]);
 
@@ -506,7 +511,7 @@ function StudentDashboard() {
   }, [subjects]);
 
   // Dynamic insight
-  const insightMessage = getDynamicInsight(priorityQueue, subjectSummaries);
+  const insightMessage = getDynamicInsight(priorityQueue, subjectSummaries, t, localizeSubjectName);
 
   // CSS for glow animations based on score thresholds
   const glowStyles = `
@@ -538,19 +543,42 @@ function StudentDashboard() {
       >
         <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-accent blob-soft" />
         <div className="absolute -bottom-14 left-1/3 h-40 w-40 rounded-full bg-secondary blob-soft" />
-        <div className="relative max-w-4xl">
-          <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">EduNets study pulse</Badge>
-          <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
-            {getGreeting()}, {firstName}.<br />Let’s make revision feel lighter.
-          </h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-foreground leading-relaxed max-w-2xl text-base lg:text-lg font-medium"
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+          <div className="min-w-0 max-w-4xl">
+            <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">{t('dashboard.pulse')}</Badge>
+            <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
+              {t(getGreetingKey())}, {firstName}.<br />{t('dashboard.subtitle')}
+            </h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-foreground leading-relaxed max-w-2xl text-base lg:text-lg font-medium"
+            >
+              {insightMessage}
+            </motion.p>
+          </div>
+
+          {/* Capture Hub shortcut — the hero's top-right corner is the only
+              always-visible spot on this page, so the phone-first capture flow
+              gets an entry point that does not depend on the sidebar. */}
+          <motion.button
+            type="button"
+            onClick={() => navigate('/capture-hub')}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="group flex w-full shrink-0 items-center gap-3 rounded-2xl border border-primary/15 bg-card/80 px-5 py-4 text-left shadow-[0_12px_32px_rgba(29,58,98,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_44px_rgba(29,58,98,0.18)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto lg:w-60"
           >
-            {insightMessage}
-          </motion.p>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Inbox className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-primary">{t('nav.captureHub')}</span>
+              <span className="block text-xs font-semibold text-muted-foreground">{t('dashboard.captureCta')}</span>
+            </span>
+            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-primary transition group-hover:translate-x-0.5" aria-hidden="true" />
+          </motion.button>
         </div>
       </motion.div>
 
@@ -589,7 +617,7 @@ function StudentDashboard() {
       >
         <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
           <span className="w-3 h-8 bg-secondary rounded-full rotate-6" />
-          Memory Health by Subject
+          {t('dashboard.memoryHealth')}
         </h2>
         
         {/* Horizontal scrollable container */}
@@ -620,12 +648,12 @@ function StudentDashboard() {
       >
         <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
           <span className="w-3 h-8 bg-accent rounded-full -rotate-6" />
-          Today's Priority Queue
+          {t('dashboard.priorityQueue')}
         </h2>
         
         {/* Urgency label */}
         <p className="text-xs text-muted-foreground italic mb-3">
-          Sorted by urgency — most forgotten first
+          {t('dashboard.priorityQueue.sorted')}
         </p>
         
         <div className="space-y-3">
@@ -634,7 +662,7 @@ function StudentDashboard() {
           ))}
           {visiblePriorityItems.length === 0 && (
             <div className="rounded-[1.35rem] border border-border bg-card p-5 text-sm font-semibold text-muted-foreground shadow-sm">
-              No reviews are due yet. Start any Not Started topic to build your queue.
+              {t('dashboard.priorityQueue.empty')}
             </div>
           )}
         </div>
@@ -648,7 +676,7 @@ function StudentDashboard() {
       >
         <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
           <span className="w-3 h-8 bg-secondary rounded-full rotate-6" />
-          Your Streak
+          {t('dashboard.streak')}
         </h2>
         
         <div className="flex flex-wrap gap-3">
@@ -695,6 +723,5 @@ export default function DashboardPage() {
   const role = account?.profile?.role ?? null;
 
   if (isTeachingRole(role)) return <TeacherDashboardPage />;
-  if (role === 'parent') return <ParentDashboardPage />;
   return <StudentDashboard />;
 }

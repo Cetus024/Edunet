@@ -71,6 +71,26 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * The chosen language, read straight from the store jotai's atomWithStorage
+ * writes to.
+ *
+ * apiRequest is a plain function called from query functions rather than from
+ * a component, so it cannot use the locale hook. Reading the key directly keeps
+ * every request carrying the language without threading a locale argument
+ * through every call site. Storage can throw outright in a private window or
+ * when site data is blocked, so a failure here degrades to English rather than
+ * breaking the request.
+ */
+function currentLocaleHeader(): string {
+  try {
+    const stored = globalThis.localStorage?.getItem('edunets-locale');
+    return stored && JSON.parse(stored) === 'zh' ? 'zh-CN' : 'en-SG';
+  } catch {
+    return 'en-SG';
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -78,6 +98,7 @@ export async function apiRequest<T>(
   let response: Response;
   const headers = new Headers(init.headers);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  if (!headers.has('Accept-Language')) headers.set('Accept-Language', currentLocaleHeader());
 
   try {
     response = await fetch(createApiUrl(path), {

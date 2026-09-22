@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Brain, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'lucide-react';
 
@@ -10,15 +10,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
-import { clamp, normalizeConceptLabel as normalize, roundCoordinate } from '@/features/concept-web/graph-utils';
 import {
-  useClassConceptWeb,
+  alignedOuterRingStart,
+  clamp,
+  clientPointToConceptSvg,
+  CONCEPT_WEB_LAYOUT,
+  CONCEPT_WEB_VIEW_BOX,
+  getConceptNodeTypography,
+  normalizeConceptLabel as normalize,
+  roundCoordinate,
+} from '@/features/concept-web/graph-utils';
+import {
+  useTeacherConceptWeb,
   useStudentConceptWeb,
   useTeacherStudents,
-  type ClassConceptWebTopic,
+  type TeacherConceptWebTopic,
   type StudentConceptWebTopic,
 } from '@/lib/api/teacher-students';
 import { useTeachingContext } from '@/lib/teaching-context';
+import { getKnowledgeScoreColor } from '@/lib/score-color';
 
 type NodeKind = 'subject' | 'topic' | 'subconcept';
 type GraphNode = {
@@ -41,6 +51,13 @@ type GraphNode = {
 type GraphLink = { from: GraphNode; to: GraphNode; dashed?: boolean };
 type PopupState = { node: GraphNode; x: number; y: number };
 type PanState = { x: number; y: number; zoom: number };
+type PopupDragState = {
+  pointerId: number;
+  clientX: number;
+  clientY: number;
+  popupX: number;
+  popupY: number;
+};
 
 type NormalizedTopic = {
   id: string;
@@ -52,21 +69,14 @@ type NormalizedTopic = {
   nextReviewAt: string | null;
 };
 
-const tierForScore = (score: number | null) => {
-  if (score === null) return { fill: '#9CA3AF', stroke: '#6B7280', text: '#FFFFFF', label: 'Not started' };
-  if (score >= 70) return { fill: '#186636', stroke: '#0F4A24', text: '#FFFFFF', label: 'Strong' };
-  if (score >= 40) return { fill: '#EAA93C', stroke: '#D99A2F', text: '#17233A', label: 'Review needed' };
-  return { fill: '#D9534F', stroke: '#C0392B', text: '#FFFFFF', label: 'Weak' };
-};
+const POPUP_NON_DRAG_SELECTOR = 'button, a, input, select, textarea, label, [role="button"], [contenteditable="true"], [data-popup-no-drag="true"]';
+const POPUP_TEXT_SELECTOR = 'p, h1, h2, h3, h4, span, strong, em, svg, path';
 
-const wrapText = (label: string): string[] => {
-  const words = label.split(' ');
-  if (label.length <= 12) return [label];
-  const first: string[] = [];
-  const second: string[] = [];
-  words.forEach((word: string, index: number) => (index < Math.ceil(words.length / 2) ? first : second).push(word));
-  return [first.join(' '), second.join(' ')].filter(Boolean).slice(0, 2);
-};
+function canStartPopupDrag(target: EventTarget | null): target is Element {
+  return target instanceof Element
+    && !target.closest(POPUP_NON_DRAG_SELECTOR)
+    && !target.matches(POPUP_TEXT_SELECTOR);
+}
 
 function formatDate(value: string | null) {
   if (!value) return 'Never';
@@ -83,8 +93,8 @@ function suggestedActionFor(topic: NormalizedTopic): string {
 
 /**
  * The teacher's concept web now runs on real data: a teaching_scope (real
- * classroom+subject, see migration 0006) picks which roster/topics load via
- * useClassConceptWeb/useStudentConceptWeb, replacing the old fake demo-squad
+ * school/subject or Class scope picks which roster/topics load via
+ * useTeacherConceptWeb/useStudentConceptWeb, replacing the old fake demo-squad
  * stand-in. Visually it stays a sibling of the student concept web - same
  * sticky header, SVG bubble graph with a two-tier topic/subconcept fan (see
  * content.ts, shared with student-view.tsx), legend, zoom controls, and
@@ -93,8 +103,26 @@ function suggestedActionFor(topic: NormalizedTopic): string {
  * surface at a glance.
  */
 export default function TeacherConceptWebView() {
-  const { scopes, activeScope, activeScopeId, setActiveScopeId } = useTeachingContext();
-  const { data: rosterData, isLoading: rosterLoading, error: rosterError } = useTeacherStudents({ scopeId: activeScopeId });
+  const { scopes, activeScope, setActiveScopeId } = useTeachingContext();
+  const selectedSubjectId = activeScope?.subjectId ?? null;
+  const [audienceScopeId, setAudienceScopeId] = useState<'school' | string>('school');
+  const subjectScopes = useMemo(
+    () => scopes.filter((scope) => scope.subjectId === selectedSubjectId),
+    [scopes, selectedSubjectId],
+  );
+  const selectedScope = audienceScopeId === 'school'
+    ? null
+    : subjectScopes.find((scope) => scope.id === audienceScopeId) ?? null;
+
+  useEffect(() => {
+    if (audienceScopeId === 'school' || subjectScopes.some((scope) => scope.id === audienceScopeId)) return;
+    setAudienceScopeId('school');
+  }, [audienceScopeId, subjectScopes]);
+
+  const { data: rosterData, isLoading: rosterLoading, error: rosterError } = useTeacherStudents({
+    enabled: Boolean(selectedScope),
+    scopeId: selectedScope?.id ?? null,
+  });
   const students = useMemo(() => rosterData?.students ?? [], [rosterData]);
 
   const prefersReducedMotion = useReducedMotion();
@@ -104,39 +132,45 @@ export default function TeacherConceptWebView() {
   const [dragging, setDragging] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [popup, setPopup] = useState<PopupState | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
+  const popupDragRef = useRef<PopupDragState | null>(null);
+  const [popupDragging, setPopupDragging] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const { data: webData, isLoading: classLoading, error: classError } = useClassConceptWeb({
-    enabled: !rosterLoading && students.length > 0 && !selectedStudentId,
-    scopeId: activeScopeId,
-  });
-  const { data: studentWebData, isLoading: studentLoading, error: studentError } = useStudentConceptWeb(selectedStudentId, activeScopeId);
+  useEffect(() => {
+    setAudienceScopeId('school');
+    setSelectedStudentId(null);
+    setPopup(null);
+  }, [selectedSubjectId]);
+
+  const aggregateView = selectedSubjectId
+    ? selectedScope
+      ? { view: 'class' as const, scopeId: selectedScope.id }
+      : { view: 'school' as const, subjectId: selectedSubjectId }
+    : null;
+  const { data: webData, isLoading: classLoading, error: classError } = useTeacherConceptWeb(
+    aggregateView,
+    !selectedStudentId,
+  );
+  const { data: studentWebData, isLoading: studentLoading, error: studentError } = useStudentConceptWeb(
+    selectedStudentId,
+    selectedScope?.id ?? null,
+  );
 
   const webLoading = selectedStudentId ? studentLoading : classLoading;
   const webError = selectedStudentId ? studentError : classError;
   const subjectName = (selectedStudentId ? studentWebData?.subject.name : webData?.subject.name) ?? null;
   const subjectIcon = (selectedStudentId ? studentWebData?.subject.icon : webData?.subject.icon) ?? null;
-  const classSize = webData?.classSize ?? students.length;
+  const cohortSize = webData?.cohortSize ?? (selectedScope ? students.length : 0);
 
-  const classroomNames = useMemo(() => Array.from(new Set(scopes.map((scope) => scope.classroomName))), [scopes]);
-  const scopesForActiveClassroom = useMemo(
-    () => scopes.filter((scope) => scope.classroomName === (activeScope?.classroomName ?? '')),
-    [scopes, activeScope],
-  );
-  const handleClassroomChange = (classroomName: string) => {
-    const nextScope = scopes.find((scope) => scope.classroomName === classroomName);
-    if (nextScope) setActiveScopeId(nextScope.id);
+  const handleAudienceChange = (value: string) => {
+    setAudienceScopeId(value);
+    if (value !== 'school') setActiveScopeId(value);
     setSelectedStudentId(null);
     setPopup(null);
   };
-  const handleSubjectChange = (scopeId: string) => {
-    setActiveScopeId(scopeId);
-    setSelectedStudentId(null);
-    setPopup(null);
-  };
-
   const normalizedTopics = useMemo<NormalizedTopic[]>(() => {
     if (selectedStudentId) {
       return (studentWebData?.topics ?? []).map((topic: StudentConceptWebTopic) => ({
@@ -144,7 +178,7 @@ export default function TeacherConceptWebView() {
         participatingStudents: null,
       }));
     }
-    return (webData?.topics ?? []).map((topic: ClassConceptWebTopic) => ({ ...topic }));
+    return (webData?.topics ?? []).map((topic: TeacherConceptWebTopic) => ({ ...topic }));
   }, [selectedStudentId, studentWebData, webData]);
 
   const graph = useMemo(() => {
@@ -155,27 +189,31 @@ export default function TeacherConceptWebView() {
       ? Math.round(started.reduce((sum, topic) => sum + (topic.memoryScore ?? 0), 0) / started.length)
       : null;
     const firstTopic = normalizedTopics[0];
-    const scopeLabel = activeScope?.classroomName ? `your ${activeScope.classroomName} class` : 'your class';
+    const scopeLabel = webData?.audience.label ?? selectedScope?.classroomName ?? 'this cohort';
 
     const nodes: GraphNode[] = [{
       id: normalize(subjectName),
       name: subjectName,
       memoryScore: classAverage,
-      participatingStudents: selectedStudentId ? null : classSize,
+      participatingStudents: selectedStudentId ? null : cohortSize,
       quizAttempts: normalizedTopics.reduce((sum, topic) => sum + topic.quizAttempts, 0),
       lastReviewedAt: null,
       nextReviewAt: null,
       description: selectedStudentId
         ? `${studentWebData?.student.name ?? 'This student'}'s ${subjectName} concept map.`
-        : `${subjectName} concept map aggregated across ${scopeLabel} of ${classSize} students.`,
+        : `${subjectName} concept map aggregated across ${scopeLabel} for ${cohortSize} students.`,
       keyConnection: { topic: firstTopic.name, explanation: `${firstTopic.name} is the first branch in this subject map.` },
       kind: 'subject',
-      x: 500,
-      y: 400,
-      r: 60,
+      x: CONCEPT_WEB_LAYOUT.centerX,
+      y: CONCEPT_WEB_LAYOUT.centerY,
+      r: CONCEPT_WEB_LAYOUT.subjectRadius,
       index: 0,
     }];
     const links: GraphLink[] = [];
+    const childCounts = normalizedTopics.map((topic) => (topicSubconcepts[topic.id] ?? []).length);
+    const outerSlotCount = childCounts.reduce((sum, count) => sum + count, 0);
+    const outerStartAngle = alignedOuterRingStart(childCounts);
+    let outerSlotCursor = 0;
 
     normalizedTopics.forEach((topic, topicIndex) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / normalizedTopics.length);
@@ -196,18 +234,16 @@ export default function TeacherConceptWebView() {
           explanation: `${topic.name} and ${normalizedTopics[(topicIndex + 1) % normalizedTopics.length].name} are neighbouring branches in this subject map.`,
         },
         kind: 'topic',
-        x: roundCoordinate(500 + Math.cos(angle) * 170),
-        y: roundCoordinate(400 + Math.sin(angle) * 170),
-        r: 42,
+        x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(angle) * CONCEPT_WEB_LAYOUT.topicRingRadius),
+        r: CONCEPT_WEB_LAYOUT.topicRadius,
         index: nodes.length,
       };
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
 
-      const perTopicSlice = (Math.PI * 2) / normalizedTopics.length;
-      const spread = Math.min(perTopicSlice * 0.62, Math.PI / 3.2);
       subconceptSeeds.forEach((seed: SubconceptSeed, conceptIndex: number) => {
-        const subAngle = angle - spread / 2 + (spread / Math.max(1, subconceptSeeds.length - 1)) * conceptIndex;
+        const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
         // Subconcept nodes inherit their parent topic's real stats - there is
         // no separate per-subtopic score/quiz history tracked in the data
         // model, same approach the student concept web uses.
@@ -223,14 +259,15 @@ export default function TeacherConceptWebView() {
           keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topic.name}.` },
           kind: 'subconcept',
           parentId: topic.id,
-          x: roundCoordinate(500 + Math.cos(subAngle) * 330),
-          y: roundCoordinate(400 + Math.sin(subAngle) * 330),
-          r: 28,
+          x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          r: CONCEPT_WEB_LAYOUT.subtopicRadius,
           index: nodes.length,
         };
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
+      outerSlotCursor += subconceptSeeds.length;
     });
 
     const byId = nodes.reduce<Record<string, GraphNode>>((accumulator, node) => ({ ...accumulator, [node.id]: node }), {});
@@ -251,52 +288,94 @@ export default function TeacherConceptWebView() {
     }
 
     return { nodes, links };
-  }, [activeScope, classSize, normalizedTopics, selectedStudentId, studentWebData, subjectName]);
+  }, [cohortSize, normalizedTopics, selectedScope, selectedStudentId, studentWebData, subjectName, webData?.audience.label]);
 
   const priorityTopics = useMemo(
     () => [...normalizedTopics]
-      .filter((topic) => topic.memoryScore === null || topic.memoryScore < 70)
+      .filter((topic) => topic.memoryScore === null || topic.memoryScore < 80)
       .sort((a, b) => (a.memoryScore ?? -1) - (b.memoryScore ?? -1))
       .slice(0, 5),
     [normalizedTopics],
   );
   const improvingTopics = useMemo(
-    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore >= 70),
+    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore >= 80),
     [normalizedTopics],
   );
   const insightSubjectLabel = selectedStudentId
     ? (studentWebData?.student.name ?? 'this student')
-    : `${activeScope?.classroomName ?? 'this class'} · ${subjectName ?? ''}`;
+    : `${webData?.audience.label ?? selectedScope?.classroomName ?? 'Whole school'} · ${subjectName ?? ''}`;
 
-  const clampPopup = useCallback((x: number, y: number) => ({
-    x: clamp(x, 16, Math.max(16, window.innerWidth - 390)),
-    y: clamp(y, 88, Math.max(88, window.innerHeight - 430)),
-  }), []);
+  const placePopupFromClientPoint = useCallback((clientX: number, clientY: number) => {
+    const containerRect = canvasRef.current?.getBoundingClientRect();
+    if (!containerRect) return { x: 16, y: 16 };
 
-  // Same self-correcting overflow fix as the student concept web (see that
-  // file for the full explanation): popup.x/y are relative to the canvas
-  // container, not the viewport, so the pre-render clampPopup estimate can
-  // still place the popup partly off-screen — this measures the settled
-  // layout box after render and clamps it back on-screen for real.
-  useLayoutEffect(() => {
-    if (!popup) return;
+    const estimatedWidth = Math.min(370, Math.max(0, containerRect.width - 32));
+    const estimatedHeight = Math.min(430, Math.max(0, containerRect.height - 32));
+    return {
+      x: clamp(clientX - containerRect.left, 16, Math.max(16, containerRect.width - estimatedWidth - 16)),
+      y: clamp(clientY - containerRect.top, 16, Math.max(16, containerRect.height - estimatedHeight - 16)),
+    };
+  }, []);
+
+  const clampPopupToCanvas = useCallback((x: number, y: number) => {
     const element = popupRef.current;
     const container = canvasRef.current;
-    if (!element || !container) return;
-    const containerRect = container.getBoundingClientRect();
-    const maxX = window.innerWidth - 16 - element.offsetWidth - containerRect.left;
-    const maxY = window.innerHeight - 16 - element.offsetHeight - containerRect.top;
-    const clampedX = Math.min(popup.x, Math.max(16 - containerRect.left, maxX));
-    const clampedY = Math.min(popup.y, Math.max(16 - containerRect.top, maxY));
-    if (Math.abs(clampedX - popup.x) < 0.5 && Math.abs(clampedY - popup.y) < 0.5) return;
-    setPopup((current) => (current ? { ...current, x: clampedX, y: clampedY } : current));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [popup?.node.id, popup?.x, popup?.y]);
+    if (!element || !container) return { x, y };
+
+    return {
+      x: clamp(x, 16, Math.max(16, container.clientWidth - element.offsetWidth - 16)),
+      y: clamp(y, 16, Math.max(16, container.clientHeight - element.offsetHeight - 16)),
+    };
+  }, []);
+
+  // The popup is positioned relative to the graph canvas. Measure its settled
+  // size after render so both its initial placement and dragged placement stay
+  // fully inside that canvas rather than covering the header or insights rail.
+  useLayoutEffect(() => {
+    if (!popup) return;
+    const nextPosition = clampPopupToCanvas(popup.x, popup.y);
+    if (Math.abs(nextPosition.x - popup.x) < 0.5 && Math.abs(nextPosition.y - popup.y) < 0.5) return;
+    setPopup((current) => (current ? { ...current, ...nextPosition } : current));
+  }, [clampPopupToCanvas, popup]);
+
+  useEffect(() => {
+    if (!popupRef.current || !canvasRef.current) return;
+
+    const keepPopupInsideCanvas = () => {
+      setPopup((current) => {
+        if (!current) return current;
+        const nextPosition = clampPopupToCanvas(current.x, current.y);
+        if (nextPosition.x === current.x && nextPosition.y === current.y) return current;
+        return { ...current, ...nextPosition };
+      });
+    };
+    const observer = new ResizeObserver(keepPopupInsideCanvas);
+    observer.observe(canvasRef.current);
+    window.addEventListener('resize', keepPopupInsideCanvas);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', keepPopupInsideCanvas);
+    };
+  }, [clampPopupToCanvas, popup?.node.id]);
+
+  useEffect(() => {
+    const popupElement = popupRef.current;
+    if (!popupElement) return;
+
+    // Prevent the browser from claiming touch gestures that begin on a
+    // draggable blank area. Touches beginning on text or controls retain the
+    // popup's native scrolling and interaction behavior.
+    const preservePopupDrag = (event: TouchEvent) => {
+      if (canStartPopupDrag(event.target)) event.preventDefault();
+    };
+    popupElement.addEventListener('touchstart', preservePopupDrag, { passive: false });
+    return () => popupElement.removeEventListener('touchstart', preservePopupDrag);
+  }, [popup?.node.id]);
 
   const openPopupForNode = useCallback((event: { clientX: number; clientY: number }, node: GraphNode) => {
     setHighlightedId(node.id);
-    setPopup({ node, ...clampPopup(event.clientX + 18, event.clientY - 40) });
-  }, [clampPopup]);
+    setPopup({ node, ...placePopupFromClientPoint(event.clientX + 18, event.clientY - 40) });
+  }, [placePopupFromClientPoint]);
   const handleNodeClick = (event: React.MouseEvent<SVGGElement>, node: GraphNode) => {
     event.stopPropagation();
     openPopupForNode(event, node);
@@ -306,36 +385,94 @@ export default function TeacherConceptWebView() {
     event.preventDefault();
     event.stopPropagation();
     setHighlightedId(node.id);
-    setPopup({ node, ...clampPopup(window.innerWidth / 2 - 185, 120) });
+    const containerRect = canvasRef.current?.getBoundingClientRect();
+    const clientX = containerRect ? containerRect.left + containerRect.width / 2 - 185 : window.innerWidth / 2 - 185;
+    const clientY = containerRect ? containerRect.top + 32 : 120;
+    setPopup({ node, ...placePopupFromClientPoint(clientX, clientY) });
   };
   const handlePriorityTopicClick = (event: React.MouseEvent<HTMLButtonElement>, topicId: string) => {
     const node = graph.nodes.find((candidate) => candidate.id === topicId);
     if (node) openPopupForNode(event, node);
   };
+  const handlePopupPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!popup || !event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (!canStartPopupDrag(event.target)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    popupDragRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      popupX: popup.x,
+      popupY: popup.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPopupDragging(true);
+  };
+  const handlePopupPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = popupDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nextPosition = clampPopupToCanvas(
+      drag.popupX + event.clientX - drag.clientX,
+      drag.popupY + event.clientY - drag.clientY,
+    );
+    setPopup((current) => (current ? { ...current, ...nextPosition } : current));
+  };
+  const finishPopupDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = popupDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    popupDragRef.current = null;
+    setPopupDragging(false);
+  };
+  const handlePopupLostPointerCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (popupDragRef.current?.pointerId !== event.pointerId) return;
+    popupDragRef.current = null;
+    setPopupDragging(false);
+  };
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-popup="true"]')) return;
-    setDragging({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    setDragging({ x: point?.x ?? event.clientX, y: point?.y ?? event.clientY, panX: pan.x, panY: pan.y });
   };
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!dragging) return;
-    setPan((current) => ({ ...current, x: dragging.panX + event.clientX - dragging.x, y: dragging.panY + event.clientY - dragging.y }));
+    const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+    const x = point?.x ?? event.clientX;
+    const y = point?.y ?? event.clientY;
+    setPan((current) => ({ ...current, x: dragging.panX + x - dragging.x, y: dragging.panY + y - dragging.y }));
   };
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
+    if ((event.target as Element).closest('[data-popup="true"]')) return;
     event.preventDefault();
-    const canvas = canvasRef.current;
     setPan((current) => {
       const nextZoom = clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.4, 2.5);
-      if (!canvas || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
-      const rect = canvas.getBoundingClientRect();
-      const svgX = ((event.clientX - rect.left) / rect.width) * 1000;
-      const svgY = ((event.clientY - rect.top) / rect.height) * 800;
-      const contentX = (svgX - current.x) / current.zoom;
-      const contentY = (svgY - current.y) / current.zoom;
-      return { x: svgX - contentX * nextZoom, y: svgY - contentY * nextZoom, zoom: nextZoom };
+      const point = clientPointToConceptSvg(svgRef.current, event.clientX, event.clientY);
+      if (!point || nextZoom === current.zoom) return { ...current, zoom: nextZoom };
+      const contentX = (point.x - current.x) / current.zoom;
+      const contentY = (point.y - current.y) / current.zoom;
+      return { x: point.x - contentX * nextZoom, y: point.y - contentY * nextZoom, zoom: nextZoom };
     });
-  };
+  }, []);
 
-  const selectedPopupTier = popup ? tierForScore(popup.node.memoryScore) : null;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Keep browser page zoom/scroll from winning over the graph interaction.
+    // React's delegated wheel listener is passive, so this must be native.
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
+
+  const selectedPopupTier = popup ? getKnowledgeScoreColor(popup.node.memoryScore) : null;
 
   if (rosterError) {
     return (
@@ -343,30 +480,18 @@ export default function TeacherConceptWebView() {
         <Users className="h-10 w-10 text-muted-foreground" />
         <h1 className="text-xl font-black">Roster unavailable</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          {rosterError instanceof Error ? rosterError.message : 'Only teachers and tutors have a student roster.'}
+          {rosterError instanceof Error ? rosterError.message : 'Only teachers have a student roster.'}
         </p>
       </div>
     );
   }
 
-  if (!rosterLoading && !activeScope) {
+  if (scopes.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background p-8 text-center text-foreground">
         <Users className="h-10 w-10 text-muted-foreground" />
-        <h1 className="text-xl font-black">No class set up yet</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">Finish onboarding to set up a classroom and subject.</p>
-      </div>
-    );
-  }
-
-  if (!rosterLoading && students.length === 0) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background p-8 text-center text-foreground">
-        <Users className="h-10 w-10 text-muted-foreground" />
-        <h1 className="text-xl font-black">No students yet</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          No students at your school have picked your subject during onboarding yet. Once they do, they will appear here.
-        </p>
+        <h1 className="text-xl font-black">Awaiting admin assignment</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">Your school admin needs to assign a Class and subject before Concept Web data is available.</p>
       </div>
     );
   }
@@ -378,33 +503,34 @@ export default function TeacherConceptWebView() {
           <span className="text-xl">{subjectIcon ?? '🧠'}</span>
           <Label className="font-bold">Concept Web</Label>
         </div>
-        <Select value={activeScope?.classroomName ?? ''} onValueChange={handleClassroomChange}>
-          <SelectTrigger className="h-10 w-[160px] rounded-full bg-card"><SelectValue placeholder="Class" /></SelectTrigger>
+        <div className="flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-bold">
+          <span>{activeScope?.subjectIcon ?? '📘'}</span>
+          <span>{activeScope?.subjectName ?? 'Assigned subject'}</span>
+        </div>
+        <Select value={audienceScopeId} onValueChange={handleAudienceChange}>
+          <SelectTrigger className="h-10 w-[180px] rounded-full bg-card"><SelectValue placeholder="View" /></SelectTrigger>
           <SelectContent>
-            {classroomNames.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={activeScopeId ?? ''} onValueChange={handleSubjectChange}>
-          <SelectTrigger className="h-10 w-[170px] rounded-full bg-card"><SelectValue placeholder="Subject" /></SelectTrigger>
-          <SelectContent>
-            {scopesForActiveClassroom.map((scope) => (
-              <SelectItem key={scope.id} value={scope.id}>{scope.subjectIcon ?? '📘'} {scope.subjectName}</SelectItem>
+            <SelectItem value="school">Whole school</SelectItem>
+            {subjectScopes.map((scope) => (
+              <SelectItem key={scope.id} value={scope.id}>{scope.classroomName}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <div className="flex-1" />
-        <Select value={selectedStudentId ?? 'all'} onValueChange={(value) => { setSelectedStudentId(value === 'all' ? null : value); setPopup(null); }}>
-          <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Select student">
-            <Users className="h-4 w-4 shrink-0" />
-            <SelectValue placeholder="Whole class" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Whole class (average)</SelectItem>
-            {students.map((student) => <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {selectedScope && (
+          <Select value={selectedStudentId ?? 'all'} onValueChange={(value) => { setSelectedStudentId(value === 'all' ? null : value); setPopup(null); }}>
+            <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Select student">
+              <Users className="h-4 w-4 shrink-0" />
+              <SelectValue placeholder="Whole class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Whole class (average)</SelectItem>
+              {students.map((student) => <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Badge variant="outline" className="gap-1.5 rounded-full border-border bg-card text-xs font-bold text-foreground">
-          <Users className="h-3 w-3" aria-hidden="true" /> {classSize} students
+          <Users className="h-3 w-3" aria-hidden="true" /> {cohortSize} students
         </Badge>
         <div className="flex items-center gap-3 rounded-full bg-card px-4 py-2 shadow-sm">
           {weakOnly ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -414,10 +540,10 @@ export default function TeacherConceptWebView() {
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onWheel={handleWheel} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
+        <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>
           {(rosterLoading || webLoading) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm font-semibold text-muted-foreground">
-              Loading your class's concept web…
+              Loading the selected Concept Web…
             </div>
           )}
           {webError && !webLoading && (
@@ -425,7 +551,7 @@ export default function TeacherConceptWebView() {
               {webError instanceof Error ? webError.message : 'Could not load the concept web.'}
             </div>
           )}
-          <svg viewBox="0 0 1000 800" className="h-full w-full select-none">
+          <svg ref={svgRef} viewBox={CONCEPT_WEB_VIEW_BOX} className="h-full w-full select-none">
             <defs>
               <filter id="node-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#1D3A62" floodOpacity="0.18" /></filter>
             </defs>
@@ -434,11 +560,12 @@ export default function TeacherConceptWebView() {
                 <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
               ))}
               {graph.nodes.map((node: GraphNode) => {
-                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore >= 70;
-                const tier = tierForScore(node.memoryScore);
+                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore >= 80;
+                const tier = getKnowledgeScoreColor(node.memoryScore);
                 const scoreLabel = node.memoryScore === null ? 'not started' : `${node.memoryScore}% mastery`;
                 const highlighted = highlightedId === node.id;
-                const lines = wrapText(node.name);
+                const typography = getConceptNodeTypography(node.name, node.kind);
+                const lines = typography.lines;
                 const activated = !prefersReducedMotion && (
                   hoveredNodeId === node.id
                   || (node.kind === 'topic' && hoveredNodeId === normalize(subjectName ?? ''))
@@ -450,22 +577,14 @@ export default function TeacherConceptWebView() {
                     {highlighted && <><circle cx={node.x} cy={node.y} r={node.r + 16} fill="none" stroke="#EAA93C" strokeWidth="4" opacity="0.9" /><circle cx={node.x} cy={node.y} r={node.r + 9} fill="none" stroke="#186636" strokeWidth="3" opacity="0.9" /></>}
                     <circle cx={node.x} cy={node.y} r={node.r} fill={tier.fill} stroke={highlighted ? '#186636' : node.kind === 'subject' ? '#EAA93C' : tier.stroke} strokeWidth={highlighted ? 4 : node.kind === 'subject' ? 5 : 2.5} filter="url(#node-shadow)" />
                     <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
-                    {node.kind === 'subject' && subjectIcon && <text x={node.x} y={node.y - 18} textAnchor="middle" fontSize="30">{subjectIcon}</text>}
-                    {lines.map((line: string, lineIndex: number) => <text key={line} x={node.x} y={node.y + (node.kind === 'subject' ? 12 : 0) + (lineIndex - (lines.length - 1) / 2) * (node.r > 35 ? 16 : 12)} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={node.r > 50 ? 18 : node.r > 35 ? 13 : 10}>{line}</text>)}
+                    {node.kind === 'subject' && subjectIcon && <text x={node.x} y={node.y - node.r * 0.3} textAnchor="middle" fontSize="34">{subjectIcon}</text>}
+                    {lines.map((line: string, lineIndex: number) => <text key={`${line}-${lineIndex}`} x={node.x} y={node.y + (node.kind === 'subject' ? node.r * 0.22 : 0) + (lineIndex - (lines.length - 1) / 2) * typography.lineHeight} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={typography.fontSize}>{line}</text>)}
                     {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   </motion.g>
                 );
               })}
             </g>
           </svg>
-
-          <div className="absolute bottom-5 left-5 w-[300px] rounded-3xl bg-card p-4 text-card-foreground shadow-xl">
-            <p className="mb-3 font-bold">Legend</p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {[{ c: '#186636', t: '70%+ Strong' }, { c: '#EAA93C', t: '40–69 Review' }, { c: '#D9534F', t: '0–39 Weak' }, { c: '#9CA3AF', t: 'Not Started' }].map((item: { c: string; t: string }) => <div key={item.t} className="flex items-center gap-2"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.c }} />{item.t}</div>)}
-            </div>
-            <div className="mt-3 space-y-1 text-sm text-muted-foreground"><p>— solid: branch link</p><p>- - dashed: cross-topic link</p><p>Click any bubble. Drag to pan, scroll to zoom.</p></div>
-          </div>
 
           <div className="absolute bottom-5 right-5 flex flex-col gap-2">
             <Button aria-label="Zoom in" size="icon" className="rounded-full bg-primary text-primary-foreground" onClick={() => setPan((current) => ({ ...current, zoom: clamp(current.zoom + 0.2, 0.4, 2.5) }))}><Plus className="h-4 w-4" /></Button>
@@ -474,7 +593,20 @@ export default function TeacherConceptWebView() {
           </div>
 
           {popup && selectedPopupTier && (
-            <motion.div ref={popupRef} data-popup="true" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.2, ease: 'easeOut' as const }} className="absolute max-h-[calc(100vh-6.5rem)] w-[calc(100vw-2rem)] max-w-[370px] overflow-y-auto rounded-3xl bg-card text-card-foreground shadow-2xl" style={{ left: popup.x, top: popup.y }}>
+            <motion.div
+              ref={popupRef}
+              data-popup="true"
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.2, ease: 'easeOut' as const }}
+              className={`absolute max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-[370px] overflow-y-auto rounded-3xl bg-card text-card-foreground shadow-2xl ${popupDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+              style={{ left: popup.x, top: popup.y }}
+              onPointerDown={handlePopupPointerDown}
+              onPointerMove={handlePopupPointerMove}
+              onPointerUp={finishPopupDrag}
+              onPointerCancel={finishPopupDrag}
+              onLostPointerCapture={handlePopupLostPointerCapture}
+            >
               <div className="bg-gradient-to-r from-[#186636] to-[#1a7a3d] p-5 text-white">
                 <div className="flex items-start justify-between gap-3">
                   <div><Badge className={`mb-3 border-0 ${popup.node.kind === 'subject' ? 'bg-secondary text-secondary-foreground' : 'bg-white/20 text-white'}`}>{popup.node.kind === 'subject' ? 'Subject' : popup.node.kind === 'topic' ? 'Main Topic' : 'Sub-concept'}</Badge><h2 className="text-2xl font-black">{popup.node.name}</h2></div>
@@ -484,13 +616,13 @@ export default function TeacherConceptWebView() {
               <div className="space-y-4 p-5">
                 <p className="text-sm leading-relaxed text-muted-foreground">{popup.node.description}</p>
                 <div className="rounded-2xl bg-muted p-4">
-                  <div className="flex items-center justify-between"><span className="font-bold">{selectedStudentId ? 'Student score' : 'Class average'}</span><span className="rounded-full px-3 py-1 text-sm font-black" style={{ backgroundColor: selectedPopupTier.fill, color: selectedPopupTier.text }}>{popup.node.memoryScore === null ? 'Not started' : `${popup.node.memoryScore}%`}</span></div>
+                  <div className="flex items-center justify-between"><span className="font-bold">{selectedStudentId ? 'Student score' : webData?.audience.kind === 'school' ? 'School average' : 'Class average'}</span><span className="rounded-full px-3 py-1 text-sm font-black" style={{ backgroundColor: selectedPopupTier.fill, color: selectedPopupTier.text }}>{popup.node.memoryScore === null ? 'Not started' : `${popup.node.memoryScore}%`}</span></div>
                   <p className="mt-2 text-sm font-semibold text-muted-foreground">Status: {selectedPopupTier.label}</p>
                 </div>
                 {popup.node.kind !== 'subject' && (
                   <div className="space-y-2 rounded-2xl bg-muted p-4 text-sm">
                     {popup.node.participatingStudents !== null && (
-                      <div className="flex items-center justify-between"><span className="font-semibold text-muted-foreground">Students with progress</span><span className="font-black">{popup.node.participatingStudents} of {classSize}</span></div>
+                      <div className="flex items-center justify-between"><span className="font-semibold text-muted-foreground">Students with progress</span><span className="font-black">{popup.node.participatingStudents} of {cohortSize}</span></div>
                     )}
                     <div className="flex items-center justify-between"><span className="font-semibold text-muted-foreground">Quiz attempts</span><span className="font-black">{popup.node.quizAttempts}</span></div>
                     <div className="flex items-center justify-between"><span className="font-semibold text-muted-foreground">Latest review</span><span className="font-black">{formatDate(popup.node.lastReviewedAt)}</span></div>
@@ -531,7 +663,7 @@ export default function TeacherConceptWebView() {
                         <p className="mt-1 text-sm text-muted-foreground">
                           {topic.memoryScore !== null ? `${topic.memoryScore}% average · ` : ''}
                           {topic.participatingStudents !== null
-                            ? `${topic.participatingStudents} of ${classSize} students have started`
+                            ? `${topic.participatingStudents} of ${cohortSize} students have started`
                             : (topic.memoryScore !== null ? `Last reviewed ${formatDate(topic.lastReviewedAt)}` : 'Not started yet')}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">{suggestedActionFor(topic)}</p>

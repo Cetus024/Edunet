@@ -4,12 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/api/client';
 
-export type EnquiryRole = 'student' | 'parent' | 'teacher' | 'tutor';
+export type EnquiryRole = 'student' | 'teacher';
 
 export type QuestionRecipient = {
   id: string;
   name: string;
-  role: 'teacher' | 'tutor';
+  role: 'teacher';
   schoolId: string;
   subjectId: string;
   subjectName: string;
@@ -47,13 +47,13 @@ export type EnquiryThread = {
   requester: {
     id: string | null;
     name: string;
-    role: 'student' | 'parent';
+    role: 'student';
     className: string | null;
   };
   recipient: {
     id: string;
     name: string;
-    role: 'teacher' | 'tutor';
+    role: 'teacher';
   };
   unreadCount: number;
   createdAt: string;

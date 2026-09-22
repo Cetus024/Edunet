@@ -14,7 +14,55 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | `BETTER_AUTH_URL` | Public API origin, for example `http://localhost:8787`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials. |
 | `CORS_ORIGINS` | Comma-separated exact frontend origins. Wildcards are rejected. |
+| `WEB_APP_URL` | Public frontend origin used in Study Squad invitation links. |
+| `RESEND_API_KEY` | Server-only Resend API key used to deliver transactional emails. |
+| `SQUAD_INVITE_FROM_EMAIL` | Sender using a domain verified in Resend. |
+| `AUTH_FROM_EMAIL` | Sender for password-reset emails using a domain verified in Resend. |
+| `AZURE_VISION_ENDPOINT` / `AZURE_VISION_KEY` | Server-only Azure AI Vision resource used for handwritten-note OCR. |
+| `AZURE_FOUNDRY_ENDPOINT` / `AZURE_FOUNDRY_API_KEY` / `AZURE_FOUNDRY_MODEL` | Preferred Microsoft Foundry endpoint, key, and model deployment used for summaries and evaluation. |
+| `MODELARTS_ENDPOINT` / `MODELARTS_API_KEY` / `MODELARTS_MODEL` | Optional later fallback analysis provider when the Foundry variables are absent. |
 | `HOST` / `PORT` | Bind address and port; defaults are `0.0.0.0:8787`. |
+
+### Capture summary reliability
+
+Summaries reserve 250 output tokens; syllabus evaluations reserve 600 (the verdict
+contains quoted evidence and corrections). Foundry retries HTTP 429/503 at most
+twice, respecting `retry-after-ms` or `Retry-After` within the original request
+deadline. Longer quota waits return `rate_limited` and `retryAfterSeconds`; request
+timeouts return `timeout`. Upstream response bodies are never sent to the browser.
+The Capture Hub reuses successful and in-flight summaries for the same notes during
+the mounted session, retains the saved notes on failure, and offers a retry action.
+
+Small Azure quotas can still reject a request when the prompt plus output
+reservation exceeds the allocation. Retries do not increase that allocation.
+See [Azure quota guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota).
+
+### GPT-6 Astra configuration
+
+The adapter supports GPT-6 Astra through tool-free Chat Completions, using
+`reasoning_effort: low` and `max_completion_tokens` without `temperature`.
+Astra gets 4,096 reasoning tokens in addition to the caller's output target
+(at most 8,096 total), and a default 45-second deadline. These are initial bounded
+budgets, not a guarantee that every reasoning task will fit. Truncated responses
+return `incomplete_output` rather than being accepted as partial summaries.
+
+Deploy `gpt-6-astra` in the Foundry resource, then configure the server:
+
+```dotenv
+AZURE_FOUNDRY_MODEL=gpt-6-astra
+AZURE_FOUNDRY_MODEL_ID=gpt-6-astra
+```
+
+`AZURE_FOUNDRY_MODEL` is the actual deployment name. Set
+`AZURE_FOUNDRY_MODEL_ID=gpt-6-astra` when the deployment uses a custom name.
+Restart local API processes after changing environment variables; hosted servers
+need their own environment configuration. Never commit API keys or local env files.
+
+On 8 September 2026, the existing resource's catalog listed Astra, but a live
+completion request returned HTTP 404 `DeploymentNotFound`. The existing local
+GPT-4.1 mini configuration was retained pending deployment, so this code change
+alone must not be described as a completed live model switch.
+See [Microsoft's reasoning model guide](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning).
 
 Initialize and harden a new Supabase database from the repository root before starting the API:
 
@@ -44,64 +92,92 @@ Public endpoints:
 
 - `GET /health` — process liveness.
 - `GET /ready` — PostgreSQL readiness; returns `503` while unavailable.
-- `GET /api/v1/catalog` — fixed schools plus nested subjects, topics, and aliases.
-- `GET|POST /api/auth/*` — Better Auth Google OAuth, session, and sign-out endpoints. Email/password registration and login are disabled.
+- `GET /api/v1/catalog` — 151 schools plus the nested 4052/6092 subjects, Topics, Subtopics, and aliases.
+- `GET|POST /api/auth/*` — Better Auth Google OAuth, email/password registration and login, password reset, session, and sign-out endpoints.
 
 Authenticated endpoints require the Better Auth HttpOnly cookie and browser requests must use `credentials: "include"`:
 
 - `GET /api/v1/me`
 - `PUT /api/v1/me/onboarding`
 - `GET /api/v1/me/study-state`
-- `GET /api/v1/me/quiz-options?subjectId=biology&topicId=biology-ecology`
+- `GET /api/v1/me/quiz-options?subjectId=chemistry&topicId=chemistry-organic-chemistry`
 - `POST /api/v1/me/quiz-sets`
 - `POST /api/v1/me/quiz-attempts`
-- `GET /api/v1/me/quiz-attempts?topicId=amath-trig&limit=20`
-- `GET /api/v1/me/question-recipients?subjectId=amath`
+- `GET /api/v1/me/quiz-attempts?topicId=math-number-algebra&limit=20`
+- `GET /api/v1/me/question-recipients?subjectId=e-math`
 - `GET|POST /api/v1/me/enquiries`
 - `POST /api/v1/me/enquiries/:threadId/messages`
 - `PUT /api/v1/me/enquiries/:threadId/read`
+- `POST /api/v1/me/onboarding/placement-set`
+- `GET|POST /api/v1/me/study-squad`
+- `GET /api/v1/me/school-directory`
+- `POST /api/v1/me/study-squad/invitations/in-app`
+- `POST /api/v1/me/study-squad/invitations/:invitationId/accept`
+- `POST /api/v1/me/study-squad/invitations/:invitationId/decline`
+- `POST /api/v1/me/study-squad/streak/restore`
+- `POST /api/v1/me/squad-quiz-rooms`
+- `GET /api/v1/me/squad-quiz-rooms/:roomId`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/join`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/heartbeat`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/answers`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/advance`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/restart`
+- `POST /api/v1/me/squad-quiz-rooms/:roomId/invitations`
+- `POST /api/v1/me/study-squad/invitations` — optional email invitation flow.
+- `GET /api/v1/study-squad-invitations/:token`
+- `POST /api/v1/study-squad-invitations/:token/accept`
+- `GET /api/v1/me/notifications`
+- `PUT /api/v1/me/notifications/:notificationId/read`
+- `PUT /api/v1/me/notifications/read-all`
+- `POST /api/v1/me/capture/ocr` — extracts handwritten text with Azure AI Vision.
+- `POST /api/v1/me/capture/summarize` — summarizes combined OCR and typed notes.
+- `POST /api/v1/me/capture/evaluate` — summarizes first, then evaluates that summary against stored topic data.
 
-Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; the server validates it again before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
+Google signup can carry an optional referral code (maximum 64 characters) through signed OAuth state; email/password signup sends the same field in its protected request body. The server validates both paths before first-user creation. The referral code is stored but deliberately omitted from auth and business responses.
 
-Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted; different-email implicit linking remains disabled.
+Configure Google's authorized redirect URIs as `http://localhost:8787/api/auth/callback/google` for local development and `${BETTER_AUTH_URL}/api/auth/callback/google` in production. Only Google accounts with a verified email are accepted. Google and credential accounts are never linked implicitly, even when their email addresses match; users must continue with their original sign-in method.
 
-An onboarding request is:
+Email/password accounts use passwords from 8 to 128 characters and are signed in immediately after registration without email verification. Password-reset links expire after one hour, can be used once, and revoke existing sessions. Reset requests always return the same public response for unknown, Google-only, and password-account email addresses; only an existing credential account receives mail.
+
+Student onboarding first requests a placement set with a UUID, subject, and topic. The response contains exactly ten MCQs and deliberately omits correct answers and explanations. The same UUID and all ten answers are then submitted atomically with onboarding:
 
 ```json
 {
   "role": "student",
   "schoolId": "admiralty-secondary-school",
-  "subjectId": "amath",
-  "topicId": "amath-trig",
-  "familiarity": "some"
+  "subjectId": "e-math",
+  "topicId": "math-number-algebra",
+  "placement": {
+    "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
+    "startedAt": "2026-08-24T10:00:00.000Z",
+    "answers": [
+      { "questionKey": "math-number-algebra:v2:q01", "answer": 1 }
+    ]
+  }
 }
 ```
 
-Registration onboarding does not request or accept a learning artifact. Cached older clients may still send legacy material metadata during the rollout, but the API ignores it and stores `learningSource: "none"`. The compatibility field `school` may be supplied instead of `schoolId`, but it must exactly match a catalog entry.
+The example abbreviates the answers array; the API requires the exact ten keys issued for the set. It grades on the server, stores the placement attempt and answers, creates the first topic progress row, and completes onboarding in one transaction. Teacher onboarding instead requires `role`, `schoolId`, and one or more named `teachingScopes`. Only Student and Teacher roles are accepted.
 
-A quiz submission is:
+A Phase 1 assessment starts with:
 
 ```json
 {
   "submissionId": "4b375843-c273-4e7d-bfe7-ac20dbdaf47d",
-  "topicId": "amath-trig",
-  "mode": "concept-check",
-  "startedAt": "2026-07-31T06:30:00.000Z",
-  "answers": [
-    { "questionKey": "amath-trig:v1:q01", "answer": 1 },
-    { "questionKey": "amath-trig:v1:q02", "answer": "adjacent" },
-    { "questionKey": "amath-trig:v1:q03", "answer": 0 },
-    { "questionKey": "amath-trig:v1:q04", "answer": "14.0" },
-    { "questionKey": "amath-trig:v1:q05", "answer": 1 }
-  ]
+  "topicId": "math-number-algebra",
+  "mode": "mcq"
 }
 ```
 
-The server requires exactly the five versioned keys from the static question bank, re-grades every answer, computes Memory Score and Next Review itself, then updates progress in the same transaction. The POST response includes `nextReviewAt`, calculated from that attempt's persisted `submittedAt` and resulting score. Repeating the same globally unique `submissionId` returns the stored per-question grading and original result without increasing the attempt count.
+`mcq` sessions contain 10 questions and `essay` sessions contain five 10-mark questions. Answers are posted one at a time for immediate feedback; Essay answers include a student-entered `marksObtained` value from 0–10 with at most two decimal places. Finishing publishes the assessment-only posterior with `P(T)=0`. The idempotent `feedback-complete` endpoint applies `P(T)=0.20` once, recomputes the separate mode Memory and the averaged Concept Memory, and saves one combined reminder. Starting a newer assessment for the same topic closes any older pending correction opportunity.
 
-Students and parents can create and read only their own real enquiry threads. Teachers and tutors can read and reply only to threads assigned to them. The recipient directory returns completed teacher/tutor profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
+Students can create and read only their own real enquiry threads. Teachers can read and reply only to threads assigned to them. The recipient directory returns completed Teacher profiles for the selected subject, preferring same-school matches and falling back to global subject matches; email addresses are never returned. New enquiry and reply bodies are limited to 4,000 characters and require a globally unique UUID `submissionId`. A retry returns the original stored result without duplicating the message.
 
-The first teacher/tutor inbox request lazily creates three recipient-specific, clearly marked demo threads without creating fake auth users. Demo replies are normal persisted messages. Thread requesters include nullable `className`; it is `null` for real users until a future profile field captures class information.
+Study Squad membership, invitations, school-directory results, member Memory Scores, daily streaks, and monthly streak restores are database-backed. A squad day qualifies when at least one current member completes an MCQ or Essay after joining. Dates use Singapore time; the current day remains open until midnight. A shared pool of five restores per calendar month can repair the most recent break, with concurrent requests serialized and every restore attributed to a member. The directory is limited to completed Student and Teacher profiles at the signed-in user's school and never exposes email addresses. Only Students can create or join squads; only a squad owner can invite an available Student. In-app invitations do not depend on an email provider or custom domain. Enquiry activity, Study Squad invitation outcomes, and restores create persisted, recipient-specific notifications with safe internal links.
+
+Live Squad Rescue quizzes persist their room, selected question keys, participants, presence heartbeat, one answer per participant per round, server-graded scores, round transitions, restarts, and immutable completion records. Only members of the room's Study Squad can read or join it, and only the host can invite more members or restart a finished room. Clients poll the authoritative room projection every two seconds and send a heartbeat every ten seconds; the API derives online/away presence without exposing correct answers before the signed-in participant submits. A completed run counts as qualifying Group Streak activity.
+
+Demo enquiry seeding is disabled. The curriculum-v2 migration removes existing demo threads while retaining real Mathematics and Chemistry enquiry bodies; thread requesters include nullable `className`, which remains `null` until a future profile field captures class information.
 
 All service-generated failures use:
 

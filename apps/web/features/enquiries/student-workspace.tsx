@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   BookOpen,
-  GraduationCap,
   MessageCircle,
   MessagesSquare,
   Plus,
@@ -60,11 +59,13 @@ export function StudentEnquiriesWorkspace({
   role,
   initialSubjectId,
   initialTopicId,
+  initialThreadId,
 }: {
   userId: string;
-  role: Extract<EnquiryRole, 'student' | 'parent'>;
+  role: Extract<EnquiryRole, 'student'>;
   initialSubjectId?: string;
   initialTopicId?: string;
+  initialThreadId?: string;
 }) {
   const queryClient = useQueryClient();
   const catalogQuery = useCatalog();
@@ -198,8 +199,11 @@ export function StudentEnquiriesWorkspace({
 
   useEffect(() => {
     if (composing || activeThreadId || sortedThreads.length === 0) return;
-    setActiveThreadId(sortedThreads[0].id);
-  }, [activeThreadId, composing, sortedThreads]);
+    const linkedThread = initialThreadId
+      ? sortedThreads.find((thread) => thread.id === initialThreadId)
+      : null;
+    setActiveThreadId(linkedThread?.id ?? sortedThreads[0].id);
+  }, [activeThreadId, composing, initialThreadId, sortedThreads]);
 
   useEffect(() => {
     if (!activeThread || activeThread.unreadCount === 0) return;
@@ -257,7 +261,7 @@ export function StudentEnquiriesWorkspace({
               </span>
               <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Ask Teacher</h1>
               <p className="mt-2 max-w-2xl font-medium text-[#53657e]">
-                Choose a subject, message an available Teacher or Tutor, and keep every reply in one place.
+                Choose a subject, message an available Teacher, and keep every reply in one place.
               </p>
             </div>
             <Button
@@ -346,7 +350,7 @@ export function StudentEnquiriesWorkspace({
                             )}
                           </span>
                           <span className="mt-1 block text-[11px] font-bold text-slate-500">
-                            {thread.recipient.role === 'tutor' ? 'Tutor' : 'Teacher'} · {thread.subject.name}
+                            Teacher · {thread.subject.name}
                           </span>
                           <span className="mt-2 line-clamp-2 block text-xs font-medium leading-relaxed text-slate-600">
                             {lastMessage?.body ?? thread.title}
@@ -438,7 +442,7 @@ export function StudentEnquiriesWorkspace({
                           <Input
                             value={recipientSearch}
                             onChange={(event) => setRecipientSearch(event.target.value)}
-                            placeholder="Search Teacher or Tutor"
+                            placeholder="Search Teachers"
                             className="h-10 rounded-full border-slate-200 pl-9"
                           />
                         </label>
@@ -485,8 +489,8 @@ export function StudentEnquiriesWorkspace({
                               <span className="min-w-0">
                                 <span className="block truncate font-black">{recipient.name}</span>
                                 <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#edf2f8] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#53657e]">
-                                  {recipient.role === 'tutor' ? <GraduationCap className="h-3 w-3" /> : <BookOpen className="h-3 w-3" />}
-                                  {recipient.role === 'tutor' ? 'Tutor' : 'Teacher'}
+                                  <BookOpen className="h-3 w-3" />
+                                  Teacher
                                 </span>
                               </span>
                             </button>
@@ -538,7 +542,7 @@ export function StudentEnquiriesWorkspace({
                           <div className="min-w-0">
                             <h2 className="truncate text-xl font-black">{activeThread.recipient.name}</h2>
                             <p className="text-xs font-bold text-slate-500">
-                              {activeThread.recipient.role === 'tutor' ? 'Tutor' : 'Teacher'} · {activeThread.subject.name}
+                              Teacher · {activeThread.subject.name}
                               {activeThread.topic ? ` · ${activeThread.topic.name}` : ''}
                             </p>
                           </div>
@@ -588,7 +592,7 @@ export function StudentEnquiriesWorkspace({
                 <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
                   <MessagesSquare className="mb-4 h-12 w-12 text-[#8ba7ca]" />
                   <h2 className="text-xl font-black">Ask when you feel stuck</h2>
-                  <p className="mt-2 max-w-sm text-sm font-medium text-slate-500">Start a new enquiry and choose an available Teacher or Tutor by subject.</p>
+                  <p className="mt-2 max-w-sm text-sm font-medium text-slate-500">Start a new enquiry and choose an available Teacher by subject.</p>
                   <Button
                     type="button"
                     onClick={startNewEnquiry}

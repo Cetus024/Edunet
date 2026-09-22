@@ -13,7 +13,6 @@ import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useTeacherStudents } from '@/lib/api/teacher-students';
 import { useTeacherClassPulse, type TopicHealth } from '@/lib/api/teacher-class-pulse';
 import { useTeachingContext } from '@/lib/teaching-context';
-import { AddStudentDialog } from '@/features/teacher-add-student-dialog';
 
 type RankedAction = {
   id: string;
@@ -38,19 +37,19 @@ export default function TeacherDashboardPage() {
   const { data: account } = useCurrentAccount();
   const { activeScopeId, activeScope } = useTeachingContext();
   const firstName = account?.user.name.split(/\s+/)[0] || 'there';
-  const { data: rosterData } = useTeacherStudents({ scopeId: activeScopeId });
+  const { data: rosterData } = useTeacherStudents({ enabled: Boolean(activeScopeId), scopeId: activeScopeId });
   const { unreadCount } = useEnquiryUnreadCount({
     userId: account?.user.id ?? null,
-    enabled: Boolean(account?.onboardingCompleted),
+    enabled: Boolean(account?.onboardingCompleted && activeScopeId),
   });
   const {
     data: pulse,
     isLoading: pulseLoading,
     error: pulseError,
-  } = useTeacherClassPulse({ enabled: Boolean(account?.onboardingCompleted), scopeId: activeScopeId });
+  } = useTeacherClassPulse({ enabled: Boolean(account?.onboardingCompleted && activeScopeId), scopeId: activeScopeId });
 
   const students = useMemo(() => rosterData?.students ?? [], [rosterData]);
-  const topics = pulse?.topics ?? [];
+  const topics = useMemo(() => pulse?.topics ?? [], [pulse]);
 
   // Ranked purely from real, computed data - how many of a teacher's own
   // students are below mastery on a real topic (from their actual concept
@@ -91,14 +90,29 @@ export default function TeacherDashboardPage() {
 
   const hotspotCount = topics.filter((topic) => topic.status === 'critical').length;
 
+  if (account?.onboardingCompleted && !activeScope) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <Card className="w-full max-w-xl border-0 rounded-3xl card-shadow">
+          <CardContent className="p-8 text-center">
+            <Users className="mx-auto h-10 w-10 text-primary" aria-hidden="true" />
+            <h1 className="mt-4 text-2xl font-black text-foreground">Awaiting admin assignment</h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Your school admin needs to assign at least one Class and subject before classroom data is available.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl bg-gradient-to-br from-primary/15 to-transparent p-6">
         <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Welcome back, {firstName}</p>
         <h1 className="mt-1 text-2xl font-black text-foreground">{activeScope?.classroomName ?? 'Your classroom'} at a glance</h1>
         <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-          {activeScope?.subjectName ? `${activeScope.subjectName}: ` : ''}Everyone at your school who picked this subject during setup shows up here automatically - no manual
-          roster to keep up to date.
+          {activeScope?.subjectName ? `${activeScope.subjectName}: ` : ''}This dashboard only includes students formally assigned to this Class.
         </p>
       </motion.div>
 
@@ -182,8 +196,7 @@ export default function TeacherDashboardPage() {
         {!pulseLoading && !pulseError && topics.length === 0 && (
           <Card className="border-0 rounded-2xl card-shadow">
             <CardContent className="p-6 text-sm text-muted-foreground">
-              No students at your school have picked your subject during setup yet. Once they do, their real
-              progress shows up here.
+              No students are currently assigned to this Class. Assignments are managed by your school admin.
             </CardContent>
           </Card>
         )}
@@ -256,12 +269,12 @@ export default function TeacherDashboardPage() {
       <div>
         <div className="mb-3 flex items-center justify-between gap-4">
           <h2 className="text-lg font-black text-foreground">Your students</h2>
-          <AddStudentDialog scopeId={activeScopeId} classroomName={activeScope?.classroomName ?? 'your class'} />
+          <Badge variant="outline">Managed by admin</Badge>
         </div>
         {students.length === 0 ? (
           <Card className="border-0 rounded-2xl card-shadow">
             <CardContent className="p-6 text-sm text-muted-foreground">
-              No students at your school have picked your subject during setup yet.
+              No students are currently assigned to this Class.
             </CardContent>
           </Card>
         ) : (

@@ -109,7 +109,7 @@ export function MessageTimeline({
                   variant === 'dark' ? 'text-[#91a4c1]' : 'text-slate-500',
                 )}
               >
-                {message.sender.name} · {message.sender.role === 'tutor' ? 'Tutor' : message.sender.role === 'teacher' ? 'Teacher' : message.sender.role === 'parent' ? 'Parent' : 'Student'}
+                {message.sender.name} · {message.sender.role === 'teacher' ? 'Teacher' : 'Student'}
               </p>
               <div
                 className={cn(

@@ -159,8 +159,10 @@ function matchesRoute(pathname: string, route: string) {
 function configForPath(pathname: string): RouteMascotConfig {
   const isLogin = matchesRoute(pathname, '/login');
   const isSignup = matchesRoute(pathname, '/signup');
+  const isPasswordRecovery = matchesRoute(pathname, '/forgot-password')
+    || matchesRoute(pathname, '/reset-password');
 
-  if (isLogin || isSignup) {
+  if (isLogin || isSignup || isPasswordRecovery) {
     return {
       scene: isSignup ? 'growth' : 'welcome',
       message: isSignup ? 'Let us start building your learning web.' : 'Welcome back to your learning web.',
@@ -207,8 +209,16 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/rescue-room') || matchesRoute(pathname, '/rescue-join')) {
     return {
       scene: 'question',
-      message: 'Lock in your answer before the timer runs out.',
+      message: 'Write your solution, check the OCR text, and review the feedback before the next question.',
       compact: true,
+      appRoute: true,
+    };
+  }
+
+  if (matchesRoute(pathname, '/revision-room')) {
+    return {
+      scene: 'study',
+      message: 'Write each step clearly, then check the recognized text before analysing your work.',
       appRoute: true,
     };
   }

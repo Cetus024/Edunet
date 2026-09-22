@@ -26,6 +26,17 @@
 
 ---
 
+## 2026-09-22 · merge Testing · Cursor
+
+**把 `origin/Testing` 合进 `alex-AI`，并保持 monorepo 目录**
+
+- **做了什么**：`git fetch` + merge `origin/Testing`（约 52 个提交）。冲突按「保留 `apps/web`／`apps/api`／`packages/database`」解决；删掉合并带进来的旧布局重复物（根目录 `app/`、`language-toggle.tsx`、`CAPTURE_HUB_*`、`WORK_SUMMARY_*`、`services/edunets-api`、根 `database/`／`features/`／`lib/`）。对照 Testing 的 API／DB 文件，monorepo 路径下零缺失。
+- **为什么**：要把 Testing 上的功能历史并入当前分支，同时不毁掉已整理好的目录结构。
+- **影响面**：无新破坏性路径变更；根目录仍只保留 monorepo 约定布局。
+- **坑**：Testing 仍是扁平布局，直接 merge 会产生大量 rename／add 冲突；对 `apps/`／`packages/` 取 ours（本分支已含同内容并改过导入），旧路径一律丢掉。
+
+---
+
 ## 2026-09-22 · monorepo 收尾 · Cursor
 
 **完成 API 对齐并删掉根目录多余残留**

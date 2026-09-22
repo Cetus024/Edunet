@@ -97,7 +97,7 @@ function StageVisual({ stage }: StageVisualProps) {
               requirements for a purely decorative marketing panel. */}
           <img
             src="/marketing/concept-web-screenshot.png"
-            alt="A real EduNets Concept Web: Physics topics colour-coded by mastery, with Energy marked weak in red."
+            alt="An EduNets Concept Web with syllabus Topics and Subtopics colour-coded by mastery."
             className="h-full w-full object-cover object-[50%_20%]"
           />
         </div>

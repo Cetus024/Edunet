@@ -48,9 +48,11 @@ function sortThreads(threads: EnquiryThread[]) {
 export function TeacherEnquiriesWorkspace({
   userId,
   role,
+  initialThreadId,
 }: {
   userId: string;
-  role: Extract<EnquiryRole, 'teacher' | 'tutor'>;
+  role: Extract<EnquiryRole, 'teacher'>;
+  initialThreadId?: string;
 }) {
   const queryClient = useQueryClient();
   const enquiriesQuery = useEnquiries({ userId });
@@ -107,8 +109,11 @@ export function TeacherEnquiriesWorkspace({
 
   useEffect(() => {
     if (activeThreadId || sortedThreads.length === 0) return;
-    setActiveThreadId(sortedThreads[0].id);
-  }, [activeThreadId, sortedThreads]);
+    const linkedThread = initialThreadId
+      ? sortedThreads.find((thread) => thread.id === initialThreadId)
+      : null;
+    setActiveThreadId(linkedThread?.id ?? sortedThreads[0].id);
+  }, [activeThreadId, initialThreadId, sortedThreads]);
 
   useEffect(() => {
     if (!activeThread || activeThread.unreadCount === 0) return;
@@ -237,7 +242,7 @@ export function TeacherEnquiriesWorkspace({
                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
                             <span>{thread.subject.name}</span>
                             <span aria-hidden="true">·</span>
-                            <span>{thread.requester.role === 'parent' ? 'Parent' : 'Student'}</span>
+                            <span>Student</span>
                             {thread.requester.className && (
                               <>
                                 <span aria-hidden="true">·</span>
@@ -299,7 +304,7 @@ export function TeacherEnquiriesWorkspace({
                       </p>
                     </div>
                     <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                      {activeThread.requester.role === 'parent' ? 'Parent' : 'Student'}
+                      Student
                     </span>
                   </div>
 

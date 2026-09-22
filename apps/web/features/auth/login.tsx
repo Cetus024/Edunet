@@ -1,28 +1,66 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, Check } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { ArrowLeft, Check, LoaderCircle, LogIn } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  AuthMethodDivider,
+  PasswordInput,
+  authInputClassName,
+  getEmailAuthErrorMessage,
+} from '@/features/auth/email-auth';
 import {
   GoogleAuthButton,
   startGoogleAuth,
   useOAuthErrorToast,
 } from '@/features/auth/google-auth';
-import { getAuthErrorMessage } from '@/lib/api/auth-client';
-import { useNavigate } from '@/lib/navigation';
+import { buildAuthPath, getSafeReturnPath } from '@/features/auth/auth-navigation';
+import { authClient, getAuthErrorMessage } from '@/lib/api/auth-client';
+import { useNavigate, useSearchParams } from '@/lib/navigation';
 
 export default function EduNetsLogin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = getSafeReturnPath(searchParams.get('returnTo'));
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isEmailPending, setIsEmailPending] = useState(false);
   const [isGooglePending, setIsGooglePending] = useState(false);
+  const isPending = isEmailPending || isGooglePending;
 
   useOAuthErrorToast();
 
+  const handleEmailLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isPending) return;
+
+    setIsEmailPending(true);
+    try {
+      const result = await authClient.signIn.email({
+        email: email.trim().toLowerCase(),
+        password,
+        rememberMe: true,
+      });
+      if (result.error) throw result.error;
+      window.location.replace(returnTo);
+    } catch (error) {
+      toast.error(getEmailAuthErrorMessage(error, 'EduNets could not sign you in. Please try again.'));
+      setIsEmailPending(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
+    if (isPending) return;
     setIsGooglePending(true);
     try {
-      const result = await startGoogleAuth({ errorPath: '/login' });
+      const result = await startGoogleAuth({
+        callbackPath: returnTo,
+        errorPath: buildAuthPath('/login', returnTo),
+      });
       if (result.error) throw result.error;
     } catch (error) {
       toast.error(getAuthErrorMessage(
@@ -34,7 +72,7 @@ export default function EduNetsLogin() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(115deg,#eaf2ff_0%,#f7f4e7_50%,#fff8dc_100%)] text-[var(--edunets-ink)]">
+    <main className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(115deg,#eaf2ff_0%,#f7f4e7_50%,#fff8dc_100%)] text-[var(--edunets-ink)]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -left-32 top-12 h-96 w-96 rounded-full bg-[var(--edunets-light-blue)]/20 blur-3xl"
@@ -100,11 +138,68 @@ export default function EduNetsLogin() {
               </p>
             </div>
 
-            <div className="mt-9 space-y-6">
+            <div className="mt-9 space-y-5">
+              <form className="space-y-4" onSubmit={(event) => void handleEmailLogin(event)}>
+                <div>
+                  <label htmlFor="login-email" className="mb-2 block text-sm font-bold text-[var(--edunets-dark-blue)]">
+                    Email address
+                  </label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className={authInputClassName}
+                    placeholder="you@example.com"
+                    required
+                    disabled={isPending}
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label htmlFor="login-password" className="text-sm font-bold text-[var(--edunets-dark-blue)]">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => navigate(buildAuthPath('/forgot-password', returnTo))}
+                      className="text-sm font-bold text-[var(--edunets-light-blue)] hover:text-[var(--edunets-dark-blue)] focus-visible:outline-none focus-visible:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <PasswordInput
+                    id="login-password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    disabled={isPending}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isPending || !email.trim() || !password}
+                  className="h-14 w-full rounded-xl bg-[var(--edunets-dark-blue)] text-base font-black text-white shadow-[0_8px_22px_rgba(29,58,98,0.2)] hover:bg-[var(--edunets-dark-blue)]/90"
+                >
+                  {isEmailPending
+                    ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    : <LogIn className="h-5 w-5" aria-hidden="true" />}
+                  {isEmailPending ? 'Signing in…' : 'Log in with email'}
+                </Button>
+              </form>
+
+              <AuthMethodDivider />
+
               <GoogleAuthButton
                 label="Continue with Google"
                 busy={isGooglePending}
-                disabled={isGooglePending}
+                disabled={isPending}
                 onClick={() => void handleGoogleLogin()}
               />
 
@@ -112,7 +207,7 @@ export default function EduNetsLogin() {
                 Don’t have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate('/signup')}
+                  onClick={() => navigate(buildAuthPath('/signup', returnTo))}
                   className="font-black text-[var(--edunets-dark-blue)] transition-colors hover:text-[var(--edunets-light-blue)] focus-visible:outline-none focus-visible:underline"
                 >
                   Create Account

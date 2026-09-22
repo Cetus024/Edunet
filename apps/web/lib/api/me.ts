@@ -7,12 +7,14 @@ export type CurrentUser = {
   name: string;
   email: string;
   image: string | null;
+  class: string;
 };
 
 export type TeachingScope = {
   id: string;
   schoolId: string;
   schoolName: string;
+  classId: string;
   subjectId: string;
   subjectName: string;
   subjectIcon: string | null;
@@ -20,22 +22,41 @@ export type TeachingScope = {
   position: number;
 };
 
-export type OnboardingProfileResponse = {
-  role: 'student' | 'teacher' | 'tutor' | 'parent';
+type OnboardingProfileBase = {
   schoolId: string;
   schoolName: string;
   learningSource: 'material' | 'recording' | 'none';
   material: unknown | null;
   recording: unknown | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  completedAt: string;
+  teachingScopes: TeachingScope[];
+};
+
+export type StudentOnboardingProfileResponse = OnboardingProfileBase & {
+  role: 'student';
   subjectId: string;
   subjectName: string;
   topicId: string;
   topicName: string;
-  familiarity: 'new' | 'some' | 'well';
-  initialMemoryScore: number;
-  completedAt: string;
-  teachingScopes: TeachingScope[];
+  initialMastery: number | null;
+  placementAttemptId: string | null;
 };
+
+export type TeacherOnboardingProfileResponse = OnboardingProfileBase & {
+  role: 'teacher';
+  subjectId: null;
+  subjectName: null;
+  topicId: null;
+  topicName: null;
+  initialMastery: null;
+  placementAttemptId: null;
+};
+
+export type OnboardingProfileResponse =
+  | StudentOnboardingProfileResponse
+  | TeacherOnboardingProfileResponse;
 
 export type CurrentAccount = {
   user: CurrentUser;
@@ -64,14 +85,6 @@ export function useCurrentAccount() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-  });
-}
-
-export function updateTeachingScopes(scopes: Array<{ subjectId: string; classroomName: string }>) {
-  return apiRequest<{ scopes: TeachingScope[] }>('/api/v1/me/teaching-scopes', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scopes }),
   });
 }
 
