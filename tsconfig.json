@@ -13,22 +13,27 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./*", "./src/*"],
-      "@/components/*": ["./ui/*", "./*"]
+      "@/*": ["./apps/web/*"],
+      "@/app-gen-sdk/*": ["./app-gen-sdk/*"],
+      "@/generated/*": ["./generated/*"]
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "apps/web/**/*.ts",
+    "apps/web/**/*.tsx",
+    "api/**/*.ts",
+    "packages/database/**/*.ts",
+    "scripts/**/*.mjs"
   ],
   "exclude": [
     "node_modules",
-    "out",
-    "app-gen-sdk/data/workiq/**"
+    "apps/web/out",
+    "apps/api/dist",
+    "app-gen-sdk/data/workiq/**",
+    ".pytest-questionbank-full",
+    ".pytest-questionbank-run",
+    ".pytest-questionbank-targeted",
+    ".questionbank-test-venv"
   ]
 }
