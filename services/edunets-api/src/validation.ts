@@ -157,6 +157,14 @@ export const captureGenerateNotesSchema = z.strictObject({
   topicId: z.string().trim().min(1).max(128),
 });
 
+export const captureGenerateFlashcardsSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  focus: z.strictObject({
+    name: z.string().trim().min(1).max(160),
+    description: z.string().trim().max(500).optional(),
+  }).optional(),
+});
+
 export const spideyChatSchema = z.strictObject({
   messages: z.array(z.strictObject({
     role: z.enum(['user', 'assistant']),

@@ -23,6 +23,9 @@ import {
   FileType,
   File,
   BookOpen,
+  Library,
+  ArrowLeft,
+  Layers,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,10 +59,12 @@ import { format } from 'date-fns';
 import { useAtom } from 'jotai';
 import {
   evaluateNotes as evaluateNotesApi,
+  generateFlashcards as generateFlashcardsApi,
   generateTopicNotes as generateTopicNotesApi,
   ocrImage,
   summarizeNotes as summarizeNotesApi,
   type CaptureFailure,
+  type Flashcard,
   type NoteEvaluation,
 } from '@/lib/api/capture';
 import { ApiConnectionError, isApiError } from '@/lib/api/client';
@@ -77,8 +82,9 @@ import {
   materialsLibraryAtom,
   type LibraryMaterial,
 } from '@/features/materials/library-store';
+import { EvaluationNextSteps } from '@/features/capture/evaluation-next-steps';
+import { TopicFlashcardDeck } from '@/features/capture/topic-flashcard-deck';
 import { StudyNotesView } from '@/features/notes/study-notes-view';
-import { asMissingBullet, formatStudentFacingText } from '@/lib/study-notes';
 
 // Subject data
 const subjects = [
@@ -114,7 +120,7 @@ function describeCaptureFailure(failure: CaptureFailure): string {
         : 'Analysis is not connected: no Gemini model is configured on the server.';
   }
   if (failure.reason === 'no_textbook') {
-    return 'This topic has no staff textbook in the syllabus database yet, so notes cannot be generated.';
+    return 'This topic has no staff textbook in the syllabus database yet, so notes or flashcards cannot be generated.';
   }
   if (failure.reason === 'no_text') {
     return 'Gemini connected, but it could not detect readable text in this image.';
@@ -129,7 +135,7 @@ function describeCaptureFailure(failure: CaptureFailure): string {
     return 'The summary was created, but the model evaluation response could not be read safely.';
   }
   if (failure.stage === 'generate') {
-    return 'Gemini is configured, but generating notes from the textbook failed or timed out.';
+    return 'Gemini is configured, but generating from the textbook failed or timed out.';
   }
   if (failure.stage === 'ocr') {
     return 'Gemini is configured, but the OCR request failed or timed out.';
@@ -145,7 +151,7 @@ function describeCaptureFailure(failure: CaptureFailure): string {
 
 function describeRequestError(error: unknown, operation: string): string {
   if (error instanceof ApiConnectionError) {
-    return `${operation} could not start because Capture Hub cannot connect to the EduNets API.`;
+    return `${operation} could not start because Revision Hub cannot connect to the EduNets API.`;
   }
   if (isApiError(error)) {
     if (error.status === 413) {
@@ -173,6 +179,7 @@ function UploadTile({
   isActive,
   onClick,
   className = '',
+  hideHeader = false,
 }: {
   icon?: React.ElementType;
   emoji?: string;
@@ -182,6 +189,7 @@ function UploadTile({
   isActive?: boolean;
   onClick?: () => void;
   className?: string;
+  hideHeader?: boolean;
 }) {
   return (
     <motion.div
@@ -189,33 +197,36 @@ function UploadTile({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.3 }}
+      className="h-full min-w-0"
     >
       <Card
-        className={`relative overflow-hidden border-2 transition-all duration-300 rounded-2xl ${
+        className={`relative h-full overflow-hidden border-2 transition-all duration-300 rounded-2xl ${
           isActive
             ? 'border-[#6486B5] bg-[#6486B5]/5 shadow-lg'
             : 'border-transparent bg-card hover:border-[#EAA93C]/30'
         } ${className}`}
         onClick={onClick}
       >
-        <CardContent className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            {emoji && <span className="text-2xl">{emoji}</span>}
-            {Icon && !emoji && (
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isActive ? 'bg-[#6486B5]' : 'bg-[#EAA93C]/20'
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-[#EAA93C]'}`} />
+        <CardContent className="flex h-full flex-col p-6">
+          {!hideHeader && (
+            <div className="mb-4 flex items-center gap-3">
+              {emoji && <span className="text-2xl">{emoji}</span>}
+              {Icon && !emoji && (
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                    isActive ? 'bg-[#6486B5]' : 'bg-[#EAA93C]/20'
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-[#EAA93C]'}`} />
+                </div>
+              )}
+              <div>
+                <h3 className="font-bold text-studynow-dark">{title}</h3>
+                <p className="text-xs text-muted-foreground">{description}</p>
               </div>
-            )}
-            <div>
-              <h3 className="font-bold text-studynow-dark">{title}</h3>
-              <p className="text-xs text-muted-foreground">{description}</p>
             </div>
-          </div>
-          {children}
+          )}
+          <div className="min-h-0 flex-1">{children}</div>
         </CardContent>
       </Card>
     </motion.div>
@@ -290,6 +301,337 @@ function getTypeIcon(type: string) {
   }
 }
 
+function NotesLibraryLayer({
+  notesLibraryTab,
+  setNotesLibraryTab,
+  notesGenSubject,
+  setNotesGenSubject,
+  notesGenTopic,
+  setNotesGenTopic,
+  notesGenTopics,
+  resolvedNotesGenTopicId,
+  isGeneratingNotes,
+  onGenerateNotes,
+  libraryNotes,
+  isEditingGeneratedNotes,
+  setIsEditingGeneratedNotes,
+  setLibraryNotes,
+  libraryFilter,
+  setLibraryFilter,
+  libraryCards,
+  filteredMaterials,
+  materials,
+  setMaterials,
+  openEvaluationSummary,
+  setNoteMaterial,
+  setSummaryMaterial,
+}: {
+  notesLibraryTab: 'generated' | 'materials';
+  setNotesLibraryTab: (tab: 'generated' | 'materials') => void;
+  notesGenSubject: string;
+  setNotesGenSubject: (value: string) => void;
+  notesGenTopic: string;
+  setNotesGenTopic: (value: string) => void;
+  notesGenTopics: string[];
+  resolvedNotesGenTopicId: string | null;
+  isGeneratingNotes: boolean;
+  onGenerateNotes: () => void;
+  libraryNotes: string;
+  isEditingGeneratedNotes: boolean;
+  setIsEditingGeneratedNotes: (value: boolean | ((current: boolean) => boolean)) => void;
+  setLibraryNotes: (value: string) => void;
+  libraryFilter: string;
+  setLibraryFilter: (value: string) => void;
+  libraryCards: Parameters<typeof DisplayCards>[0]['cards'];
+  filteredMaterials: LibraryMaterial[];
+  materials: LibraryMaterial[];
+  setMaterials: (updater: LibraryMaterial[] | ((prev: LibraryMaterial[]) => LibraryMaterial[])) => void;
+  openEvaluationSummary: (material: LibraryMaterial) => void;
+  setNoteMaterial: (material: LibraryMaterial | null) => void;
+  setSummaryMaterial: (material: LibraryMaterial | null) => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={notesLibraryTab === 'generated' ? 'default' : 'outline'}
+          onClick={() => setNotesLibraryTab('generated')}
+          className={`rounded-xl ${notesLibraryTab === 'generated' ? 'bg-[#6486B5] hover:bg-[#6486B5]/90' : ''}`}
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          Generated Notes
+        </Button>
+        <Button
+          type="button"
+          variant={notesLibraryTab === 'materials' ? 'default' : 'outline'}
+          onClick={() => setNotesLibraryTab('materials')}
+          className={`rounded-xl ${notesLibraryTab === 'materials' ? 'bg-[#6486B5] hover:bg-[#6486B5]/90' : ''}`}
+        >
+          <Folder className="mr-2 h-4 w-4" />
+          Materials Library
+        </Button>
+      </div>
+
+      {notesLibraryTab === 'generated' ? (
+        <Card className="rounded-2xl border-0 card-shadow">
+          <CardContent className="space-y-4 p-6">
+            <div>
+              <h2 className="text-lg font-bold text-studynow-dark">Generated Notes (Provided by EduNets)</h2>
+              <p className="text-sm text-muted-foreground">
+                Textbook-grounded revision notes by subject and topic.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select
+                value={notesGenSubject}
+                onValueChange={(value) => {
+                  setNotesGenSubject(value);
+                  setNotesGenTopic('');
+                }}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      <span className="flex items-center gap-2">
+                        <span>{subject.icon}</span>
+                        <span>{subject.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={notesGenTopic}
+                onValueChange={setNotesGenTopic}
+                disabled={!notesGenSubject}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder={!notesGenSubject ? 'Select subject first' : 'Select topic'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {notesGenTopics.map((topic) => (
+                    <SelectItem key={topic} value={topic}>
+                      {topic}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {notesGenTopic && !resolvedNotesGenTopicId && (
+              <p className="text-xs text-amber-800">
+                This topic is not connected to syllabus data, so notes cannot be generated.
+              </p>
+            )}
+            <Button
+              onClick={onGenerateNotes}
+              disabled={!resolvedNotesGenTopicId || isGeneratingNotes}
+              className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
+            >
+              {isGeneratingNotes ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Writing from the textbook…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate notes
+                </>
+              )}
+            </Button>
+
+            {libraryNotes ? (
+              <div className="space-y-3 border-t border-border/60 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-sm font-semibold text-studynow-dark">Revision notes</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingGeneratedNotes((current) => !current)}
+                    className="h-8 rounded-lg text-xs"
+                  >
+                    <Pencil className="mr-1 h-3.5 w-3.5" />
+                    {isEditingGeneratedNotes ? 'Show formatted notes' : 'Edit notes'}
+                  </Button>
+                </div>
+                {isEditingGeneratedNotes ? (
+                  <Textarea
+                    value={libraryNotes}
+                    onChange={(event) => setLibraryNotes(event.target.value)}
+                    className="min-h-48 resize-y rounded-xl"
+                  />
+                ) : (
+                  <div className="rounded-xl border border-[#6486B5]/20 bg-white p-4">
+                    <StudyNotesView text={libraryNotes} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-muted/40 px-3 py-4 text-sm text-muted-foreground">
+                Pick a subject and topic, then generate notes to study here.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="mb-6 space-y-6 text-center">
+            <div className="mx-auto max-w-2xl space-y-3">
+              <h2 className="flex items-center justify-center gap-2 text-lg font-bold text-studynow-dark">
+                <span className="h-6 w-1.5 rounded-full bg-[#6486B5]" />
+                Materials Library
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Saved uploads and evaluation summaries from Revision Hub.
+              </p>
+              <div className="flex justify-center">
+                <Select value={libraryFilter} onValueChange={setLibraryFilter}>
+                  <SelectTrigger className="w-full max-w-[220px] rounded-xl">
+                    <SelectValue placeholder="Filter by subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subjects</SelectItem>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="flex items-center gap-2">
+                          <span>{s.icon}</span>
+                          <span>{s.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DisplayCards cards={libraryCards} layout="stack" />
+          </div>
+
+          {filteredMaterials.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <AnimatePresence mode="popLayout">
+                {filteredMaterials.map((material, index) => {
+                  const subject = subjects.find((s) => s.id === material.subject);
+                  const TypeIcon = getTypeIcon(material.type);
+                  return (
+                    <motion.div
+                      key={material.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Card className="group rounded-2xl border-0 card-shadow transition-shadow hover:shadow-lg">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6486B5]/10">
+                              <TypeIcon className="h-5 w-5 text-[#6486B5]" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="truncate font-semibold text-studynow-dark transition-colors group-hover:text-[#6486B5]">
+                                {material.name}
+                              </h3>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary" className="border-0 bg-[#EAA93C]/20 text-xs text-[#EAA93C]">
+                                  {subject?.icon} {subject?.name}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{material.topic}</span>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between">
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(material.dateUploaded), 'dd MMM yyyy')}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {material.features.map((f) => (
+                                    <FeatureIcon key={f} feature={f} />
+                                  ))}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setNoteMaterial(material)}
+                                className="mt-4 w-full rounded-xl border-[#6486B5]/40 text-[#6486B5] hover:bg-[#6486B5]/10"
+                              >
+                                <BookOpen className="mr-2 h-4 w-4" />
+                                Read note
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEvaluationSummary(material)}
+                                className="mt-2 w-full rounded-xl border-[#EAA93C]/40 text-studynow-dark hover:bg-[#EAA93C]/10"
+                              >
+                                <ClipboardList className="mr-2 h-4 w-4" />
+                                Evaluation summary
+                              </Button>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="rounded-xl">
+                                <DropdownMenuItem onClick={() => setNoteMaterial(material)}>
+                                  <BookOpen className="mr-2 h-4 w-4" />
+                                  Read note
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Summary
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEvaluationSummary(material)}>
+                                  <ClipboardList className="mr-2 h-4 w-4" />
+                                  Evaluation summary
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setMaterials((prev) => prev.filter((item) => item.id !== material.id));
+                                    toast.success(`Removed "${material.name}"`);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAA93C]/10">
+                <Folder className="h-8 w-8 text-[#EAA93C]/50" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-studynow-dark">No materials yet</h3>
+              <p className="text-sm text-muted-foreground">
+                {materials.length === 0
+                  ? 'Upload and save notes from Revision Hub to see them here.'
+                  : 'No materials match this subject filter.'}
+              </p>
+            </div>
+          )}
+        </motion.section>
+      )}
+    </motion.div>
+  );
+}
+
 export default function CaptureHubPage() {
   const { data: catalog } = useCatalog();
 
@@ -336,6 +678,19 @@ export default function CaptureHubPage() {
     evaluation: NoteEvaluation;
     summaryPoints: string[];
   } | null>(null);
+
+  // Landing vs Notes Library layer; flashcards and library-generated notes.
+  const [hubView, setHubView] = useState<'home' | 'notes-library'>('home');
+  const [notesLibraryTab, setNotesLibraryTab] = useState<'generated' | 'materials'>('generated');
+  const [flashcardSubject, setFlashcardSubject] = useState('');
+  const [flashcardTopic, setFlashcardTopic] = useState('');
+  /** Empty string = whole topic; otherwise a curriculum subtopic id. */
+  const [flashcardSubtopicId, setFlashcardSubtopicId] = useState('');
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [notesGenSubject, setNotesGenSubject] = useState('');
+  const [notesGenTopic, setNotesGenTopic] = useState('');
+  const [libraryNotes, setLibraryNotes] = useState('');
 
   // Keep generated summaries separate from loading/error states and demo metadata.
   const [realSummaryPoints, setRealSummaryPoints] = useState<string[] | null>(null);
@@ -522,6 +877,40 @@ export default function CaptureHubPage() {
     return resolveRubricTopicId(subjectName, selectedTopic);
   }, [selectedSubject, selectedTopic]);
 
+  const resolvedFlashcardTopicId = useMemo(() => {
+    const subjectName = subjects.find((subject) => subject.id === flashcardSubject)?.name;
+    if (!subjectName || !flashcardTopic) return null;
+    return resolveRubricTopicId(subjectName, flashcardTopic);
+  }, [flashcardSubject, flashcardTopic]);
+
+  const flashcardSubtopics = useMemo(() => {
+    if (!flashcardSubject || !flashcardTopic) return [];
+    return CURRICULUM
+      .find((subject) => subject.id === flashcardSubject)
+      ?.topics.find((topic) => topic.name === flashcardTopic)
+      ?.subtopics ?? [];
+  }, [flashcardSubject, flashcardTopic]);
+
+  const flashcardFocus = useMemo(() => {
+    if (!flashcardSubtopicId) return undefined;
+    const subtopic = flashcardSubtopics.find((candidate) => candidate.id === flashcardSubtopicId);
+    if (!subtopic) return undefined;
+    return { name: subtopic.name, description: subtopic.description };
+  }, [flashcardSubtopicId, flashcardSubtopics]);
+
+  const flashcardStudyLabel = useMemo(() => {
+    const subjectName = subjects.find((subject) => subject.id === flashcardSubject)?.name;
+    if (!subjectName || !flashcardTopic) return undefined;
+    if (flashcardFocus?.name) return `${flashcardTopic} · ${flashcardFocus.name}`;
+    return flashcardTopic;
+  }, [flashcardFocus?.name, flashcardSubject, flashcardTopic]);
+
+  const resolvedNotesGenTopicId = useMemo(() => {
+    const subjectName = subjects.find((subject) => subject.id === notesGenSubject)?.name;
+    if (!subjectName || !notesGenTopic) return null;
+    return resolveRubricTopicId(subjectName, notesGenTopic);
+  }, [notesGenSubject, notesGenTopic]);
+
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
     const subjectName = subjects.find((subject) => subject.id === selectedSubject)?.name;
@@ -533,14 +922,14 @@ export default function CaptureHubPage() {
   };
 
   const handleGenerateNotes = async () => {
-    if (!resolvedTopicId) {
+    if (!resolvedNotesGenTopicId) {
       toast.error('Select a subject and topic first');
       return;
     }
     setIsGeneratingNotes(true);
     appendDebugLog('Generate', 'running', 'Writing study notes from the staff textbook.');
     try {
-      const result = await generateTopicNotesApi({ topicId: resolvedTopicId });
+      const result = await generateTopicNotesApi({ topicId: resolvedNotesGenTopicId });
       if (!result.available) {
         const message = result.failure
           ? describeCaptureFailure(result.failure)
@@ -557,18 +946,64 @@ export default function CaptureHubPage() {
         toast.error(message);
         return;
       }
-      setActiveMethod('generate');
+      setLibraryNotes(result.text.trim());
       setIsEditingGeneratedNotes(false);
-      setExtractedContent(result.text.trim());
-      openTextReview();
+      setNotesLibraryTab('generated');
       appendDebugLog('Generate', 'success', `Generated ${result.text.trim().length} characters of textbook notes.`);
-      toast.success('Textbook notes generated. Review them, then save or evaluate.');
+      toast.success('Textbook notes ready in Notes Library.');
     } catch (error: unknown) {
       const message = describeRequestError(error, 'Generate notes');
       appendDebugLog('Connection', 'error', message);
       toast.error(message);
     } finally {
       setIsGeneratingNotes(false);
+    }
+  };
+
+  const handleGenerateFlashcards = async () => {
+    if (!resolvedFlashcardTopicId) {
+      toast.error('Select a subject and topic first');
+      return;
+    }
+    setFlashcards([]);
+    setIsGeneratingFlashcards(true);
+    appendDebugLog(
+      'Flashcards',
+      'running',
+      flashcardFocus
+        ? `Writing flashcards for ${flashcardFocus.name} from the staff textbook.`
+        : 'Writing flashcards from the staff textbook.',
+    );
+    try {
+      const result = await generateFlashcardsApi({
+        topicId: resolvedFlashcardTopicId,
+        focus: flashcardFocus,
+      });
+      if (!result.available) {
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'Flashcard generation is unavailable and the server did not provide a diagnostic reason.';
+        appendDebugLog('Flashcards', 'error', message);
+        toast.error(message);
+        return;
+      }
+      if (result.failure || !result.cards?.length) {
+        const message = result.failure
+          ? describeCaptureFailure(result.failure)
+          : 'No flashcards were returned and the server did not provide a diagnostic reason.';
+        appendDebugLog('Flashcards', 'error', message);
+        toast.error(message);
+        return;
+      }
+      setFlashcards(result.cards);
+      appendDebugLog('Flashcards', 'success', `Generated ${result.cards.length} flashcards.`);
+      toast.success(`${result.cards.length} flashcards ready — flip, then mark Know it or Still learning.`);
+    } catch (error: unknown) {
+      const message = describeRequestError(error, 'Generate flashcards');
+      appendDebugLog('Connection', 'error', message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingFlashcards(false);
     }
   };
 
@@ -618,7 +1053,7 @@ export default function CaptureHubPage() {
           ? `Evaluation ${result.evaluation.percentage}% with ${result.evaluation.improvements.length} improvement step(s).`
           : `Compared the summary with topic grounding: ${result.evaluation.percentage}% coverage.`,
       );
-      toast.success('Summary and evaluation completed.');
+      toast.success('Nice work — your summary and evaluation are ready.');
     } catch (error: unknown) {
       const message = describeRequestError(error, 'Analysis');
       appendDebugLog('Connection', 'error', message);
@@ -655,10 +1090,12 @@ export default function CaptureHubPage() {
     setMaterials((prev) => [newMaterial, ...prev]);
     setIsProcessing(false);
 
-    toast.success(generateSummary ? 'Material saved. Generating summary…' : 'Material saved!');
+    toast.success(generateSummary ? 'Saved to Materials Library. Generating summary…' : 'Saved to Materials Library!');
     // Open the summary immediately so the result of "Summarise into Key
     // Points" is actually visible, not just a toast claiming it happened.
     if (generateSummary) setSummaryMaterial(newMaterial);
+    setHubView('notes-library');
+    setNotesLibraryTab('materials');
 
     // Reset
     setExtractedContent('');
@@ -726,36 +1163,113 @@ export default function CaptureHubPage() {
     return catalogTopics?.length ? catalogTopics : fallbackTopics;
   }, [catalog, selectedSubject]);
 
+  const flashcardTopics = useMemo(() => {
+    const subjectName = subjects.find((candidate) => candidate.id === flashcardSubject)?.name;
+    const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);
+    const catalogTopics = catalogSubject?.topics.map((topic) => topic.name);
+    const fallbackTopics = CURRICULUM
+      .find((subject) => subject.id === flashcardSubject)
+      ?.topics.map((topic) => topic.name) ?? [];
+    return catalogTopics?.length ? catalogTopics : fallbackTopics;
+  }, [catalog, flashcardSubject]);
+
+  const notesGenTopics = useMemo(() => {
+    const subjectName = subjects.find((candidate) => candidate.id === notesGenSubject)?.name;
+    const catalogSubject = catalog?.subjects.find((candidate) => candidate.name === subjectName);
+    const catalogTopics = catalogSubject?.topics.map((topic) => topic.name);
+    const fallbackTopics = CURRICULUM
+      .find((subject) => subject.id === notesGenSubject)
+      ?.topics.map((topic) => topic.name) ?? [];
+    return catalogTopics?.length ? catalogTopics : fallbackTopics;
+  }, [catalog, notesGenSubject]);
+
+  const flashcardDeckKey = useMemo(
+    () => flashcards.map((card) => `${card.front}|${card.back}`).join('||'),
+    [flashcards],
+  );
+
   return (
     <div className="p-6 lg:p-8 pattern-overlay">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex flex-wrap items-center gap-3 mb-2">
           <div className="w-12 h-12 rounded-2xl bg-[#6486B5] flex items-center justify-center">
-            <Upload className="w-6 h-6 text-white" />
+            {hubView === 'notes-library' ? <Library className="w-6 h-6 text-white" /> : <Upload className="w-6 h-6 text-white" />}
           </div>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">Capture Hub 2.0</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">
+              {hubView === 'notes-library' ? 'Notes Library' : 'Revision Hub'}
+            </h1>
             <p className="text-muted-foreground text-sm">
-              Scan handwriting, type notes, or generate textbook notes, then check them against your syllabus
+              {hubView === 'notes-library'
+                ? 'Textbook notes from EduNets, plus your saved uploads and evaluation summaries'
+                : 'Upload handwritten notes to evaluate them, or generate flashcards from the textbook'}
             </p>
           </div>
+          {hubView === 'home' ? (
+            <Button
+              type="button"
+              onClick={() => setHubView('notes-library')}
+              className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
+            >
+              <Library className="mr-2 h-4 w-4" />
+              Notes Library
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setHubView('home')}
+              className="rounded-xl"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Revision Hub
+            </Button>
+          )}
         </div>
       </motion.div>
 
-      {/* Phone-first capture: image OCR and typed notes, with no microphone dependency. */}
+      {hubView === 'notes-library' ? (
+        <NotesLibraryLayer
+          notesLibraryTab={notesLibraryTab}
+          setNotesLibraryTab={setNotesLibraryTab}
+          notesGenSubject={notesGenSubject}
+          setNotesGenSubject={setNotesGenSubject}
+          notesGenTopic={notesGenTopic}
+          setNotesGenTopic={setNotesGenTopic}
+          notesGenTopics={notesGenTopics}
+          resolvedNotesGenTopicId={resolvedNotesGenTopicId}
+          isGeneratingNotes={isGeneratingNotes}
+          onGenerateNotes={() => void handleGenerateNotes()}
+          libraryNotes={libraryNotes}
+          isEditingGeneratedNotes={isEditingGeneratedNotes}
+          setIsEditingGeneratedNotes={setIsEditingGeneratedNotes}
+          setLibraryNotes={setLibraryNotes}
+          libraryFilter={libraryFilter}
+          setLibraryFilter={setLibraryFilter}
+          libraryCards={libraryCards}
+          filteredMaterials={filteredMaterials}
+          materials={materials}
+          setMaterials={setMaterials}
+          openEvaluationSummary={openEvaluationSummary}
+          setNoteMaterial={setNoteMaterial}
+          setSummaryMaterial={setSummaryMaterial}
+        />
+      ) : (
+        <>
+      {/* Phone-first: upload & evaluate, or generate flashcards. */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8"
+        className="mb-8 grid items-stretch gap-4 md:grid-cols-2"
       >
-        {/* Scan handwritten notes with Gemini 3.5 Flash OCR. */}
+        {/* Scan + type under one Upload tile. */}
         <UploadTile
           emoji="📷"
-          title="Scan Handwritten Notes"
-          description="Upload or drop photos of your notes for OCR"
-          isActive={activeMethod === 'scan'}
+          title="Upload handwritten notes"
+          description="Scan photos or type notes, then evaluate against the syllabus"
+          isActive={activeMethod === 'scan' || activeMethod === 'paste'}
         >
           <div
             className="space-y-4"
@@ -795,7 +1309,7 @@ export default function CaptureHubPage() {
               onClick={() => imageInputRef.current?.click()}
               disabled={isOcrRunning || isProcessing}
               whileTap={{ scale: 0.98 }}
-              className={`w-full min-h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 p-4 transition-all disabled:opacity-60 disabled:cursor-wait ${
+              className={`w-full min-h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 p-4 transition-all disabled:opacity-60 disabled:cursor-wait ${
                 isDragging ? 'border-[#6486B5] bg-[#6486B5]/10' : 'border-[#EAA93C]/40 hover:border-[#EAA93C] hover:bg-[#EAA93C]/5'
               }`}
             >
@@ -805,7 +1319,7 @@ export default function CaptureHubPage() {
                   {isOcrRunning ? 'Reading your images...' : isDragging ? 'Drop images here' : 'Drag images here or click to upload'}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  PNG, JPEG or WebP · Up to {formatImageBytes(MAX_SOURCE_IMAGE_BYTES)} · Large phone photos compress automatically
+                  PNG, JPEG or WebP · Up to {formatImageBytes(MAX_SOURCE_IMAGE_BYTES)}
                 </p>
               </div>
             </motion.button>
@@ -814,7 +1328,7 @@ export default function CaptureHubPage() {
                 <p className="text-xs text-muted-foreground">
                   {uploads.filter((item) => item.status === 'success' || item.status === 'error').length} of {uploads.length} files processed
                 </p>
-                <ul className="max-h-60 space-y-2 overflow-y-auto">
+                <ul className="max-h-40 space-y-2 overflow-y-auto">
                   {uploads.map((item) => (
                     <li key={item.id} className="flex items-start gap-2 rounded-xl border p-3 text-sm">
                       {item.status === 'success' ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
@@ -845,95 +1359,146 @@ export default function CaptureHubPage() {
                 <ChevronRight className="ml-auto h-4 w-4" />
               </Button>
             )}
-          </div>
-        </UploadTile>
-
-        {/* Type or paste notes, including additions to OCR text. */}
-        <UploadTile
-          emoji="✏️"
-          title="Type or Paste Notes"
-          description="Add typed notes to the same summary"
-          isActive={activeMethod === 'paste'}
-        >
-          <div className="space-y-3">
-            <Textarea
-              value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
-              placeholder="Type or paste your notes here. They will be combined with any OCR text..."
-              className="min-h-[140px] rounded-xl resize-none"
-            />
-            <Button
-              onClick={handlePasteSubmit}
-              disabled={!pastedText.trim()}
-              className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Add to Notes
-            </Button>
+            <div className="space-y-2 border-t border-border/60 pt-3">
+              <Label className="text-xs font-semibold text-muted-foreground">Or type / paste notes</Label>
+              <Textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder="Type or paste extra notes. They combine with any OCR text…"
+                className="min-h-[100px] rounded-xl resize-none"
+              />
+              <Button
+                onClick={handlePasteSubmit}
+                disabled={!pastedText.trim()}
+                className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Add to Notes
+              </Button>
+            </div>
           </div>
         </UploadTile>
 
         <UploadTile
-          emoji="✨"
-          title="Generate Notes"
-          description="Write revision notes from the staff textbook"
-          isActive={activeMethod === 'generate'}
+          emoji="🃏"
+          title="Generate flashcards"
+          description="Exam-critical cards from the staff textbook for your topic"
+          isActive={flashcards.length > 0 || isGeneratingFlashcards}
+          hideHeader={isGeneratingFlashcards || flashcards.length > 0}
         >
-          <div className="space-y-3">
-            <Select value={selectedSubject} onValueChange={(value) => { setSelectedSubject(value); setSelectedTopic(''); }}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select subject" />
-              </SelectTrigger>
-              <SelectContent>
-                {subjects.map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
-                    <span className="flex items-center gap-2">
-                      <span>{subject.icon}</span>
-                      <span>{subject.name}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedTopic}
-              onValueChange={handleTopicSelect}
-              disabled={!selectedSubject}
+          {isGeneratingFlashcards ? (
+            <div
+              className="flex min-h-[14rem] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#6486B5]/35 bg-[#6486B5]/5 px-4 py-8 text-center"
+              aria-live="polite"
             >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder={!selectedSubject ? 'Select subject first' : 'Select topic'} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTopics.map((topic) => (
-                  <SelectItem key={topic} value={topic}>
-                    {topic}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTopic && !resolvedTopicId && (
-              <p className="text-xs text-amber-800">
-                This topic is not connected to syllabus data, so notes cannot be generated.
-              </p>
-            )}
-            <Button
-              onClick={() => void handleGenerateNotes()}
-              disabled={!resolvedTopicId || isGeneratingNotes || isOcrRunning || isProcessing}
-              className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
-            >
-              {isGeneratingNotes ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Writing from the textbook…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate notes
-                </>
+              <RefreshCw className="h-6 w-6 animate-spin text-[#6486B5]" />
+              <div>
+                <p className="text-sm font-semibold text-studynow-dark">Writing flashcards…</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pulling the important points from the textbook for this topic.
+                </p>
+              </div>
+            </div>
+          ) : flashcards.length > 0 ? (
+            <div className="space-y-3">
+              <TopicFlashcardDeck
+                key={flashcardDeckKey}
+                cards={flashcards}
+                topicLabel={flashcardStudyLabel}
+                onBackToTopics={() => setFlashcards([])}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleGenerateFlashcards()}
+                disabled={!resolvedFlashcardTopicId || isOcrRunning || isProcessing}
+                className="w-full rounded-xl"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Generate again
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Select
+                value={flashcardSubject}
+                onValueChange={(value) => {
+                  setFlashcardSubject(value);
+                  setFlashcardTopic('');
+                  setFlashcardSubtopicId('');
+                  setFlashcards([]);
+                }}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      <span className="flex items-center gap-2">
+                        <span>{subject.icon}</span>
+                        <span>{subject.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={flashcardTopic}
+                onValueChange={(topic) => {
+                  setFlashcardTopic(topic);
+                  setFlashcardSubtopicId('');
+                  setFlashcards([]);
+                }}
+                disabled={!flashcardSubject}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder={!flashcardSubject ? 'Select subject first' : 'Select topic'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {flashcardTopics.map((topic) => (
+                    <SelectItem key={topic} value={topic}>
+                      {topic}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {flashcardTopic && flashcardSubtopics.length > 0 ? (
+                <Select
+                  value={flashcardSubtopicId || '__whole__'}
+                  onValueChange={(value) => {
+                    setFlashcardSubtopicId(value === '__whole__' ? '' : value);
+                    setFlashcards([]);
+                  }}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Whole topic or pick a subtopic" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__whole__">Whole topic</SelectItem>
+                    {flashcardSubtopics.map((subtopic) => (
+                      <SelectItem key={subtopic.id} value={subtopic.id}>
+                        {subtopic.syllabusCode ? `${subtopic.syllabusCode} · ${subtopic.name}` : subtopic.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+              {flashcardTopic && !resolvedFlashcardTopicId && (
+                <p className="text-xs text-amber-800">
+                  This topic is not connected to syllabus data, so flashcards cannot be generated.
+                </p>
               )}
-            </Button>
-          </div>
+              <Button
+                onClick={() => void handleGenerateFlashcards()}
+                disabled={!resolvedFlashcardTopicId || isOcrRunning || isProcessing}
+                className="w-full rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
+              >
+                <Layers className="mr-2 h-4 w-4" />
+                Generate flashcards
+              </Button>
+            </div>
+          )}
         </UploadTile>
       </motion.div>
 
@@ -994,7 +1559,7 @@ export default function CaptureHubPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-studynow-dark flex items-center gap-2">
                 <span className="w-1.5 h-6 bg-[#EAA93C] rounded-full"></span>
-                Process My Material
+                Process & evaluate
               </h2>
               <Button variant="ghost" size="sm" onClick={clearContent} disabled={isOcrRunning || isProcessing || isGeneratingNotes} className="text-muted-foreground">
                 <X className="w-4 h-4 mr-1" />
@@ -1016,7 +1581,7 @@ export default function CaptureHubPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-bold text-studynow-dark">
-                      {activeMethod === 'generate' ? 'Generated notes' : 'Scanned text & transcript'}
+                      Scanned text & transcript
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {ocrTranscript
@@ -1065,41 +1630,20 @@ export default function CaptureHubPage() {
                         </div>
                       )}
 
-                      {/* Generated notes show as formatted revision notes; OCR/typed stay editable. */}
                       <div>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <Label className="text-sm font-semibold text-studynow-dark">
-                            {activeMethod === 'generate' ? 'Revision notes' : 'Review Combined Notes'}
+                            Review Combined Notes
                           </Label>
-                          {activeMethod === 'generate' && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setIsEditingGeneratedNotes((current) => !current)}
-                              className="h-8 rounded-lg text-xs"
-                            >
-                              <Pencil className="mr-1 h-3.5 w-3.5" />
-                              {isEditingGeneratedNotes ? 'Show formatted notes' : 'Edit notes'}
-                            </Button>
-                          )}
                         </div>
-                        {activeMethod === 'generate' && !isEditingGeneratedNotes ? (
-                          <div className="rounded-xl border border-[#6486B5]/20 bg-white p-4">
-                            <StudyNotesView text={extractedContent} />
-                          </div>
-                        ) : (
-                          <Textarea
-                            value={extractedContent}
-                            onChange={(event) => setExtractedContent(event.target.value)}
-                            aria-label={activeMethod === 'generate' ? 'Edit generated notes' : 'Review combined OCR and typed notes'}
-                            className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
-                          />
-                        )}
+                        <Textarea
+                          value={extractedContent}
+                          onChange={(event) => setExtractedContent(event.target.value)}
+                          aria-label="Review combined OCR and typed notes"
+                          className="min-h-40 resize-y rounded-xl bg-muted/30 leading-relaxed"
+                        />
                         <p className="mt-2 text-xs text-muted-foreground">
-                          {activeMethod === 'generate'
-                            ? 'Markdown headings, tables, and KaTeX formulas are formatted for revision. Edit only if you need to change wording.'
-                            : 'Fix any handwriting-recognition mistakes or add missing details before summarizing.'}
+                          Fix any handwriting-recognition mistakes or add missing details before evaluating.
                         </p>
                       </div>
                     </motion.div>
@@ -1262,11 +1806,11 @@ export default function CaptureHubPage() {
                         >
                           <RefreshCw className="w-5 h-5 mr-2" />
                         </motion.div>
-                        Processing...
+                        Saving…
                       </>
                     ) : (
                       <>
-                        Process Now
+                        Save to Materials Library
                         <ChevronRight className="w-5 h-5 ml-2" />
                       </>
                     )}
@@ -1277,182 +1821,8 @@ export default function CaptureHubPage() {
           </motion.section>
         )}
       </AnimatePresence>
-
-      {/* My Materials Library */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <div className="mb-6 space-y-6 text-center">
-          <div className="mx-auto max-w-2xl space-y-3">
-            <h2 className="justify-center text-lg font-bold text-studynow-dark flex items-center gap-2">
-              <span className="w-1.5 h-6 bg-[#6486B5] rounded-full"></span>
-              My Materials Library
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Choose a subject card to filter your saved materials, or use the picker to view everything.
-            </p>
-            <div className="flex justify-center">
-              <Select value={libraryFilter} onValueChange={setLibraryFilter}>
-                <SelectTrigger className="w-full max-w-[220px] rounded-xl">
-                  <SelectValue placeholder="Filter by subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Subjects</SelectItem>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="flex items-center gap-2">
-                        <span>{s.icon}</span>
-                        <span>{s.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DisplayCards cards={libraryCards} layout="stack" />
-        </div>
-
-        {filteredMaterials.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <AnimatePresence mode="popLayout">
-              {filteredMaterials.map((material, index) => {
-                const subject = subjects.find((s) => s.id === material.subject);
-                const TypeIcon = getTypeIcon(material.type);
-
-                return (
-                  <motion.div
-                    key={material.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Card className="border-0 rounded-2xl card-shadow hover:shadow-lg transition-shadow group">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          {/* Type icon */}
-                          <div className="w-10 h-10 rounded-xl bg-[#6486B5]/10 flex items-center justify-center shrink-0">
-                            <TypeIcon className="w-5 h-5 text-[#6486B5]" />
-                          </div>
-
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-studynow-dark truncate group-hover:text-[#6486B5] transition-colors">
-                              {material.name}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Badge
-                                variant="secondary"
-                                className="bg-[#EAA93C]/20 text-[#EAA93C] border-0 text-xs"
-                              >
-                                {subject?.icon} {subject?.name}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {material.topic}
-                              </span>
-                            </div>
-
-                            {/* Date and features */}
-                            <div className="flex items-center justify-between mt-3">
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Calendar className="w-3 h-3" />
-                                {format(new Date(material.dateUploaded), 'dd MMM yyyy')}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {material.features.map((f) => (
-                                  <FeatureIcon key={f} feature={f} />
-                                ))}
-                              </div>
-                            </div>
-
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setNoteMaterial(material)}
-                              className="mt-4 w-full rounded-xl border-[#6486B5]/40 text-[#6486B5] hover:bg-[#6486B5]/10"
-                              aria-label={`Read ${material.name}`}
-                            >
-                              <BookOpen className="mr-2 h-4 w-4" />
-                              Read note
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEvaluationSummary(material)}
-                              className="mt-2 w-full rounded-xl border-[#EAA93C]/40 text-studynow-dark hover:bg-[#EAA93C]/10"
-                              aria-label={`Evaluation summary for ${material.name}`}
-                            >
-                              <ClipboardList className="mr-2 h-4 w-4" />
-                              Evaluation summary
-                            </Button>
-                          </div>
-
-                          {/* Menu */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem onClick={() => setNoteMaterial(material)}>
-                                <BookOpen className="w-4 h-4 mr-2" />
-                                Read note
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Summary
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEvaluationSummary(material)}>
-                                <ClipboardList className="w-4 h-4 mr-2" />
-                                Evaluation summary
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  setMaterials((prev) => prev.filter((item) => item.id !== material.id));
-                                  toast.success(`Removed "${material.name}"`);
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <div className="w-16 h-16 rounded-full bg-[#EAA93C]/10 flex items-center justify-center mx-auto mb-4">
-              <Folder className="w-8 h-8 text-[#EAA93C]/50" />
-            </div>
-            <h3 className="text-lg font-semibold text-studynow-dark mb-2">No materials yet</h3>
-            <p className="text-muted-foreground text-sm">
-              Upload your first material using the tiles above
-            </p>
-          </motion.div>
-        )}
-      </motion.section>
+        </>
+      )}
 
       <Dialog open={noteMaterial !== null} onOpenChange={(open) => !open && setNoteMaterial(null)}>
         <DialogContent className="max-w-2xl rounded-2xl">
@@ -1516,11 +1886,7 @@ export default function CaptureHubPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Evaluate result: a percentage the student sees at a glance, plus the
-          breakdown behind it. The rubric this scores against detects whether a
-          reference point was contradicted or never mentioned, not whether the
-          notes were merely worded differently -- so the copy says covered /
-          missing, never a grade on writing quality. */}
+      {/* Short motivational next-steps checklist; scoring still runs in the backend. */}
       <Dialog
         open={evaluationOpen}
         onOpenChange={(open) => {
@@ -1533,78 +1899,17 @@ export default function CaptureHubPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Evaluation summary</DialogTitle>
+            <DialogTitle>Your next steps</DialogTitle>
             <DialogDescription>
-              What you covered well, what is missing, then what to add or rewrite to raise the next score.
+              A short score and a few tips you can tick off as you improve your notes.
             </DialogDescription>
           </DialogHeader>
           {evaluation && (
-            <div className="space-y-4">
-              {evaluationSummaryPoints.length > 0 && (
-                <div className="rounded-xl border border-[#6486B5]/30 bg-[#6486B5]/5 p-3">
-                  <p className="text-xs font-black uppercase tracking-wide text-[#6486B5]">
-                    Summary used for this evaluation
-                  </p>
-                  <ul className="mt-2 space-y-1.5 text-sm text-studynow-dark">
-                    {evaluationSummaryPoints.map((point) => (
-                      <li key={point} className="flex gap-2">
-                        <span aria-hidden="true">•</span>
-                        <span>{formatStudentFacingText(point)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="flex items-center justify-center">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#6486B5] text-2xl font-black text-[#6486B5]">
-                  {evaluation.percentage}%
-                </div>
-              </div>
-              <p className="text-sm font-semibold text-studynow-dark">{formatStudentFacingText(evaluation.summary)}</p>
-
-              {evaluation.correct.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Covered well</p>
-                  {evaluation.correct.map((item, index) => (
-                    <div key={`right-${index}`} className="rounded-xl border border-border p-3">
-                      <p className="text-sm font-bold text-studynow-dark">{formatStudentFacingText(item.point)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {evaluation.missing.map((gap) => asMissingBullet(gap)).filter(Boolean).length > 0 && (
-                <div className="rounded-xl bg-secondary p-3">
-                  <p className="text-xs font-black uppercase tracking-wide text-secondary-foreground">
-                    Not in your notes
-                  </p>
-                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-secondary-foreground">
-                    {evaluation.missing.map((gap) => asMissingBullet(gap)).filter(Boolean).map((gap, index) => (
-                      <li key={`missing-${index}`}>{gap}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {(evaluation.improvements?.length ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#6486B5]">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    How to improve your notes
-                  </p>
-                  <ol className="space-y-2">
-                    {evaluation.improvements?.map((step, index) => (
-                      <li key={`improve-${index}`} className="flex gap-3 rounded-xl border border-[#6486B5]/30 bg-[#6486B5]/5 p-3">
-                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#6486B5] text-[11px] font-black text-white">
-                          {index + 1}
-                        </span>
-                        <span className="text-sm leading-relaxed text-studynow-dark">{formatStudentFacingText(step)}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-            </div>
+            <EvaluationNextSteps
+              percentage={evaluation.percentage}
+              summary={evaluation.summary}
+              improvements={evaluation.improvements ?? []}
+            />
           )}
           {evaluationUnavailable && (
             <p className="text-sm text-muted-foreground">

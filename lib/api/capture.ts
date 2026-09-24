@@ -68,3 +68,19 @@ export function generateTopicNotes(input: { topicId: string }) {
     body: JSON.stringify(input),
   });
 }
+
+export type Flashcard = {
+  front: string;
+  back: string;
+};
+
+export function generateFlashcards(input: {
+  topicId: string;
+  focus?: { name: string; description?: string };
+}) {
+  return apiRequest<{ available: boolean; cards: Flashcard[] | null; failure: CaptureFailure | null }>('/api/v1/me/capture/generate-flashcards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}

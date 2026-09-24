@@ -4,6 +4,9 @@ import { AnalysisProviderError } from './analysis-error.js';
 export const SPIDEY_HISTORY_LIMIT = 6;
 export const SPIDEY_ASK_MAX_TOKENS = 280;
 
+export const SPIDEY_OFF_TOPIC_REPLY =
+  "Sorry — I'm only able to answer questions about EduNets platform features. Ask me about Revision Hub, Notes Library, Quiz, Study Squad, or another screen in the app!";
+
 export type SpideyChatMessage = {
   role: 'user' | 'assistant';
   text: string;
@@ -17,14 +20,17 @@ export type SpideyMaterialContext = {
 
 export const EDUNETS_GUIDE = [
   'EduNets is a Singapore O-Level revision app.',
-  'Capture Hub: scan handwritten notes, type notes, or generate textbook-grounded notes, then summarise and evaluate them.',
-  'My Materials Library stores saved notes. Evaluation summary shows covered well, missing points, and how to improve.',
+  'Revision Hub: upload handwritten notes to evaluate them, generate flashcards from the textbook, or open Notes Library.',
+  'Notes Library has Generated Notes (textbook-grounded by subject and topic) and Materials Library (saved uploads and evaluation summaries).',
   'Quiz practises topics. Concept Web shows how ideas link. Study Squad is group revision. Ask Teacher sends a question to a teacher.',
   'Rescue Room and Revision Room are live practice rooms. Dashboard shows progress. Profile holds account settings.',
-  'For syllabus facts, point the student to Capture Hub Generate Notes or their saved materials rather than inventing textbook content.',
+  'For syllabus facts, point the student to Revision Hub flashcards, Generated Notes, or their saved materials — do not invent textbook content.',
 ].join(' ');
 
 const BULLET_PREFIX = /^(?:[-*•]|\d+[.)])\s+/;
+
+/** Loose topic keywords that still count as EduNets / study-platform help. */
+const PLATFORM_HINT = /\b(edunets|edu\s*nets|revision\s*hub|capture\s*hub|notes?\s*library|flash\s*cards?|study\s*squad|concept\s*web|ask\s*teacher|rescue\s*room|revision\s*room|dashboard|profile|quiz|mascot|spidey|ocr|evaluat|upload|handwrit|handwriting|material|generate\s*notes?|sign\s*in|log\s*in|account|scan|photo|image|library|squad|teacher|syllabus|topic|subject)\b/i;
 
 function stripReplyMarkup(text: string): string {
   return text
@@ -87,6 +93,16 @@ export function trimHistory(messages: readonly SpideyChatMessage[]): SpideyChatM
     .slice(-SPIDEY_HISTORY_LIMIT);
 }
 
+/** True when the latest student message is clearly about EduNets / the app. */
+export function looksLikeEduNetsQuestion(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (PLATFORM_HINT.test(trimmed)) return true;
+  // Short help-seeking with no topic still allowed — Spidey can ask what they need.
+  if (/^(hi|hello|hey|help|thanks|thank you)[.!]?\s*$/i.test(trimmed)) return true;
+  return false;
+}
+
 export function buildSpideyChatPrompt(
   messages: readonly SpideyChatMessage[],
   materials: readonly SpideyMaterialContext[] = [],
@@ -99,15 +115,18 @@ export function buildSpideyChatPrompt(
     : '- (no saved materials on this device yet)';
 
   return [
-    'You are Spidey, a study guide inside EduNets.',
-    'Answer questions about EduNets features, O-Level study tips, and the student\'s saved materials listed below.',
-    'Do not invent syllabus facts from a textbook. If they need topic notes, tell them to use Capture Hub Generate Notes.',
+    'You are Spidey, a friendly study buddy inside EduNets — warm, clear, and encouraging.',
+    'Talk like a helpful classmate: contractions are fine (you\'ll, that\'s, let\'s).',
+    'ONLY answer questions about EduNets platform features (screens, how to use the app, saved materials listed below, and brief study tips tied to those features).',
+    'If the student asks about anything else (homework answers, general trivia, unrelated chat, other apps), reply with exactly this sentence and nothing else:',
+    `"${SPIDEY_OFF_TOPIC_REPLY}"`,
+    'Do not invent syllabus facts from a textbook. If they need topic notes or flashcards, point them to Revision Hub Notes Library or Generate flashcards.',
     'Do not claim you can scan handwriting, mark a quiz, or email a teacher yourself — point them to the matching screen.',
     '',
-    'FORMAT — follow this every time:',
-    '- One short opening sentence (at most 18 words).',
-    '- Then 3 to 5 bullets. Each bullet is one line and one idea.',
-    '- Stop after the bullets. No extra paragraphs, headings, numbered essays, greetings, or sign-offs.',
+    'FORMAT for on-topic answers:',
+    '- One short, friendly opening sentence (at most 22 words).',
+    '- Then 2 to 4 bullets. Each bullet is one line and one idea.',
+    '- Stop after the bullets. No essays, headings, or sign-offs.',
     '- Plain text only: use a hyphen and a space for bullets. No markdown, no bold, no emojis.',
     '',
     'EDUNETS FEATURES:',
@@ -119,7 +138,7 @@ export function buildSpideyChatPrompt(
     'CONVERSATION:',
     history || 'Student: (no message)',
     '',
-    'Reply in the FORMAT above. Keep the whole answer under 80 words.',
+    'Reply as above. Keep on-topic answers under 90 words.',
   ].join('\n');
 }
 
@@ -131,6 +150,11 @@ export async function answerSpideyChat(
   model: AnalysisModel,
 ): Promise<{ text: string }> {
   const messages = trimHistory(input.messages);
+  const latestUser = [...messages].reverse().find((message) => message.role === 'user');
+  if (latestUser && !looksLikeEduNetsQuestion(latestUser.text)) {
+    return { text: SPIDEY_OFF_TOPIC_REPLY };
+  }
+
   const reply = normaliseSpideyReply((await model.complete(
     buildSpideyChatPrompt(messages, input.materials ?? []),
     { maxTokens: SPIDEY_ASK_MAX_TOKENS },

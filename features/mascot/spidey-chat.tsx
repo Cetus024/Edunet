@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { Send } from 'lucide-react';
+import { ArrowUp, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
 import { sendSpideyChat } from '@/lib/api/spidey';
 import { ApiConnectionError, isApiError } from '@/lib/api/client';
 import { materialsLibraryAtom } from '@/features/materials/library-store';
+import { cn } from '@/lib/utils';
 
 type DisplayMessage = {
   id: string;
@@ -18,6 +19,9 @@ type DisplayMessage = {
 
 const BULLET_LINE = /^(?:[-*•]|\d+[.)])\s+/;
 
+const WELCOME_TEXT =
+  "Hi! I'm Spidey — ask me about Revision Hub, flashcards, Notes Library, Quiz, or anything else on EduNets.";
+
 function cleanSpideyLine(text: string): string {
   return text
     .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -26,18 +30,44 @@ function cleanSpideyLine(text: string): string {
     .trim();
 }
 
+function SpideyAvatar({ size = 28 }: { size?: number }) {
+  return (
+    <span
+      className="relative shrink-0 overflow-hidden rounded-full border border-[#6486B5]/25 bg-[#FFE38F] shadow-sm"
+      style={{ width: size, height: size }}
+    >
+      <Image
+        src="/branding/spidey-chat-avatar.png"
+        alt=""
+        fill
+        sizes={`${size}px`}
+        // Wide scene art — pin the circle on Spidey's face/body, not the chart.
+        className="object-cover object-[26%_48%]"
+        draggable={false}
+      />
+    </span>
+  );
+}
+
 function SpideyMessageBody({ text, role }: { text: string; role: DisplayMessage['role'] }) {
   const lines = text.replace(/\r\n/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean);
   const intro = lines.filter((line) => !BULLET_LINE.test(line)).map(cleanSpideyLine).filter(Boolean);
   const bullets = lines.filter((line) => BULLET_LINE.test(line)).map(cleanSpideyLine).filter(Boolean);
-  const bubbleClass = role === 'user'
-    ? 'ml-6 bg-[#6486B5] text-white'
-    : 'mr-2 bg-secondary text-secondary-foreground';
+  const isUser = role === 'user';
 
   return (
-    <div className={`rounded-xl px-3 py-2 text-sm leading-relaxed ${bubbleClass}`}>
+    <div
+      className={cn(
+        'max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed',
+        isUser
+          ? 'bg-[#6486B5] text-white'
+          : 'bg-[#FFF8DE] text-[#17233A] ring-1 ring-[#1D3A62]/08',
+      )}
+    >
       {intro.map((line, index) => (
-        <p key={`intro-${index}`}>{line}</p>
+        <p key={`intro-${index}`} className={index > 0 ? 'mt-1.5' : undefined}>
+          {line}
+        </p>
       ))}
       {bullets.length > 0 && (
         <ul className={`${intro.length > 0 ? 'mt-1.5' : ''} list-disc space-y-1 pl-4`}>
@@ -61,11 +91,40 @@ function describeSpideyError(error: unknown): string {
   return 'Spidey could not answer just now. Please try again.';
 }
 
-export function SpideyChat() {
+type SpideyChatProps = {
+  /** Fired when message list size changes so the parent can re-place the bubble. */
+  onContentChange?: () => void;
+  onClose?: () => void;
+};
+
+export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
   const materials = useAtomValue(materialsLibraryAtom);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  const latestRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    onContentChange?.();
+    const node = latestRef.current;
+    if (node) {
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [messages, busy, onContentChange]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => onContentChange?.());
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [onContentChange]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const send = async (text: string) => {
     if (busy) return;
@@ -118,35 +177,88 @@ export function SpideyChat() {
   };
 
   return (
-    <div className="flex max-h-[min(28rem,65vh)] flex-col gap-3">
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-        {messages.map((message) => (
-          <SpideyMessageBody key={message.id} role={message.role} text={message.text} />
-        ))}
-        {busy && (
-          <p className="text-xs font-semibold text-muted-foreground">Thinking…</p>
-        )}
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
+      {/* Header — title + close */}
+      <div className="flex shrink-0 items-center gap-2.5 border-b border-[#1D3A62]/10 pb-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold tracking-tight text-[#1D3A62]">Ask Spidey</p>
+          <p className="truncate text-[11px] text-[#6486B5]">Your EduNets study guide</p>
+        </div>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#6486B5] transition-colors hover:bg-[#6486B5]/10 hover:text-[#1D3A62] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6486B5]"
+            aria-label="Close Spidey chat"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(draft);
-        }}
-      >
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={busy}
-          placeholder="Ask Spidey…"
-          className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <Button type="submit" size="icon" disabled={busy || !draft.trim()} className="h-10 w-10 rounded-xl">
-          <Send className="h-4 w-4" />
-          <span className="sr-only">Send</span>
-        </Button>
-      </form>
+      {/* Messages */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain py-3 pr-0.5">
+        {messages.length === 0 && !busy ? (
+          <div className="flex items-start gap-2">
+            <SpideyAvatar size={32} />
+            <SpideyMessageBody role="assistant" text={WELCOME_TEXT} />
+          </div>
+        ) : null}
+
+        {messages.map((message, index) => {
+          const isUser = message.role === 'user';
+          return (
+            <div
+              key={message.id}
+              ref={index === messages.length - 1 ? latestRef : undefined}
+              className={cn('flex items-end gap-2', isUser ? 'justify-end' : 'justify-start')}
+            >
+              {!isUser ? <SpideyAvatar size={32} /> : null}
+              <SpideyMessageBody role={message.role} text={message.text} />
+            </div>
+          );
+        })}
+
+        {busy ? (
+          <div className="flex items-end gap-2">
+            <SpideyAvatar size={32} />
+            <div className="rounded-2xl bg-[#FFF8DE] px-3.5 py-2.5 text-[13px] font-medium text-[#6486B5] ring-1 ring-[#1D3A62]/08">
+              Thinking…
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Input + footer */}
+      <div className="shrink-0 border-t border-[#1D3A62]/10 pt-3">
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send(draft);
+          }}
+        >
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={busy}
+            placeholder="Ask anything about EduNets…"
+            className="h-11 min-w-0 flex-1 rounded-2xl border border-[#1D3A62]/12 bg-[#FFF8DE]/60 px-3.5 text-sm text-[#17233A] outline-none placeholder:text-[#6486B5]/70 focus-visible:border-[#6486B5] focus-visible:ring-2 focus-visible:ring-[#6486B5]/35 disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={busy || !draft.trim()}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#1D3A62] text-white transition-colors hover:bg-[#6486B5] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6486B5] focus-visible:ring-offset-2"
+            aria-label="Send message"
+          >
+            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+          </button>
+        </form>
+        <p className="mt-2 text-center text-[10px] leading-snug text-[#6486B5]/90">
+          Powered by AI · A little help getting around EduNets
+        </p>
+      </div>
     </div>
   );
 }

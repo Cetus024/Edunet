@@ -26,6 +26,102 @@
 
 ---
 
+## 2026-09-24 · 工作区未提交 · Spidey 功能一句话提示
+
+**进入每个功能页时弹出一行用途提示；点击 Spidey 仍开完整聊天**
+
+- **做了什么**：面板分 tip／chat 两种模式；路由切换每次自动 tip（约 5 秒后收起）；文案改为一句「这功能是做什么的」；tip 上可点 Ask Spidey。未新加库（沿用现有 mascot + motion）。
+- **为什么**：用户要功能提醒，同时保留聊天。
+- **影响面**：`global-mascot.tsx` 行为。
+
+---
+
+## 2026-09-24 · 工作区未提交 · Capture Hub 更名为 Revision Hub
+
+**学生可见名称改为 Revision Hub（路由仍为 `/capture-hub`）**
+
+- **做了什么**：导航／页面标题／Spidey 文案／落地页与学生手册中的 Capture Hub → Revision Hub；中文导航为「复习中心」。
+- **为什么**：产品改名。
+- **影响面**：仅展示文案；URL 与 API 路径未改。
+
+---
+
+## 2026-09-24 · 工作区未提交 · Spidey 聊天布局灵感自 Ask Andy
+
+**Spidey 面板改为头像标题栏 + 消息区 + 输入栏布局，保留 EduNets 配色与 logo**
+
+- **做了什么**：Ask Spidey 头栏（spidey-icon + 副标题 + 关闭）；助手气泡左侧带头像、用户气泡右侧品牌蓝；底部圆角输入 + 上箭头发送 + AI 脚注；消息区内滚动，外壳不滚。
+- **为什么**：用户要参考 Andy 助手布局，但用自家颜色与 Spidey logo。
+- **影响面**：`spidey-chat.tsx`、`global-mascot.tsx` 面板壳。
+
+---
+
+## 2026-09-24 · 工作区未提交 · 闪卡 Question/Answer + 换主题返回 + 子主题
+
+**闪卡标签改为 Question/Answer；学习中可返回改 subject/topic；有子主题时可选**
+
+- **做了什么**：卡面 Front/Back → Question/Answer；甲板顶栏加「Change topic」返回选择器（保留当前 subject/topic）；有 curriculum 子主题时多出一道选择（Whole topic 或具体子主题）；API `focus` 把子主题带进检索与生成 prompt（RAG 仍按父 topic）。
+- **为什么**：学生中途想换主题，且大 topic 下需要按子主题刷卡。
+- **影响面**：`generate-flashcards` / validation / `lib/api/capture` / Capture Hub 闪卡区。
+- **坑**：子主题只影响检索 query 与 prompt 聚焦，不另开 RAG topicId。
+
+---
+
+## 2026-09-24 · 工作区未提交 · Spidey 限平台 + 短评价清单
+
+**聊天框随内容伸缩且仅答 EduNets；评价改为可勾选的激励下一步**
+
+- **做了什么**：Spidey 去掉固定大高度，消息区随内容增高并设上限；离题直接回绝平台外问题。评价弹窗去掉长 Covered/missing 列表，改为百分比 + 鼓励句 + 可勾选 next steps（Radix Progress + Checkbox）。
+- **为什么**：用户要求非 sticky 聊天、只谈平台，以及短而激励的互动评价。
+- **影响面**：Spidey UI／prompt；Capture Hub 评价对话框。
+- **坑**：Vitest spidey-chat 已更新。
+
+---
+
+## 2026-09-23 · 工作区未提交 · 闪卡生成后只留学习卡面
+
+**Generate 后整格切到 loading，再只显示翻卡 + Generate again**
+
+- **做了什么**：未生成时仍为科目／课题／Generate；点击后清空并全格 loading；成功后去掉 🃏 标题与选择器，只留翻卡控件与 Generate again。双列 `items-stretch`，两格同高，不拉宽 Upload 侧。
+- **为什么**：按用户 1A／2A 确认。
+- **影响面**：仅 Capture Hub 闪卡格。
+- **坑**：无。
+
+---
+
+## 2026-09-23 · 工作区未提交 · 紧凑单卡翻转闪卡
+
+**闪卡改为单卡 3D 翻转，缩小占位**
+
+- **做了什么**：去掉 `FlashcardArray` 大甲板；用 Motion `rotateY` 做轻量前后翻转；一卡一屏、矮卡片、小 prev/next + Know it 行。卸载未再使用的 `react-quizlet-flashcard`。
+- **为什么**：用户只要一张可翻的卡，并希望布局更省空间。
+- **影响面**：仅闪卡 UI。
+- **坑**：无。
+
+---
+
+## 2026-09-23 · 工作区未提交 · Quizlet 风格闪卡交互
+
+**用 `react-quizlet-flashcard` 替换自制翻卡，并加上 Know it / Still learning**
+
+- **做了什么**：接入 `react-quizlet-flashcard`（`FlashcardArray` + `useFlashcardArray`），新组件 `features/capture/topic-flashcard-deck.tsx`：翻转动画、进度条、循环导航，以及 Know it / Still learning / Restart deck。
+- **为什么**：用户要求更接近 Quizlet 的交互，而不是静态前后切换。
+- **影响面**：仅 Capture Hub 闪卡 UI；生成 API 未改。
+- **坑**：无。
+
+---
+
+## 2026-09-23 · 工作区未提交 · Capture Hub UX 刷新
+
+**落地页改为上传评价／闪卡，Notes Library 分层，并柔化 Spidey 与评价语气**
+
+- **做了什么**：Capture Hub 首页只保留「Upload handwritten notes」与「Generate flashcards」；Notes Library 按钮进入第二层（Generated Notes RAG + Materials Library）。新增 `generate-flashcards` 服务／`POST /me/capture/generate-flashcards`／翻卡 UI。Spidey 语气更口语；评价 prompt 改为短鼓励句与 Keep/Add/Try 步骤。保存按钮改为 Save to Materials Library。
+- **为什么**：按产品要求拆开落地操作与资料库，并加入教材 RAG 闪卡。
+- **影响面**：Generate Notes 从落地砖块移到 Notes Library；材料列表不再挂在首页底部。
+- **坑**：相关 Vitest（spidey / flashcards / note-evaluation / capture-analysis）与 typecheck 已通过。无浏览器端到端验证。
+
+---
+
 ## 2026-09-21 · 工作区未提交 · 评价准确率改为按 LO 比例给分
 
 **评价百分比从「整项全对才给分」改为每条学习目标按完成比例给分**

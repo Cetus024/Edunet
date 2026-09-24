@@ -28,9 +28,11 @@ import { summarizeNotes } from '../services/summarize-notes.js';
 import { analysisFailure } from '../services/analysis-error.js';
 import { getGeminiChatModel } from '../services/gemini.js';
 import { generateTopicNotes } from '../services/generate-topic-notes.js';
+import { generateFlashcards } from '../services/generate-flashcards.js';
 import { answerSpideyChat } from '../services/spidey-chat.js';
 import {
   captureEvaluateSchema,
+  captureGenerateFlashcardsSchema,
   captureGenerateNotesSchema,
   captureOcrSchema,
   captureSummarizeSchema,
@@ -988,6 +990,50 @@ api.post('/me/capture/generate-notes', loadSession, requireSession, async (conte
     return context.json({
       available: true,
       text: null,
+      failure: { stage: 'generate', ...analysisFailure(error) },
+    });
+  }
+});
+
+// Capture Hub: exam-critical flashcards from retrieved staff textbook passages.
+api.post('/me/capture/generate-flashcards', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureGenerateFlashcardsSchema.parse(await readJson(context));
+
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      cards: null,
+      failure: { stage: 'generate', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await generateFlashcards(input.topicId, model, undefined, input.focus);
+    if (!result.grounded) {
+      return context.json({
+        available: true,
+        cards: null,
+        failure: { stage: 'generate', reason: 'no_textbook' },
+      });
+    }
+    if (result.cards.length === 0) {
+      return context.json({
+        available: true,
+        cards: null,
+        failure: { stage: 'generate', reason: 'incomplete_output' },
+      });
+    }
+    return context.json({
+      available: true,
+      cards: result.cards,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      cards: null,
       failure: { stage: 'generate', ...analysisFailure(error) },
     });
   }
