@@ -11,9 +11,14 @@ import { cn } from '@/lib/utils';
 function isMostlyProse(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  if (trimmed.includes('|')) return true;
+  if (trimmed.length > 48 && /\s/.test(trimmed)) return true;
   if (trimmed.length > 80) return true;
   const words = trimmed.match(/[A-Za-z]{3,}/g) ?? [];
-  if (words.length >= 6) return true;
+  if (words.length >= 3) return true;
+  if (/\b(?:the|and|with|that|which|from|into|onto|forms?|ions?|charge|compound|element|statement|correctly|describes?|between|has|have|are|was|were|this|these|those|each|only|when|where|than|then|both|either|neither|covalent|ionic|molecular|formula)\b/i.test(trimmed)) {
+    return true;
+  }
   if (/[.!?].*\s+[A-Za-z]/.test(trimmed)) return true;
   return false;
 }
@@ -28,8 +33,11 @@ export function normalizeExamProse(text: string): string {
   if (!value) return '';
   value = value.replace(/\n{3,}/g, '\n\n');
   value = value.replace(/\n(?!\n)/g, (_match, offset: number, full: string) => {
+    const prevLine = full.slice(Math.max(0, offset - 100), offset);
     const rest = full.slice(offset + 1);
-    if (/^(Reaction\s+\d|[A-D][\).]|[•\-]\s|\d+[\).]\s|Part\s+)/i.test(rest)) {
+    const prevIsTable = /^\s*\|/.test(prevLine.slice(prevLine.lastIndexOf('\n') + 1));
+    const nextIsTable = /^\s*\|/.test(rest);
+    if (prevIsTable || nextIsTable || /^(Reaction\s+\d|[A-D][\).]|[•\-]\s|\d+[\).]\s|Part\s+)/i.test(rest)) {
       return '\n';
     }
     return ' ';
@@ -119,15 +127,15 @@ function mapOutsideMath(text: string, transform: (chunk: string) => string): str
   return parts.join('');
 }
 
-/** One chem species / electron term, e.g. Cu(s), Cu2+(aq), 2e- */
+/** One chem species / formula term, e.g. Cu(s), Cu2+(aq), 2e-, VW3, V2W3, H2O, CaCO3, Mg2+, Cl- */
 const CHEM_SPECIES =
-  String.raw`(?:\d+\s*)?(?:e[+\-]|[A-Z][a-z]?(?:\d+)?(?:[+\-]+)?(?:\((?:s|l|g|aq)\))?)`;
+  String.raw`(?:\d+\s*)?(?:e[+\-]|(?:[A-Z][a-z]?(?:\d+)?)+(?:[+\-]+)?(?:\((?:s|l|g|aq)\))?)`;
 const CHEM_SIDE = String.raw`${CHEM_SPECIES}(?:\s*\+\s*${CHEM_SPECIES})*`;
 const CHEM_EQUATION = new RegExp(
   `${CHEM_SIDE}\\s*(?:→|->|⇌|<=>)\\s*${CHEM_SIDE}`,
   'g',
 );
-/** Standalone ions / formulas with digits, charge, or state — not bare words. */
+/** Standalone ions / formulas with digits, charge, state, or compound caps — not bare words. */
 const CHEM_FORMULA_TOKEN = new RegExp(
   String.raw`(?<![A-Za-z\\])(${CHEM_SPECIES})(?![A-Za-z])`,
   'g',
@@ -156,12 +164,14 @@ function liftInlineEquations(text: string): string {
   next = mapOutsideMath(next, (chunk) => (
     chunk.replace(CHEM_FORMULA_TOKEN, (match, formula: string) => {
       const token = formula.trim();
-      if (token.length < 3) return match;
-      if (!/\d|\(|[+\-]|[²³⁰–⁹⁺⁻]/.test(token)) return match;
-      if (/^(The|And|For|With|From|That|This|When|Which|Each|Only)$/i.test(token)) {
+      if (token.length < 2) return match;
+      // Must have digits, charge, state, or multiple capital letters (compound like VW3, NaCl)
+      const hasDigitOrChargeOrState = /\d|\(|[+\-]|[²³⁰–⁹⁺⁻]/.test(token);
+      const isMultiCapCompound = /^[A-Z][a-z]?[A-Z]/.test(token) && !/^(?:AND|FOR|THE|NOT|BUT)\b/i.test(token);
+      if (!hasDigitOrChargeOrState && !isMultiCapCompound) return match;
+      if (/^(The|And|For|With|From|That|This|When|Which|Each|Only|Both|Then|Than|Into|Onto)$/i.test(token)) {
         return match;
       }
-      // Avoid wrapping lone element+state that's already inside a longer ce we missed.
       return `$\\ce{${toMhchemInlineBody(token)}}$`;
     })
   ));
@@ -201,8 +211,10 @@ export function prepareExamKatex(text: string): string {
     && (
       /(?:[A-Z][a-z]?\d|\d+[+\-]|[+\-]{1,2}$)/.test(normalized)
       || /\((?:s|l|g|aq)\)/i.test(normalized)
+      || /^[A-Z][a-z]?[A-Z][a-z]?\d*$/.test(normalized)
     )
-    && !/%$/.test(normalized);
+    && !/%$/.test(normalized)
+    && !isMostlyProse(normalized);
   if ((hasArrow && !isMostlyProse(normalized)) || looksLikeFormula) {
     return `$\\ce{${toMhchemInlineBody(normalized)}}$`;
   }
@@ -213,6 +225,8 @@ export function prepareExamKatex(text: string): string {
   }
   return normalized;
 }
+
+import remarkGfm from 'remark-gfm';
 
 export function ExamKatexText({
   text,
@@ -230,21 +244,43 @@ export function ExamKatexText({
   return (
     <Wrapper
       className={cn(
-        'exam-katex max-w-full overflow-x-auto text-justify hyphens-auto',
+        'exam-katex max-w-full text-justify hyphens-auto',
         '[&_p]:m-0 [&_p]:mb-3 [&_p]:last:mb-0 [&_p]:text-justify [&_p]:leading-[1.65] [&_p]:break-words',
-        '[&_.katex]:text-[1.02em] [&_.katex-display]:my-2 [&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto',
+        '[&_.katex]:text-[1.02em] [&_.katex-display]:my-2 [&_.katex-display]:max-w-full',
         '[&_.katex-html]:max-w-full',
         className,
       )}
     >
       <Markdown
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore' }]]}
         components={{
           p: ({ children }) => (
             <p className="break-words text-justify leading-[1.65] [text-align-last:left]">
               {children}
             </p>
+          ),
+          table: ({ children }) => (
+            <div className="my-4 max-w-full overflow-x-auto rounded-xl border border-[#1D3A62]/15 bg-white/90 shadow-sm">
+              <table className="w-full border-collapse text-left text-sm sm:text-base">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="border-b border-[#1D3A62]/20 bg-[#1D3A62]/[0.06]">
+              {children}
+            </thead>
+          ),
+          th: ({ children }) => (
+            <th className="border-b border-r border-[#1D3A62]/15 px-4 py-2.5 font-bold text-[#1D3A62] last:border-r-0">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border-b border-r border-[#1D3A62]/10 px-4 py-2.5 font-medium text-[var(--edunets-ink,#142218)] last:border-r-0">
+              {children}
+            </td>
           ),
         }}
       >

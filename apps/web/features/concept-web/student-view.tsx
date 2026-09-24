@@ -8,9 +8,7 @@ import { useNavigate, useSearchParams } from '@/lib/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { buildSubconceptSeeds, realisticTopicConnections, type SubconceptSeed } from '@/features/concept-web/content';
 import { ConceptNodeFriendMarkers } from '@/features/concept-web/friend-markers';
 import {
@@ -422,26 +420,31 @@ export default function StudentConceptWebView() {
 
   return (
     <div className="flex h-dvh max-h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-4 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
-        <div className="flex items-center gap-3 rounded-full bg-secondary px-4 py-2 text-secondary-foreground">
-          <span className="text-xl">{subjectsData[subject]?.icon ?? '🧠'}</span>
-          <Label className="font-bold">Concept Web</Label>
-        </div>
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-border/60 bg-card/90 px-4 py-2.5 text-card-foreground backdrop-blur-md sm:gap-3 sm:px-5">
         <Select value={subject} onValueChange={(value: string) => { setSubject(value); setPopup(null); setHighlightedId(null); setPan({ x: 0, y: 0, zoom: 1 }); }}>
-          <SelectTrigger className="w-[220px] rounded-full bg-card">
-            <SelectValue />
+          <SelectTrigger
+            aria-label="Subject"
+            className="h-10 w-auto min-w-[9.5rem] gap-2 rounded-full border-border/70 bg-[var(--edunets-yellow)] px-3.5 font-bold text-[#1D3A62] shadow-none hover:bg-[var(--edunets-yellow)]/90"
+          >
+            <span className="text-base leading-none" aria-hidden>{subjectsData[subject]?.icon ?? '📘'}</span>
+            <SelectValue placeholder="Subject" />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(subjectsData).filter(([name]: [string, SubjectEntry]) => Boolean(name)).map(([name, entry]: [string, SubjectEntry]) => (
-              <SelectItem key={name} value={name}>{entry.icon} {name}</SelectItem>
+            {Object.keys(subjectsData).filter(Boolean).map((name) => (
+              <SelectItem key={name} value={name}>{name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <div className="flex-1" />
+
         <Select value="" onValueChange={handleFindFriend} disabled={squadFriends.length === 0}>
-          <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Find your friend">
-            <Users className="h-4 w-4 shrink-0" />
-            <SelectValue placeholder={squadQuery.isPending ? 'Loading squad…' : squadFriends.length === 0 ? 'No squad friends yet' : 'Find your friend'} />
+          <SelectTrigger
+            className="h-10 w-[11.5rem] gap-2 rounded-full border-border/70 bg-background/80 px-3.5 shadow-none"
+            aria-label="Jump to a squad friend"
+          >
+            <Users className="h-4 w-4 shrink-0 text-[#1D3A62]/70" />
+            <SelectValue placeholder={squadQuery.isPending ? 'Loading…' : squadFriends.length === 0 ? 'No squad yet' : 'Squad friend'} />
           </SelectTrigger>
           <SelectContent>
             {squadFriends.map((member: StudySquadMember) => (
@@ -449,11 +452,22 @@ export default function StudentConceptWebView() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-3 rounded-full bg-card px-4 py-2 shadow-sm">
-          {weakOnly ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          <Label htmlFor="weak-toggle" className="font-semibold">Show weak topics only</Label>
-          <Switch id="weak-toggle" checked={weakOnly} onCheckedChange={setWeakOnly} />
-        </div>
+
+        <button
+          type="button"
+          id="weak-toggle"
+          role="switch"
+          aria-checked={weakOnly}
+          onClick={() => setWeakOnly((value) => !value)}
+          className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition-[background-color,border-color,color] duration-200 ${
+            weakOnly
+              ? 'border-[#1D3A62] bg-[#1D3A62] text-white'
+              : 'border-border/70 bg-background/80 text-[#1D3A62] hover:border-[#1D3A62]/35'
+          }`}
+        >
+          {weakOnly ? <EyeOff className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
+          <span className="whitespace-nowrap">Weak only</span>
+        </button>
       </div>
 
       <div ref={canvasRef} className="relative min-h-0 flex-1 cursor-grab overflow-hidden overscroll-contain active:cursor-grabbing" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} onClick={(event: React.MouseEvent<HTMLDivElement>) => { if (!(event.target as Element).closest('[data-node="true"], [data-popup="true"]')) setPopup(null); }}>

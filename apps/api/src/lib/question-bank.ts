@@ -54,6 +54,7 @@ export interface QuizQuestion {
   correctAnswer: string | number;
   explanation: string;
   linkedConcept: string;
+  bloomLevel?: 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE';
   source?: string;
   resourceNumber?: string;
   options?: string[];

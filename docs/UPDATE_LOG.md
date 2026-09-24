@@ -25,6 +25,116 @@
 </details>
 
 ---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Smart Quiz 答题页去掉多余滚动条**
+
+- **做了什么**：答题／加载态改成锁在 `100dvh − 顶栏`（移动端再减底栏），外层 `overflow-hidden`；去掉题干 `max-h`＋内层 `overflow-y-auto`，内容刚好时不再出滚动条。
+- **为什么**：`min-h-screen` 叠在顶栏下会把整页撑出一条无用滚动条。
+- **影响面**：无。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Smart Quiz session loader 对齐当前答题布局**
+
+- **做了什么**：`QuestionSessionSkeleton` 跟进现卡：宽题干 +50px padding、大选项格、Previous／Next 占位、侧栏／移动端 Available questions 栅格。
+- **为什么**：加载态还停在旧窄卡／顶栏 Next，和现界面跳变。
+- **影响面**：无。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Smart Quiz：短题干居中／长题干两端对齐；任意跳题保留答案；加 Previous**
+
+- **做了什么**：题干按长度／是否有图自适应 `center` vs `start`+`text-justify`；选 MCQ 或离开当前题时静默 `submitAssessmentAnswer`，草稿 + 服务端答案一起标黄；导航条加 Previous，与 Next／Finish 并排。
+- **为什么**：用户要短句居中、长文拉开，并能 1→9→10→2 乱序答题且不丢选择。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**侧栏加宽去 Notifications；Smart Assessment 卡加宽且不滚动**
+
+- **做了什么**：展开宽度 256→280；侧栏／底栏去掉 Notifications（顶栏铃铛保留）；setup 白卡加宽到 ~1180px，高度锁在视口内、`overflow-hidden` 防滚动。
+- **为什么**：用户要对齐 Quizlet 侧栏体量、去掉通知入口、卡片左右展开。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**侧栏恢复 blob 渐变；折叠钮移到轨缘；Quiz 卡居中**
+
+- **做了什么**：侧栏恢复 `blob-soft` 黄／蓝渐变；折叠钮改到侧栏右缘半露（不再挤在 logo 旁）；Smart Assessment 按顶栏高度居中，保留 `pattern-overlay`。
+- **为什么**：用户要保留酷渐变、折叠钮好够、卡片更居中。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**侧栏设计统一：桌面轨 + 移动底栏同一套组件**
+
+- **做了什么**：抽出 `SidebarNavItem`；桌面／移动共用圆角／`sidebar-accent` 激活面／hover／徽章；去掉移动端单独的 `primary` 激活色；保留 layoutId 滑动与折叠动效。
+- **为什么**：用户要更专业且两端侧栏视觉一致。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**侧栏：Framer Motion 专业导航动效（保留设计系统）**
+
+- **做了什么**：`layoutId` 活动胶囊在条目间滑动；折叠／展开用 motion 宽度 + logo／文案 AnimatePresence；图标与折叠钮轻微 spring；尊重 `prefers-reduced-motion`。颜色／圆角／路由逻辑不变。
+- **为什么**：用户要在现有设计系统上探索更专业的 sidenav 动效。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**Smart Quiz 布局：题号靠右、内容上移、Next 上栏**
+
+- **做了什么**：Available questions 钉在右缘；题干／选项顶对齐；Next 收成标准按钮放进顶栏，方便够到。
+- **为什么**：用户标注要右移网格、上移内容、Next 可触达。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**Smart Quiz：Kahoot 题卡 + 自由跳题「Available questions」**
+
+- **做了什么**：顶栏只留 topic／subtopic；题干卡内写「Multiple Choice Question · Question N of M」，尺寸随内容（Kahoot 弹出感）；侧栏改为方形「Available questions」，加载后可点任意题号。
+- **为什么**：用户要去重头信息、题卡不留空、自由跳题。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**侧栏 hover 更顺；Concept Web 顶栏去重**
+
+- **做了什么**：侧栏导航加 300ms ease-out 过渡；Concept Web 去掉重复的「Concept Web」徽章，保留科目／小队好友／Weak only 三个控件并收成更紧凑的工具条。
+- **为什么**：用户觉得顶栏重复、侧栏 hover 生硬。
+- **影响面**：无。
+
+---
+
+## 2026-09-24 · uncommitted · Auto
+
+**Smart Quiz：session shimmer + 题号网格；侧栏去账号卡；setup 卡略缩**
+
+- **做了什么**：开局／「Quiz me on this」／切题用与 QuestionPanel 同构的 YouTube 式 shimmer（含右侧 Grid 占位）；题头加题号徽章；右侧可跳题网格（已答／当前／未解锁）；侧栏去掉账号卡与 My Profile，折叠钮在右上；setup 白卡略缩小避免滚动。
+- **为什么**：用户要加载跟布局一致、可跳题、侧栏更干净、选测验不用下滑。
+- **影响面**：无。
+
+---
 ## 2026-09-24 · merge · Auto
 
 **合并 origin/main 进 alex-AI：保留 monorepo 结构**

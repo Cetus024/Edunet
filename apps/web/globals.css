@@ -183,28 +183,50 @@
   display: none;
 }
 
-/* Soft thin scrollbar for student review panes */
+/* Unique EduNets pill scrollbar for stages and review panes */
 .edunets-scrollbar {
-  scrollbar-color: rgba(29, 58, 98, 0.28) transparent;
+  scrollbar-color: #6486B5 rgba(29, 58, 98, 0.05);
   scrollbar-width: thin;
 }
 
+html,
+body,
+.edunets-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #1D3A62 rgba(29, 58, 98, 0.04);
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
 .edunets-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 9px;
+  height: 9px;
 }
 
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
 .edunets-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(29, 58, 98, 0.04);
+  border-radius: 9999px;
+  margin: 4px 0;
 }
 
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
 .edunets-scrollbar::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(29, 58, 98, 0.22);
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #6486B5 0%, #1D3A62 100%);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 6px rgba(29, 58, 98, 0.2);
+  transition: all 0.2s ease;
 }
 
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
 .edunets-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(29, 58, 98, 0.4);
+  background: linear-gradient(180deg, #F3C952 0%, #E0A820 100%);
+  border-color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(243, 201, 82, 0.6);
 }
 
 /* Concept-web friend markers: orbit rotation is driven as a plain CSS
@@ -221,6 +243,12 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 

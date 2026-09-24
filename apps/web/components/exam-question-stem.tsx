@@ -24,9 +24,11 @@ export function ExamQuestionStem({
   const blocks = stemBlocks && stemBlocks.length > 0
     ? stemBlocks
     : [{ type: 'text' as const, value: text }];
+  // Short stems center; longer stems left-align with full justify.
+  const alignText = align === 'center' ? 'text-center' : 'text-justify';
   const textClass = size === 'lg'
-    ? 'w-full text-justify text-xl font-semibold leading-[1.65] text-[var(--edunets-ink,#142218)] hyphens-auto lg:text-[1.35rem]'
-    : 'w-full text-justify text-[1.05rem] font-semibold leading-[1.6] text-[var(--edunets-ink,#142218)] hyphens-auto';
+    ? `w-full ${alignText} text-xl font-semibold leading-[1.65] text-[var(--edunets-ink,#142218)] hyphens-auto lg:text-[1.35rem]`
+    : `w-full ${alignText} text-[1.05rem] font-semibold leading-[1.6] text-[var(--edunets-ink,#142218)] hyphens-auto`;
   const imageClass = size === 'lg'
     ? 'mx-auto block max-h-[min(48vh,520px)] w-auto max-w-full rounded-lg bg-white object-contain shadow-[inset_0_0_0_1px_rgba(30,40,28,0.06)]'
     : 'block max-h-[420px] max-w-[min(100%,560px)] rounded-lg bg-white object-contain shadow-[inset_0_0_0_1px_rgba(30,40,28,0.06)]';

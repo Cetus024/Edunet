@@ -236,3 +236,17 @@ export const userTopicModeProgress = pgTable('user_topic_mode_progress', {
   check('user_topic_mode_progress_mode_check', sql`${table.assessmentMode} in ('mcq', 'essay')`),
   check('user_topic_mode_progress_mastery_check', sql`${table.mastery} >= 0 and ${table.mastery} <= 1`),
 ]);
+
+export const captureHubQueue = pgTable('capture_hub_queue', {
+  id: text('id').primaryKey(),
+  studentUserId: text('student_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subjectId: text('subject_id').notNull().references(() => subjects.id),
+  topicId: text('topic_id').notNull().references(() => topics.id),
+  subtopicId: text('subtopic_id'),
+  failedQuestionId: text('failed_question_id').notNull(),
+  failedBloomLevel: text('failed_bloom_level', { enum: ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'] as const }),
+  status: text('status', { enum: ['PENDING', 'IN_PROGRESS', 'RESOLVED'] as const }).notNull().default('PENDING'),
+  dueAt: timestamp('due_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

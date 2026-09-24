@@ -163,12 +163,15 @@ export function isChemistryExpression(raw: string): boolean {
   if (/\\ce\{/.test(text)) return true;
   if (/(?:->|→|⇌|<=>|\\rightarrow|\\rightleftharpoons|\\to(?![a-zA-Z]))/.test(text)) return true;
   if (/\((?:s|l|g|aq)\)/i.test(text)) return true;
-  // Short formula / ion tokens: H2O, Fe2+, OH-, X2SO4, C10H20O — not prose, not % scores
+  // Short formula / ion tokens: H2O, Fe2+, OH-, X2SO4, C10H20O, VW3, V2W3 — not prose, not % scores
   if (
     text.length <= 48
     && !/\\frac|\\sqrt|\\times|\\div|\\pm|\\leq|\\geq/.test(text)
     && /^(?:[A-Za-z0-9()[\]+\-^=.\s])+$/.test(text)
-    && /(?:[A-Z][a-z]?\d|\d+[+\-]|[A-Z][a-z]?\^|[+\-]{1,2}$)/.test(text)
+    && (
+      /(?:[A-Z][a-z]?\d|\d+[+\-]|[A-Z][a-z]?\^|[+\-]{1,2}$)/.test(text)
+      || /^[A-Z][a-z]?[A-Z][a-z]?\d*$/.test(text)
+    )
     && !/^(?:IV|III|II|I)\b/.test(text)
     && !/%$/.test(text)
   ) {
@@ -181,9 +184,15 @@ export function isChemistryExpression(raw: string): boolean {
 export function isMostlyProse(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  if (trimmed.includes('|')) return true;
+  if (trimmed.length > 48 && /\s/.test(trimmed)) return true;
   if (trimmed.length > 80) return true;
   const words = trimmed.match(/[A-Za-z]{3,}/g) ?? [];
-  if (words.length >= 6) return true;
+  if (words.length >= 3) return true;
+  // Common English glue words — never treat as a chemistry token.
+  if (/\b(?:the|and|with|that|which|from|into|onto|forms?|ions?|charge|compound|element|statement|correctly|describes?|between|has|have|are|was|were|this|these|those|each|only|when|where|than|then|both|either|neither|covalent|ionic|molecular|formula)\b/i.test(trimmed)) {
+    return true;
+  }
   // Sentence punctuation mid-string is a strong prose signal.
   if (/[.!?].*\s+[A-Za-z]/.test(trimmed)) return true;
   return false;
@@ -199,8 +208,11 @@ export function normalizeExamProse(text: string): string {
   if (!value) return '';
   value = value.replace(/\n{3,}/g, '\n\n');
   value = value.replace(/\n(?!\n)/g, (_match, offset: number, full: string) => {
+    const prevLine = full.slice(Math.max(0, offset - 100), offset);
     const rest = full.slice(offset + 1);
-    if (/^(Reaction\s+\d|[A-D][\).]|[•\-]\s|\d+[\).]\s|Part\s+)/i.test(rest)) {
+    const prevIsTable = /^\s*\|/.test(prevLine.slice(prevLine.lastIndexOf('\n') + 1));
+    const nextIsTable = /^\s*\|/.test(rest);
+    if (prevIsTable || nextIsTable || /^(Reaction\s+\d|[A-D][\).]|[•\-]\s|\d+[\).]\s|Part\s+)/i.test(rest)) {
       return '\n';
     }
     return ' ';
@@ -263,6 +275,36 @@ function formatListBlock(block: ContentBlock): string | null {
     .join('\n');
 }
 
+function formatTableBlock(block: ContentBlock): string | null {
+  const columns = Array.isArray(block.columns)
+    ? block.columns.filter((c): c is string => typeof c === 'string')
+    : [];
+  const rows = Array.isArray(block.rows) ? block.rows as unknown[][] : [];
+  if (rows.length === 0) return null;
+
+  const colCount = Math.max(columns.length, ...rows.map((r) => (Array.isArray(r) ? r.length : 0)));
+  if (colCount === 0) return null;
+
+  const header = Array.from({ length: colCount }, (_, i) => columns[i]?.trim() || `Column ${i + 1}`);
+  const separator = Array.from({ length: colCount }, () => '---');
+  const markdownRows: string[] = [
+    `| ${header.join(' | ')} |`,
+    `| ${separator.join(' | ')} |`,
+  ];
+
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    const cells = Array.from({ length: colCount }, (_, i) => {
+      const val = row[i];
+      const str = val !== null && val !== undefined ? String(val).trim() : '';
+      return formatExamKatexFragment(str);
+    });
+    markdownRows.push(`| ${cells.join(' | ')} |`);
+  }
+
+  return markdownRows.join('\n');
+}
+
 function flattenContent(content: unknown): string {
   if (!Array.isArray(content)) return '';
   const parts: string[] = [];
@@ -280,6 +322,11 @@ function flattenContent(content: unknown): string {
     if (block.type === 'list') {
       const list = formatListBlock(block);
       if (list) parts.push(list);
+      continue;
+    }
+    if (block.type === 'table') {
+      const table = formatTableBlock(block);
+      if (table) parts.push(table);
       continue;
     }
     if (typeof block.value === 'string' && block.value.trim()) {
@@ -323,6 +370,11 @@ export function buildStemBlocks(
       if (block.type === 'list') {
         const list = formatListBlock(block);
         if (list) blocks.push({ type: 'text', value: list });
+        continue;
+      }
+      if (block.type === 'table') {
+        const table = formatTableBlock(block);
+        if (table) blocks.push({ type: 'text', value: table });
         continue;
       }
       if (typeof block.value === 'string' && block.value.trim()) {
@@ -583,6 +635,11 @@ export function mapExternalBankRow(
 ): QuizQuestion | null {
   const optionsRecord = asRecord(row.options);
   const mode = typeof optionsRecord?.mode === 'string' ? optionsRecord.mode : '';
+  
+  const bloomLevelRaw = typeof optionsRecord?.bloomLevel === 'string' ? optionsRecord.bloomLevel.toUpperCase() : undefined;
+  const bloomLevel = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'].includes(bloomLevelRaw as string) 
+    ? bloomLevelRaw as 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE' 
+    : undefined;
 
   const matchedSubtopic = row.subtopicTitle
     ? catalog.subtopics.find((child) => child.name === row.subtopicTitle) ?? null
@@ -622,6 +679,7 @@ export function mapExternalBankRow(
       correctAnswer: answerIndex,
       explanation: row.explanation?.trim() || mapped.labels[answerIndex] || 'Correct option.',
       linkedConcept,
+      ...(bloomLevel ? { bloomLevel } : {}),
       options: mapped.texts,
       ...(stemBlocks.length > 0 ? { stemBlocks } : {}),
       source: 'question-bank',
@@ -645,6 +703,7 @@ export function mapExternalBankRow(
       correctAnswer: answerIndex,
       explanation: row.explanation?.trim() || `Correct option: ${mapped.labels[answerIndex]}`,
       linkedConcept,
+      ...(bloomLevel ? { bloomLevel } : {}),
       options: placeholderOptions,
       optionsImageUrl: mapped.optionsImageUrl,
       ...(stemBlocks.length > 0 ? { stemBlocks } : {}),
@@ -672,6 +731,7 @@ export function mapExternalBankRow(
       correctAnswer: guide,
       explanation: guide,
       linkedConcept,
+      ...(bloomLevel ? { bloomLevel } : {}),
       maxMarks,
       wordLimit: 250,
       ...(stemBlocks.length > 0 ? { stemBlocks } : {}),

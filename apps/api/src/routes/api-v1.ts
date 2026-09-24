@@ -1011,7 +1011,7 @@ api.post('/me/capture/generate-flashcards', loadSession, requireSession, async (
   }
 
   try {
-    const result = await generateFlashcards(input.topicId, model, undefined, input.focus);
+    const result = await generateFlashcards(input.topicId, model, undefined, input.focus as any);
     if (!result.grounded) {
       return context.json({
         available: true,

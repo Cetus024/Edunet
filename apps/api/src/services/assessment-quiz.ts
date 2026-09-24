@@ -384,18 +384,18 @@ export async function submitAssessmentAnswer(userId: string, submissionId: strin
       questionIndex: quizAttemptAnswers.questionIndex,
       submittedAnswer: quizAttemptAnswers.submittedAnswer,
       marksObtained: quizAttemptAnswers.marksObtained,
+      isCorrect: quizAttemptAnswers.isCorrect,
+      maximumMarks: quizAttemptAnswers.maximumMarks,
     }).from(quizAttemptAnswers).where(eq(quizAttemptAnswers.attemptId, attempt.id));
-    const existing = existingRows.find((answer) => answer.questionKey === input.questionKey);
-    if (existing) {
-      if (existing.questionIndex === input.questionIndex
-        && String(existing.submittedAnswer) === String(input.answer)
-        && (attempt.mode === 'mcq' || existing.marksObtained === input.marksObtained)) {
-        return { idempotentReplay: true };
-      }
-      throw new ApiError(409, 'ANSWER_ALREADY_SUBMITTED', 'A different answer has already been saved for this question.');
-    }
-    if (input.questionIndex !== existingRows.length) {
-      throw new ApiError(409, 'ANSWER_OUT_OF_ORDER', `Submit question ${existingRows.length + 1} next.`);
+    const existing = existingRows.find((answer) => (
+      answer.questionKey === input.questionKey || answer.questionIndex === input.questionIndex
+    ));
+    if (existing
+      && existing.questionKey === input.questionKey
+      && existing.questionIndex === input.questionIndex
+      && String(existing.submittedAnswer) === String(input.answer)
+      && (attempt.mode === 'mcq' || existing.marksObtained === input.marksObtained)) {
+      return { idempotentReplay: true };
     }
 
     const [question] = await transaction.select({
@@ -408,7 +408,7 @@ export async function submitAssessmentAnswer(userId: string, submissionId: strin
       eq(quizAttemptQuestions.questionIndex, input.questionIndex),
     )).limit(1);
     if (!question || question.questionKey !== input.questionKey) {
-      throw new ApiError(409, 'QUESTION_MISMATCH', 'This question is not next in the saved set.');
+      throw new ApiError(409, 'QUESTION_MISMATCH', 'This question is not in the saved set.');
     }
 
     let isCorrect: boolean | null = null;
@@ -433,20 +433,43 @@ export async function submitAssessmentAnswer(userId: string, submissionId: strin
     }
 
     const now = new Date();
-    await transaction.insert(quizAttemptAnswers).values({
-      attemptId: attempt.id,
-      questionKey: input.questionKey,
-      questionIndex: input.questionIndex,
-      submittedAnswer: input.answer,
-      isCorrect,
-      marksObtained,
-      maximumMarks,
-      answeredAt: now,
-    });
-    const answerCount = existingRows.length + 1;
-    const correctAnswers = attempt.correctAnswers + (isCorrect ? 1 : 0);
-    const totalMarks = (attempt.marksObtained ?? 0) + (marksObtained ?? 0);
-    const totalMaximumMarks = (attempt.maximumMarks ?? 0) + (maximumMarks ?? 0);
+    if (existing) {
+      if (existing.questionKey !== input.questionKey || existing.questionIndex !== input.questionIndex) {
+        throw new ApiError(409, 'QUESTION_MISMATCH', 'This question is not in the saved set.');
+      }
+      await transaction.update(quizAttemptAnswers).set({
+        submittedAnswer: input.answer,
+        isCorrect,
+        marksObtained,
+        maximumMarks,
+        answeredAt: now,
+      }).where(and(
+        eq(quizAttemptAnswers.attemptId, attempt.id),
+        eq(quizAttemptAnswers.questionKey, input.questionKey),
+      ));
+    } else {
+      await transaction.insert(quizAttemptAnswers).values({
+        attemptId: attempt.id,
+        questionKey: input.questionKey,
+        questionIndex: input.questionIndex,
+        submittedAnswer: input.answer,
+        isCorrect,
+        marksObtained,
+        maximumMarks,
+        answeredAt: now,
+      });
+    }
+
+    // Recompute from all stored answers so free-order jumps stay consistent.
+    const allAnswers = await transaction.select({
+      isCorrect: quizAttemptAnswers.isCorrect,
+      marksObtained: quizAttemptAnswers.marksObtained,
+      maximumMarks: quizAttemptAnswers.maximumMarks,
+    }).from(quizAttemptAnswers).where(eq(quizAttemptAnswers.attemptId, attempt.id));
+    const answerCount = allAnswers.length;
+    const correctAnswers = allAnswers.filter((row) => row.isCorrect === true).length;
+    const totalMarks = allAnswers.reduce((sum, row) => sum + (row.marksObtained ?? 0), 0);
+    const totalMaximumMarks = allAnswers.reduce((sum, row) => sum + (row.maximumMarks ?? 0), 0);
     await transaction.update(quizAttempts).set({
       correctAnswers,
       percentCorrect: attempt.mode === 'mcq'
@@ -518,7 +541,7 @@ export async function finishAssessmentSession(userId: string, submissionId: stri
         summary: string;
         parts: Array<{
           label: string;
-          verdict: 'correct' | 'partial' | 'incorrect';
+          verdict: 'correct' | 'partial' | 'incorrect' | 'sense';
           marksObtained: number;
           maximumMarks: number | null;
           feedback: string;

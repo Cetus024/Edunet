@@ -1,7 +1,7 @@
 import { atomWithStorage, createJSONStorage } from 'jotai/utils';
 
-export const SIDEBAR_EXPANDED_WIDTH = 256;
-export const SIDEBAR_COLLAPSED_WIDTH = 84;
+export const SIDEBAR_EXPANDED_WIDTH = 280;
+export const SIDEBAR_COLLAPSED_WIDTH = 92;
 
 /** Snappy rail swipe — short enough to feel like a click, long enough to read. */
 export const SIDEBAR_DURATION_MS = 160;

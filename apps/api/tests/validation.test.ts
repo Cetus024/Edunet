@@ -134,7 +134,7 @@ describe('quiz submission validation', () => {
       answer: 'A supported written response.',
       marksObtained: 7.25,
     }).success).toBe(true);
-    for (const marksObtained of [-0.01, 10.01, 7.123, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const marksObtained of [-0.01, 100.01, 7.123, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(assessmentAnswerSchema.safeParse({
         questionKey: 'chemistry-organic-chemistry:v2:q13', questionIndex: 0,
         answer: 'A supported written response.', marksObtained,

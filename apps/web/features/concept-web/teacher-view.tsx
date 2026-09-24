@@ -6,9 +6,7 @@ import { Brain, Eye, EyeOff, Link2, Minus, Plus, RotateCcw, Users, X } from 'luc
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { realisticTopicConnections, topicSubconcepts, type SubconceptSeed } from '@/features/concept-web/content';
 import {
   alignedOuterRingStart,
@@ -498,17 +496,18 @@ export default function TeacherConceptWebView() {
 
   return (
     <div className="flex h-dvh max-h-full flex-col overflow-hidden text-foreground" style={{ background: 'radial-gradient(circle at 15% 10%, rgba(234,169,60,.15), transparent 30%), radial-gradient(circle at 85% 85%, rgba(24,102,54,.12), transparent 34%), linear-gradient(135deg,#F6ECDC,#EDE4D4)' }}>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-3 text-card-foreground shadow-sm">
-        <div className="flex items-center gap-3 rounded-full bg-secondary px-4 py-2 text-secondary-foreground">
-          <span className="text-xl">{subjectIcon ?? '🧠'}</span>
-          <Label className="font-bold">Concept Web</Label>
-        </div>
-        <div className="flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-bold">
-          <span>{activeScope?.subjectIcon ?? '📘'}</span>
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-border/60 bg-card/90 px-4 py-2.5 text-card-foreground backdrop-blur-md sm:gap-3 sm:px-5">
+        <div
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[var(--edunets-yellow)] px-3.5 text-sm font-bold text-[#1D3A62]"
+          title="Assigned subject"
+        >
+          <span className="text-base leading-none" aria-hidden>{activeScope?.subjectIcon ?? subjectIcon ?? '📘'}</span>
           <span>{activeScope?.subjectName ?? 'Assigned subject'}</span>
         </div>
         <Select value={audienceScopeId} onValueChange={handleAudienceChange}>
-          <SelectTrigger className="h-10 w-[180px] rounded-full bg-card"><SelectValue placeholder="View" /></SelectTrigger>
+          <SelectTrigger className="h-10 w-[10.5rem] rounded-full border-border/70 bg-background/80 shadow-none">
+            <SelectValue placeholder="View" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="school">Whole school</SelectItem>
             {subjectScopes.map((scope) => (
@@ -519,8 +518,8 @@ export default function TeacherConceptWebView() {
         <div className="flex-1" />
         {selectedScope && (
           <Select value={selectedStudentId ?? 'all'} onValueChange={(value) => { setSelectedStudentId(value === 'all' ? null : value); setPopup(null); }}>
-            <SelectTrigger className="w-[190px] rounded-full bg-card" aria-label="Select student">
-              <Users className="h-4 w-4 shrink-0" />
+            <SelectTrigger className="h-10 w-[11.5rem] gap-2 rounded-full border-border/70 bg-background/80 shadow-none" aria-label="Select student">
+              <Users className="h-4 w-4 shrink-0 text-[#1D3A62]/70" />
               <SelectValue placeholder="Whole class" />
             </SelectTrigger>
             <SelectContent>
@@ -529,14 +528,24 @@ export default function TeacherConceptWebView() {
             </SelectContent>
           </Select>
         )}
-        <Badge variant="outline" className="gap-1.5 rounded-full border-border bg-card text-xs font-bold text-foreground">
-          <Users className="h-3 w-3" aria-hidden="true" /> {cohortSize} students
+        <Badge variant="outline" className="h-10 gap-1.5 rounded-full border-border/70 bg-background/80 px-3 text-xs font-bold text-foreground">
+          <Users className="h-3.5 w-3.5" aria-hidden="true" /> {cohortSize}
         </Badge>
-        <div className="flex items-center gap-3 rounded-full bg-card px-4 py-2 shadow-sm">
-          {weakOnly ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          <Label htmlFor="teacher-weak-toggle" className="font-semibold">Show weak topics only</Label>
-          <Switch id="teacher-weak-toggle" checked={weakOnly} onCheckedChange={setWeakOnly} />
-        </div>
+        <button
+          type="button"
+          id="teacher-weak-toggle"
+          role="switch"
+          aria-checked={weakOnly}
+          onClick={() => setWeakOnly((value) => !value)}
+          className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition-[background-color,border-color,color] duration-200 ${
+            weakOnly
+              ? 'border-[#1D3A62] bg-[#1D3A62] text-white'
+              : 'border-border/70 bg-background/80 text-[#1D3A62] hover:border-[#1D3A62]/35'
+          }`}
+        >
+          {weakOnly ? <EyeOff className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
+          <span className="whitespace-nowrap">Weak only</span>
+        </button>
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
