@@ -19,7 +19,7 @@ import { ApiError } from '../errors.js';
 import { sendSquadInvitationEmail, SquadEmailError } from './squad-email.js';
 import { buildNotificationValues } from './notifications.js';
 import { calculateConceptMemory } from '../lib/knowledge-model.js';
-import { scoreWorkAnalysis } from '../../../../apps/web/lib/learning-work.js';
+import * as LearningWork from '../../../../apps/web/lib/learning-work.js';
 import {
   calculateMemberStreak,
   calculateStudySquadStreak,
@@ -322,7 +322,7 @@ export async function getStudySquad(userId: string): Promise<StudySquadResponse>
     dates.add(toSingaporeDateKey(work.createdAt));
     activityDatesByUser.set(work.userId, dates);
     const scores = workScoresByUser.get(work.userId) ?? [];
-    scores.push(scoreWorkAnalysis(work.analysis).score);
+    scores.push(LearningWork.scoreWorkAnalysis(work.analysis).score);
     workScoresByUser.set(work.userId, scores);
   }
   const squadActivityDates = new Set(

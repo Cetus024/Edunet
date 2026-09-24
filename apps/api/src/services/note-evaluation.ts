@@ -1,4 +1,4 @@
-import { asMissingBullet, formatStudentFacingText } from '../../../../apps/web/lib/study-notes.js';
+import * as StudyNotes from '../../../../apps/web/lib/study-notes.js';
 import {
   buildTopicGrounding,
   type AnalysisModel,
@@ -81,7 +81,7 @@ function pointCredit(verdict: string | undefined): number {
 }
 
 function plainPoint(text: string): string {
-  return formatStudentFacingText(text.replace(/^Incomplete:\s*/i, ''));
+  return StudyNotes.formatStudentFacingText(text.replace(/^Incomplete:\s*/i, ''));
 }
 
 const CONTENT_WORD = /[a-z]{4,}/g;
@@ -143,7 +143,7 @@ export function extractLearningObjectives(
   if (!firstObjective) return [];
 
   for (const fact of facts) {
-    const cleanedFact = formatStudentFacingText(fact.statement);
+    const cleanedFact = StudyNotes.formatStudentFacingText(fact.statement);
     const sentences = splitReferenceSentences(cleanedFact || fact.statement);
     const units = sentences.length > 0
       ? sentences
@@ -342,7 +342,7 @@ function parseVerdictFields(
         correction: plainPoint(match?.correction || point.statement),
       });
     } else if (verdict === 'partial' || verdict === 'missing') {
-      const statement = asMissingBullet(match?.point || point.statement);
+      const statement = StudyNotes.asMissingBullet(match?.point || point.statement);
       if (statement) missing.push(statement);
     }
   }

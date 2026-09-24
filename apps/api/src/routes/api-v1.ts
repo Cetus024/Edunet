@@ -8,7 +8,7 @@ import {
   subjects,
   topics,
 } from '../../../../packages/database/schema/catalog.js';
-import { CURRICULUM } from '../../../../apps/web/lib/curriculum.js';
+import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
 import {
   onboardingProfiles,
   profiles,
@@ -160,7 +160,7 @@ api.get('/catalog', async (context) => {
     // it from that source of truth keeps authentication/onboarding available
     // while an existing deployment is between the additive schema migration
     // and the catalog seed. Schools remain database-backed reference data.
-    subjects: CURRICULUM.map((subject) => ({
+    subjects: Curriculum.CURRICULUM.map((subject) => ({
       ...subject,
       topics: subject.topics.map((topic) => ({
         ...topic,

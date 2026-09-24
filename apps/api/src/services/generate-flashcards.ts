@@ -1,5 +1,5 @@
 import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
-import { formatStudentFacingText } from '../../../../apps/web/lib/study-notes.js';
+import * as StudyNotes from '../../../../apps/web/lib/study-notes.js';
 import type { AnalysisModel } from './explanation-analysis.js';
 import {
   retrieveTopicPassages,
@@ -80,7 +80,7 @@ export function buildFlashcardsPrompt(
 }
 
 function plainCardText(text: string): string {
-  return formatStudentFacingText(text.replace(/\s+/g, ' ').trim());
+  return StudyNotes.formatStudentFacingText(text.replace(/\s+/g, ' ').trim());
 }
 
 export function parseFlashcardsReply(reply: string): Flashcard[] | null {

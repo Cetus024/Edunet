@@ -1,5 +1,5 @@
 import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
-import { sanitiseStudyNotesMarkup, stripTextbookPointers, dropDanglingClauses } from '../../../../apps/web/lib/study-notes.js';
+import * as StudyNotes from '../../../../apps/web/lib/study-notes.js';
 import type { AnalysisModel } from './explanation-analysis.js';
 import {
   passagesToCitations,
@@ -104,7 +104,7 @@ export async function generateTopicNotes(
 }
 
 export function ensureTopicNotesMarkup(topicId: string, text: string): string {
-  const cleaned = dropDanglingClauses(stripTextbookPointers(sanitiseStudyNotesMarkup(text)));
+  const cleaned = StudyNotes.dropDanglingClauses(StudyNotes.stripTextbookPointers(StudyNotes.sanitiseStudyNotesMarkup(text)));
   if (!cleaned) return cleaned;
   if (/^#{1,3}\s+\S/m.test(cleaned)) return cleaned;
   const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);

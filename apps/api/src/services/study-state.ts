@@ -4,11 +4,8 @@ import { ACTIVE_SUBJECT_IDS } from '../../../../packages/database/constants.js';
 import { db } from '../../../../packages/database/index.js';
 import { topics } from '../../../../packages/database/schema/catalog.js';
 import { userTopicModeProgress, userTopicProgress } from '../../../../packages/database/schema/learning.js';
-import {
-  CURRICULUM,
-  resolveCurriculumTopic,
-  type CurriculumTopic,
-} from '../../../../apps/web/lib/curriculum.js';
+import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
+import type { CurriculumTopic } from '../../../../apps/web/lib/curriculum.js';
 import { PHASE1_PARAMETERS, calculateConceptMemory } from '../lib/knowledge-model.js';
 
 export type StudyStateTopic = {
@@ -67,7 +64,7 @@ export async function getStudyStateForUser(userId: string): Promise<{ subjects: 
 
   const curriculumTopicIdByDatabaseId = new Map<string, string>();
   for (const topic of databaseTopicRows) {
-    const canonical = resolveCurriculumTopic(topic.id) ?? resolveCurriculumTopic(topic.name);
+    const canonical = Curriculum.resolveCurriculumTopic(topic.id) ?? Curriculum.resolveCurriculumTopic(topic.name);
     if (canonical?.subjectId === topic.subjectId) {
       curriculumTopicIdByDatabaseId.set(topic.id, canonical.id);
     }
@@ -134,7 +131,7 @@ export async function getStudyStateForUser(userId: string): Promise<{ subjects: 
   }
 
   return {
-    subjects: CURRICULUM.map((subject) => ({
+    subjects: Curriculum.CURRICULUM.map((subject) => ({
       id: subject.id,
       name: subject.name,
       syllabusCode: subject.syllabusCode,
