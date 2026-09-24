@@ -61,7 +61,10 @@ export function evaluateNotes(input: { topicId: string; text: string }) {
   });
 }
 
-export function generateTopicNotes(input: { topicId: string }) {
+export function generateTopicNotes(input: {
+  topicId: string;
+  focus?: { name: string; description?: string };
+}) {
   return apiRequest<{ available: boolean; text: string | null; failure: CaptureFailure | null }>('/api/v1/me/capture/generate-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
