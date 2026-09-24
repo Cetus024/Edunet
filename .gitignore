@@ -37,4 +37,3 @@ tsconfig-debug.json
 content/textbooks/**/*.pdf
 content/textbooks/.extract-cache/
 /Chem_Text.pdf
-.questionbank-test-venv/
