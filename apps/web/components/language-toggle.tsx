@@ -5,12 +5,7 @@ import { Languages } from 'lucide-react';
 import { LOCALES, LOCALE_LABELS, useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-/**
- * Segmented EN / 华文 control. Lives in the desktop sidebar footer, and is
- * repeated on the profile page because the sidebar is `hidden lg:flex` — a
- * phone never renders it, and the mobile bottom bar has no room for an eighth
- * item.
- */
+/** Segmented EN / 华文 control, rendered on the My Profile page. */
 export function LanguageToggle({ className }: { className?: string }) {
   const { locale, setLocale, t } = useTranslation();
 

@@ -10,6 +10,7 @@ The service loads the repository root `.env.local`; variables supplied by the sh
 | --- | --- |
 | `DATABASE_URL` | Supabase transaction-mode runtime URL using the `edunets_app` role. |
 | `DATABASE_DIRECT_URL` | Supabase direct/session-mode admin URL for migration and bootstrap commands. |
+| `QUESTION_BANK_DATABASE_URL` | Optional. Chemistry Smart Assessment (MCQ + Essay) reads APPROVED Question Bank items by topic/subtopic title. Omit to use local `quiz_questions`. |
 | `BETTER_AUTH_SECRET` | Random secret of at least 32 characters. Never expose it to Next.js. |
 | `BETTER_AUTH_URL` | Public API origin, for example `http://localhost:8787`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials. |

@@ -83,6 +83,19 @@ export type ConceptMemory = {
   } | null;
 };
 
+export type QuizStemBlock =
+  | { type: 'text'; value: string }
+  | { type: 'math'; latex: string }
+  | { type: 'image'; url: string };
+
+export type QuizStructuredPart = {
+  label: string;
+  prompt: string;
+  marks: number | null;
+  visuals?: Array<{ url: string }>;
+  children?: QuizStructuredPart[];
+};
+
 export type QuizQuestion = {
   questionKey: string;
   type: 'mcq' | 'structured';
@@ -94,9 +107,43 @@ export type QuizQuestion = {
   } | null;
   text: string;
   options?: string[];
+  stemBlocks?: QuizStemBlock[];
+  optionsImageUrl?: string;
+  structuredParts?: QuizStructuredPart[];
   source?: string;
   resourceNumber?: string;
   maxMarks?: number;
+};
+
+/** Examiner-style mark codes: B = independent, M = method, A = accuracy. */
+export type EssayMarkCode = 'B' | 'M' | 'A';
+
+export type EssayMarkPoint = {
+  id: string;
+  code?: EssayMarkCode;
+  earned: boolean;
+  marks: number;
+  /** For A marks: id of the M mark this usually depends on. */
+  dependsOn?: string | null;
+  /** Student / scheme part this point belongs to (e.g. "a"). */
+  partLabel?: string | null;
+  schemeSentence: string;
+  analysis: string;
+};
+
+export type EssayPartFeedback = {
+  label: string;
+  verdict: 'correct' | 'partial' | 'incorrect' | 'sense';
+  marksObtained: number;
+  maximumMarks: number | null;
+  feedback: string;
+};
+
+export type EssayGradingFeedback = {
+  summary: string;
+  markPoints?: EssayMarkPoint[];
+  senseBonus?: { awarded: number; reason: string };
+  parts: EssayPartFeedback[];
 };
 
 export type AssessmentAnswer = {
@@ -106,6 +153,7 @@ export type AssessmentAnswer = {
   isCorrect: boolean | null;
   marksObtained: number | null;
   maximumMarks: number | null;
+  gradingFeedback?: EssayGradingFeedback | null;
   answeredAt: string;
   correctAnswer: string | number;
   explanation: string;
@@ -151,12 +199,12 @@ export type QuizOptionsResponse = {
   };
 };
 
-export function getQuizOptions(subjectId: string, topicId: string) {
-  const query = new URLSearchParams({ subjectId, topicId });
+export function getQuizOptions(subjectId: string, topicId: string, subtopicId?: string) {
+  const query = new URLSearchParams({ subjectId, topicId, ...(subtopicId ? { subtopicId } : {}) });
   return apiRequest<QuizOptionsResponse>(`/api/v1/me/quiz-options?${query.toString()}`);
 }
 
-export function generateQuizSet(input: { submissionId: string; topicId: string; mode: AssessmentMode }) {
+export function generateQuizSet(input: { submissionId: string; topicId: string; mode: AssessmentMode; subtopicId?: string }) {
   return apiRequest<AssessmentSessionResponse>('/api/v1/me/quiz-sets', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });

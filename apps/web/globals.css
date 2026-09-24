@@ -183,6 +183,30 @@
   display: none;
 }
 
+/* Soft thin scrollbar for student review panes */
+.edunets-scrollbar {
+  scrollbar-color: rgba(29, 58, 98, 0.28) transparent;
+  scrollbar-width: thin;
+}
+
+.edunets-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.edunets-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.edunets-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(29, 58, 98, 0.22);
+}
+
+.edunets-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(29, 58, 98, 0.4);
+}
+
 /* Concept-web friend markers: orbit rotation is driven as a plain CSS
    animation rather than a Framer Motion `animate` target. motion/react
    manages its own transform-origin for any SVG element it animates a

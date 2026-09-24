@@ -24,6 +24,8 @@ EduNets：面向新加坡 O-Level 的学习平台，学生端做测验／概念�
 - **后端**：`apps/api` — Hono + Better Auth + Drizzle ORM + Supabase PostgreSQL。
 - **共享库**：`packages/database` — Drizzle schema／迁移／seed。
 - **AI**：Azure AI Vision OCR + Microsoft Foundry 推理（`AZURE_FOUNDRY_*` 优先，可回退 `MODELARTS_*`）。**所有 key 只留在服务端。**
+- **题库**：Chemistry Smart Assessment（MCQ／Essay）可选读外部 Question Bank（`QUESTION_BANK_DATABASE_URL`），按 topic／subtopic **标题**对齐 APPROVED 题；未配置或不够题量时回退本地 `quiz_questions`。Placement 仍用本地库。
+- **Concept Relay（Study Squad）**：Gartic Phone 式画概念→传图解释→整链揭晓。入口在 `/study-squad/relay`（AppShell 内）；旧 `/study-relay` 会重定向。新表仅 `edunets.study_relay_*`；房间码 + 显示名加入。写入走 Hono；可选 `@supabase/supabase-js` Realtime Broadcast + Storage。本地可用 `?mock=1`。
 
 根目录 `package.json` 管脚本与依赖；前端通过 `scripts/run-web.mjs` 在 `apps/web` 目录跑 Next。前端 3000，API 8787。
 
@@ -83,6 +85,8 @@ npm run db:generate  # 改完 schema 生成迁移
 4. **`NEXT_PUBLIC_*` 用 shell 内联 export 传不进去**（Windows + npx）：写进 `.env.development.local` 或根目录 `.env.local` 让 Next／API 加载。
 5. **`apps/web/.next` 缓存会被中断的 dev server 弄坏**：路由服务端 404 时，先删 `.next` 冷启动。
 6. **回填型迁移会撞上真实脏数据**：用 `WHERE EXISTS` 显式跳过，**不要猜值硬塞**。
+7. **Chemistry 真题库**：设 `QUESTION_BANK_DATABASE_URL`（及 `QUESTION_BANK_SUPABASE_URL` / `QUESTION_BANK_QUESTIONS_BUCKET`）后需重启 API。题干图走公开 Storage URL；不够 10 MCQ／5 Essay 时回退本地种子题。已开的旧 attempt 无 `stemBlocks`／`structuredParts`，需新开一套。Structured 题用银行 `marksTotal`／parts marks，前端 KaTeX 渲染算式与嵌套 a／b／b(i) 子题。映射时会把 `chemistry` 块与明文分子式包成 `\ce{}`；`table`／`mixed` MCQ 也会进卷。
+8. **Concept Relay Storage／Realtime**：需在同一 Supabase 项目建私有 bucket `study-relay-drawings`，并配置 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`（API）与 `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`（浏览器订阅）。不要因此重新打开全库 Data API；Broadcast 不依赖 `anon` 表权限。未配置时可用 `?mock=1` 走本地状态。
 
 ---
 

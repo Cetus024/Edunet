@@ -5,8 +5,41 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '../../../../packages/database/index.js';
 import { quizQuestions, subjects, subtopics, topics } from '../../../../packages/database/schema/catalog.js';
 
+import {
+  fetchExternalBankRowByVersionId,
+  fetchExternalBankRows,
+  filterExternalQuestionsForMode,
+  hydrateExternalQuestions,
+  isExternalQuestionBankConfigured,
+  parseExternalQuestionKey,
+  type ExternalBankCatalog,
+} from './external-question-bank.js';
+
 export type QuizQuestionType = 'mcq' | 'fill-blank' | 'structured' | 'diagram';
 export type QuizQuestionMode = 'mcq' | 'essay' | 'placement';
+
+/** Ordered stem fragments for ISCA-style exam rendering (text + math + Storage images). */
+export type QuizStemBlock =
+  | { type: 'text'; value: string }
+  | { type: 'math'; latex: string }
+  | { type: 'image'; url: string };
+
+/** Nested structured-question part (a / b / b(i) …) with per-part marks from the bank. */
+export type QuizStructuredPart = {
+  label: string;
+  prompt: string;
+  marks: number | null;
+  visuals?: Array<{ url: string }>;
+  children?: QuizStructuredPart[];
+};
+
+/** Snapshot shape stored in quiz_attempt_question.options jsonb for rich stems. */
+export type QuizOptionsSnapshot = {
+  choices: string[];
+  stemBlocks?: QuizStemBlock[];
+  optionsImageUrl?: string;
+  structuredParts?: QuizStructuredPart[];
+};
 
 export interface QuizQuestion {
   questionKey: string;
@@ -24,10 +57,55 @@ export interface QuizQuestion {
   source?: string;
   resourceNumber?: string;
   options?: string[];
+  /** ISCA-style stem blocks (text / math / images) when sourced from Question Bank. */
+  stemBlocks?: QuizStemBlock[];
+  /** Composite A–D options image (Question Bank composite_visual mode). */
+  optionsImageUrl?: string;
+  /** Nested a/b/b(i) parts for structured essays (Question Bank). */
+  structuredParts?: QuizStructuredPart[];
   blankWord?: string;
   wordLimit?: number;
   maxMarks?: number;
   diagramUrl?: string;
+}
+
+export function serializeQuizOptionsSnapshot(question: QuizQuestion): string[] | QuizOptionsSnapshot | null {
+  if (question.stemBlocks?.length || question.optionsImageUrl || question.structuredParts?.length) {
+    return {
+      choices: question.options ?? [],
+      ...(question.stemBlocks?.length ? { stemBlocks: question.stemBlocks } : {}),
+      ...(question.optionsImageUrl ? { optionsImageUrl: question.optionsImageUrl } : {}),
+      ...(question.structuredParts?.length ? { structuredParts: question.structuredParts } : {}),
+    };
+  }
+  return question.options ?? null;
+}
+
+export function parseQuizOptionsSnapshot(
+  raw: unknown,
+): Pick<QuizQuestion, 'options' | 'stemBlocks' | 'optionsImageUrl' | 'structuredParts'> {
+  if (Array.isArray(raw) && raw.every((item) => typeof item === 'string')) {
+    return { options: raw };
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const record = raw as QuizOptionsSnapshot;
+    const hasChoices = Array.isArray(record.choices)
+      && record.choices.every((item) => typeof item === 'string');
+    const hasRich = Boolean(
+      record.stemBlocks?.length
+      || record.optionsImageUrl
+      || record.structuredParts?.length,
+    );
+    if (hasChoices || hasRich) {
+      return {
+        ...(hasChoices ? { options: record.choices } : {}),
+        ...(Array.isArray(record.stemBlocks) ? { stemBlocks: record.stemBlocks } : {}),
+        ...(typeof record.optionsImageUrl === 'string' ? { optionsImageUrl: record.optionsImageUrl } : {}),
+        ...(Array.isArray(record.structuredParts) ? { structuredParts: record.structuredParts } : {}),
+      };
+    }
+  }
+  return {};
 }
 
 export type PublicPlacementQuestion = Pick<QuizQuestion,
@@ -132,15 +210,22 @@ function hydrateQuestion(row: QuestionPoolRow): QuizQuestion {
   };
 }
 
-export function seededShuffle<T extends { id: string }>(rows: readonly T[], seed: string): T[] {
+export function seededShuffle<T extends { id?: string; questionKey?: string }>(
+  rows: readonly T[],
+  seed: string,
+): T[] {
   return [...rows].sort((left, right) => {
-    const leftHash = createHash('sha256').update(`${seed}:${left.id}`).digest('hex');
-    const rightHash = createHash('sha256').update(`${seed}:${right.id}`).digest('hex');
-    return leftHash.localeCompare(rightHash) || left.id.localeCompare(right.id);
+    const leftId = left.questionKey ?? left.id ?? '';
+    const rightId = right.questionKey ?? right.id ?? '';
+    const leftHash = createHash('sha256').update(`${seed}:${leftId}`).digest('hex');
+    const rightHash = createHash('sha256').update(`${seed}:${rightId}`).digest('hex');
+    return leftHash.localeCompare(rightHash) || leftId.localeCompare(rightId);
   });
 }
 
-async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
+async function loadTopicCatalog(topicId: string): Promise<(ExternalBankCatalog & {
+  topicPosition: number;
+}) | null> {
   const [selectedTopic] = await db.select({
     topicId: topics.id,
     topicName: topics.name,
@@ -154,6 +239,25 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
     .limit(1);
 
   if (!selectedTopic) return null;
+
+  const children = await db.select({
+    id: subtopics.id,
+    name: subtopics.name,
+    syllabusCode: subtopics.syllabusCode,
+  })
+    .from(subtopics)
+    .where(eq(subtopics.topicId, topicId))
+    .orderBy(asc(subtopics.position), asc(subtopics.id));
+
+  return {
+    ...selectedTopic,
+    subtopics: children,
+  };
+}
+
+async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
+  const catalog = await loadTopicCatalog(topicId);
+  if (!catalog) return null;
 
   const rows = await db.select({
     id: quizQuestions.id,
@@ -180,10 +284,17 @@ async function loadQuestionPool(topicId: string): Promise<QuestionPool | null> {
     .from(quizQuestions)
     .innerJoin(topics, eq(topics.id, quizQuestions.topicId))
     .leftJoin(subtopics, eq(subtopics.id, quizQuestions.subtopicId))
-    .where(eq(topics.subjectId, selectedTopic.subjectId))
+    .where(eq(topics.subjectId, catalog.subjectId))
     .orderBy(asc(topics.position), asc(quizQuestions.id));
 
-  return { ...selectedTopic, rows };
+  return {
+    subjectId: catalog.subjectId,
+    subjectName: catalog.subjectName,
+    topicId: catalog.topicId,
+    topicName: catalog.topicName,
+    topicPosition: catalog.topicPosition,
+    rows,
+  };
 }
 
 function candidateRows(
@@ -191,17 +302,23 @@ function candidateRows(
   selectedTopicId: string,
   _selectedTopicPosition: number,
   mode: QuizQuestionMode,
+  subtopicId?: string,
 ): QuestionPoolRow[] | null {
   if (mode === 'placement' || mode === 'mcq') {
     return rows.filter((row) => (
       row.topicId === selectedTopicId
       && row.type === 'mcq'
       && (row.usage === 'placement' || row.usage === 'both')
+      && (!subtopicId || row.subtopicId === subtopicId)
     ));
   }
 
   if (mode === 'essay') {
-    return rows.filter((row) => row.topicId === selectedTopicId && row.type === 'structured');
+    return rows.filter((row) => (
+      row.topicId === selectedTopicId
+      && row.type === 'structured'
+      && (!subtopicId || row.subtopicId === subtopicId)
+    ));
   }
 
   return null;
@@ -213,8 +330,9 @@ export function selectQuestionRows(
   selectedTopicPosition: number,
   mode: QuizQuestionMode,
   seed: string,
+  subtopicId?: string,
 ): QuestionPoolRow[] | null {
-  const candidates = candidateRows(rows, selectedTopicId, selectedTopicPosition, mode);
+  const candidates = candidateRows(rows, selectedTopicId, selectedTopicPosition, mode, subtopicId);
   if (!candidates
     || candidates.length === 0
     || (mode === 'mcq' && candidates.length < 10)
@@ -227,12 +345,78 @@ export function selectQuestionRows(
   return shuffled.slice(0, mode === 'essay' ? 5 : 10);
 }
 
-export async function getQuizOptions(topicId: string, subjectId: string) {
+function selectExternalQuestions(
+  questions: readonly QuizQuestion[],
+  mode: QuizQuestionMode,
+  seed: string,
+  subtopicId?: string,
+): QuizQuestion[] | null {
+  const candidates = filterExternalQuestionsForMode(questions, mode)
+    .filter((question) => !subtopicId || question.subtopic?.id === subtopicId);
+  if (candidates.length === 0
+    || (mode === 'mcq' && candidates.length < 10)
+    || (mode === 'essay' && candidates.length < 5)
+    || (mode === 'placement' && candidates.length < 10)) {
+    return null;
+  }
+  return seededShuffle(candidates, `${seed}:${mode}`).slice(0, mode === 'essay' ? 5 : 10);
+}
+
+function shouldUseExternalBank(subjectName: string, mode: QuizQuestionMode): boolean {
+  // Placement stays on the local authored bank (usage flags). Smart Assessment
+  // Chemistry MCQ + Essay pull approved items from the Question Bank by title.
+  return isExternalQuestionBankConfigured()
+    && subjectName === 'Chemistry'
+    && (mode === 'mcq' || mode === 'essay');
+}
+
+async function loadExternalQuestionsForTopic(topicId: string): Promise<{
+  catalog: ExternalBankCatalog & { topicPosition: number };
+  questions: QuizQuestion[];
+} | null> {
+  if (!isExternalQuestionBankConfigured()) return null;
+  const catalog = await loadTopicCatalog(topicId);
+  if (!catalog || catalog.subjectName !== 'Chemistry') return null;
+
+  try {
+    const rows = await fetchExternalBankRows(catalog);
+    return { catalog, questions: await hydrateExternalQuestions(rows, catalog) };
+  } catch (error) {
+    console.error('Failed to load Chemistry questions from Question Bank; falling back to local bank.', error);
+    return null;
+  }
+}
+
+export async function getQuizOptions(topicId: string, subjectId: string, subtopicId?: string) {
+  const catalog = await loadTopicCatalog(topicId);
+  if (!catalog || catalog.subjectId !== subjectId) return null;
+
+  if (shouldUseExternalBank(catalog.subjectName, 'mcq')) {
+    const external = await loadExternalQuestionsForTopic(topicId);
+    if (external) {
+      const mcqCount = filterExternalQuestionsForMode(external.questions, 'mcq')
+        .filter((question) => !subtopicId || question.subtopic?.id === subtopicId).length;
+      const essayCount = filterExternalQuestionsForMode(external.questions, 'essay')
+        .filter((question) => !subtopicId || question.subtopic?.id === subtopicId).length;
+      if (mcqCount >= 10 || essayCount >= 5) {
+        return {
+          subjectId: catalog.subjectId,
+          topicId: catalog.topicId,
+          modes: {
+            mcq: { available: mcqCount >= 10, questionCount: mcqCount >= 10 ? 10 : 0 },
+            essay: { available: essayCount >= 5, questionCount: essayCount >= 5 ? 5 : 0 },
+          },
+          source: 'question-bank' as const,
+        };
+      }
+    }
+  }
+
   const pool = await loadQuestionPool(topicId);
   if (!pool || pool.subjectId !== subjectId) return null;
 
-  const mcqCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'mcq')?.length ?? 0;
-  const essayCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'essay')?.length ?? 0;
+  const mcqCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'mcq', subtopicId)?.length ?? 0;
+  const essayCandidateCount = candidateRows(pool.rows, pool.topicId, pool.topicPosition, 'essay', subtopicId)?.length ?? 0;
 
   return {
     subjectId: pool.subjectId,
@@ -241,6 +425,7 @@ export async function getQuizOptions(topicId: string, subjectId: string) {
       mcq: { available: mcqCandidateCount >= 10, questionCount: mcqCandidateCount >= 10 ? 10 : 0 },
       essay: { available: essayCandidateCount >= 5, questionCount: essayCandidateCount >= 5 ? 5 : 0 },
     },
+    source: 'local' as const,
   };
 }
 
@@ -248,11 +433,29 @@ export async function getKeyedQuestions(
   topicId: string,
   mode: QuizQuestionMode,
   seed: string,
+  subtopicId?: string,
 ): Promise<{ subjectId: string; topicId: string; questions: QuizQuestion[] } | null> {
+  const catalog = await loadTopicCatalog(topicId);
+  if (!catalog) return null;
+
+  if (shouldUseExternalBank(catalog.subjectName, mode)) {
+    const external = await loadExternalQuestionsForTopic(topicId);
+    const selected = external
+      ? selectExternalQuestions(external.questions, mode, seed, subtopicId)
+      : null;
+    if (selected) {
+      return {
+        subjectId: catalog.subjectId,
+        topicId: catalog.topicId,
+        questions: selected,
+      };
+    }
+  }
+
   const pool = await loadQuestionPool(topicId);
   if (!pool) return null;
 
-  const selected = selectQuestionRows(pool.rows, pool.topicId, pool.topicPosition, mode, seed);
+  const selected = selectQuestionRows(pool.rows, pool.topicId, pool.topicPosition, mode, seed, subtopicId);
   if (!selected) return null;
 
   return {
@@ -275,6 +478,14 @@ export async function getPlacementQuestions(
 }
 
 export async function getQuestionsForTopic(topicId: string): Promise<QuizQuestion[]> {
+  const catalog = await loadTopicCatalog(topicId);
+  if (catalog && shouldUseExternalBank(catalog.subjectName, 'mcq')) {
+    const external = await loadExternalQuestionsForTopic(topicId);
+    if (external && external.questions.length > 0) {
+      return external.questions;
+    }
+  }
+
   const pool = await loadQuestionPool(topicId);
   if (!pool) return [];
   return pool.rows
@@ -283,6 +494,22 @@ export async function getQuestionsForTopic(topicId: string): Promise<QuizQuestio
 }
 
 export async function getQuestionByKey(questionKey: string): Promise<QuizQuestion | null> {
+  const externalKey = parseExternalQuestionKey(questionKey);
+  if (externalKey) {
+    if (!isExternalQuestionBankConfigured()) return null;
+    const catalog = await loadTopicCatalog(externalKey.topicId);
+    if (!catalog || catalog.subjectName !== 'Chemistry') return null;
+    try {
+      const row = await fetchExternalBankRowByVersionId(catalog, externalKey.versionId);
+      if (!row) return null;
+      const [question] = await hydrateExternalQuestions([row], catalog);
+      return question ?? null;
+    } catch (error) {
+      console.error('Failed to resolve Question Bank question key.', error);
+      return null;
+    }
+  }
+
   const [topicId] = questionKey.split(':');
   if (!topicId) return null;
   const questions = await getQuestionsForTopic(topicId);

@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LanguageToggle } from '@/components/language-toggle';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 import { authClient } from '@/lib/api/auth-client';
 import { currentAccountQueryKey, updateSchool, useCurrentAccount, type CurrentAccount } from '@/lib/api/me';
@@ -215,10 +216,13 @@ function TeacherProfilePage({
               </div>
             </dl>
 
+            <div className="mt-5">
+              <LanguageToggle />
+            </div>
             <Button
               type="button"
               onClick={() => void signOut('/login')}
-              className="mt-5 h-11 w-full rounded-xl bg-[#17365f] font-black text-white hover:bg-[#234b7e]"
+              className="mt-3 h-11 w-full rounded-xl bg-[#17365f] font-black text-white hover:bg-[#234b7e]"
             >
               <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
               Log Out
@@ -440,7 +444,10 @@ export default function ProfilePage() {
                   {memberSince}
                 </span>
               </div>
-              <Button type="button" variant="outline" onClick={() => void signOut('/login')} className="mt-6 rounded-xl">
+              <div className="mt-6 w-full max-w-xs">
+                <LanguageToggle />
+              </div>
+              <Button type="button" variant="outline" onClick={() => void signOut('/login')} className="mt-3 rounded-xl">
                 <LogOut className="mr-2 h-4 w-4" />
                 Log Out
               </Button>

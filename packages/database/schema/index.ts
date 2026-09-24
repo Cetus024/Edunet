@@ -8,3 +8,4 @@ export * from './notifications.js';
 export * from './squad-quiz.js';
 export * from './learning-work.js';
 export * from './reference.js';
+export * from './study-relay.js';

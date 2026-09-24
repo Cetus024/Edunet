@@ -692,7 +692,7 @@ api.put('/me/quiz-review', loadSession, requireSession, async (context) => {
 
 api.get('/me/quiz-options', loadSession, requireSession, async (context) => {
   const input = quizOptionsQuerySchema.parse(context.req.query());
-  const options = await getQuizOptions(input.topicId, input.subjectId);
+  const options = await getQuizOptions(input.topicId, input.subjectId, input.subtopicId);
   if (!options) {
     throw new ApiError(400, 'INVALID_QUIZ_SELECTION', 'The topic does not belong to the selected subject.');
   }

@@ -2,13 +2,19 @@ import { z } from 'zod';
 
 export const signupReferralCodeSchema = z.string().trim().max(64);
 
+/** Local seed keys (`topic:v2:q01`) or Question Bank keys (`topic:qb:<uuid>`). */
+export const quizQuestionKeySchema = z.string().regex(
+  /^[a-z0-9-]+:(?:v2:q\d{2,3}|qb:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  'Invalid question key',
+);
+
 const onboardingSchoolFields = {
   schoolId: z.string().trim().min(1).max(128).optional(),
   school: z.string().trim().min(1).max(255).optional(),
 } as const;
 
 const placementAnswerSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
+  questionKey: quizQuestionKeySchema,
   answer: z.number().int().min(0).max(3),
 });
 
@@ -48,7 +54,7 @@ export const placementSetRequestSchema = z.strictObject({
 });
 
 export const updateQuestionReviewSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
+  questionKey: quizQuestionKeySchema,
   explanation: z.string().trim().min(1).max(2_000),
 });
 
@@ -59,19 +65,23 @@ export const updateSchoolSchema = z.strictObject({
 export const quizOptionsQuerySchema = z.strictObject({
   subjectId: z.string().trim().min(1).max(64),
   topicId: z.string().trim().min(1).max(128),
+  subtopicId: z.string().trim().min(1).max(128).optional(),
 });
 
 export const quizSetRequestSchema = z.strictObject({
   submissionId: z.uuid(),
   topicId: z.string().trim().min(1).max(128),
   mode: z.enum(['mcq', 'essay']),
+  subtopicId: z.string().trim().min(1).max(128).optional(),
 });
 
 export const assessmentAnswerSchema = z.strictObject({
-  questionKey: z.string().regex(/^[a-z0-9-]+:v2:q\d{2,3}$/),
+  questionKey: quizQuestionKeySchema,
   questionIndex: z.number().int().min(0).max(9),
-  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(3)]),
-  marksObtained: z.number().min(0).max(10).multipleOf(0.01).optional(),
+  // MCQ option index (0–9) or essay free text. Essay marks capped high enough
+  // for Question Bank structured totals; service still enforces per-question max.
+  answer: z.union([z.string().trim().min(1).max(4_000), z.number().int().min(0).max(9)]),
+  marksObtained: z.number().min(0).max(100).multipleOf(0.01).optional(),
 });
 
 export const quizHistoryQuerySchema = z.object({
@@ -229,4 +239,26 @@ export const revisionUtteranceSchema = z.strictObject({
   locale: z.string().trim().min(2).max(20).default('en'),
   provider: z.enum(['browser', 'huawei']).default('browser'),
   speakingMs: z.number().int().min(0).max(1_800_000).default(0),
+});
+
+export const studyRelayRoomIdSchema = z.uuid();
+export const studyRelayRoomCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,8}$/);
+
+export const createStudyRelayRoomSchema = z.strictObject({
+  displayName: z.string().trim().min(1).max(40),
+  subject: z.enum(['chemistry', 'mathematics']).default('chemistry'),
+  squadId: z.string().trim().min(1).max(128).optional(),
+});
+
+export const joinStudyRelayRoomSchema = z.strictObject({
+  code: studyRelayRoomCodeSchema,
+  displayName: z.string().trim().min(1).max(40),
+});
+
+export const submitStudyRelayDrawingSchema = z.strictObject({
+  path: z.string().trim().min(1).max(500).regex(/^[\w./-]+$/),
+});
+
+export const submitStudyRelayExplanationSchema = z.strictObject({
+  text: z.string().trim().min(1).max(2_000),
 });

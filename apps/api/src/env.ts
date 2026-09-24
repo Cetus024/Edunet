@@ -44,6 +44,12 @@ loadEnvironmentFiles();
 const rawEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // Optional second Supabase project (Question Bank). Chemistry Smart Assessment
+  // reads APPROVED MCQ + structured items from here by topic/subtopic title.
+  QUESTION_BANK_DATABASE_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must contain at least 32 characters'),
   BETTER_AUTH_URL: z.url().default('http://localhost:8787'),
   GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
@@ -51,6 +57,19 @@ const rawEnvironmentSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
   HOST: z.string().min(1).default('0.0.0.0'),
+  // Optional. Concept Relay uses Supabase Realtime Broadcast + Storage for drawings.
+  SUPABASE_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.url().optional(),
+  ),
+  SUPABASE_SERVICE_ROLE_KEY: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  STUDY_RELAY_STORAGE_BUCKET: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
 });
 
 function parseOrigins(value: string): string[] {
@@ -82,6 +101,7 @@ if (rawEnvironment.NODE_ENV === 'production'
 export const env = Object.freeze({
   nodeEnv: rawEnvironment.NODE_ENV,
   databaseUrl: rawEnvironment.DATABASE_URL,
+  questionBankDatabaseUrl: rawEnvironment.QUESTION_BANK_DATABASE_URL ?? null,
   betterAuthSecret: rawEnvironment.BETTER_AUTH_SECRET,
   betterAuthUrl: betterAuthUrl.origin,
   googleClientId: rawEnvironment.GOOGLE_CLIENT_ID,
@@ -90,4 +110,7 @@ export const env = Object.freeze({
   port: rawEnvironment.PORT,
   host: rawEnvironment.HOST,
   isProduction: rawEnvironment.NODE_ENV === 'production',
+  supabaseUrl: rawEnvironment.SUPABASE_URL ?? null,
+  supabaseServiceRoleKey: rawEnvironment.SUPABASE_SERVICE_ROLE_KEY ?? null,
+  studyRelayStorageBucket: rawEnvironment.STUDY_RELAY_STORAGE_BUCKET ?? 'study-relay-drawings',
 });

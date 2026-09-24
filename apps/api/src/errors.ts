@@ -44,7 +44,11 @@ export function handleError<Variables extends RequestVariables>(
   }
 
   if (error instanceof ZodError) {
-    return errorResponse(context, 400, 'INVALID_REQUEST', 'Request validation failed.');
+    const first = error.issues[0];
+    const detail = first
+      ? `${first.path.length > 0 ? `${first.path.join('.')}: ` : ''}${first.message}`
+      : 'Request validation failed.';
+    return errorResponse(context, 400, 'INVALID_REQUEST', detail);
   }
 
   // Never serialize database errors, stack traces, connection details, or the
@@ -55,6 +59,9 @@ export function handleError<Variables extends RequestVariables>(
     method: context.req.method,
     path: context.req.path,
     errorType: error instanceof Error ? error.name : 'UnknownError',
+    ...(process.env.NODE_ENV !== 'production' && error instanceof Error
+      ? { errorMessage: error.message }
+      : {}),
   }));
 
   return errorResponse(context, 500, 'INTERNAL_ERROR', 'An unexpected error occurred.');

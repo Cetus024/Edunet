@@ -151,7 +151,7 @@ export const CURRICULUM: CurriculumSubject[] = [
       {
         id: 'chemistry-redox-chemistry', subjectId: 'chemistry', syllabusCode: '7', name: 'Redox Chemistry',
         description: 'Oxidation and reduction in chemical reactions and electrochemical cells.',
-        aliases: ['Redox Reactions', 'chemistry-redox-reactions', 'Redox Chemistry'],
+        aliases: ['Redox', 'Redox Reactions', 'chemistry-redox-reactions', 'Redox Chemistry'],
         subtopics: [
           subtopic('chemistry-7-1-oxidation-reduction', '7.1', 'Oxidation and Reduction', 'Identify and explain redox using oxygen, hydrogen, electrons and oxidation states.'),
           subtopic('chemistry-7-2-electrochemistry', '7.2', 'Electrochemistry', 'Predict electrode products and explain electrolysis and simple cells.'),

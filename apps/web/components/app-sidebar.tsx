@@ -3,20 +3,25 @@
 import { NavLink, useLocation } from '@/lib/navigation';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { motion } from 'motion/react';
+import { useAtom } from 'jotai';
 import Image from 'next/image';
-import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, Bell, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, Bell, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useNotifications } from '@/lib/api/notifications';
-import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 
 import { cn } from '@/lib/utils';
 import { isTeachingRole, type EduNetsRole } from '@/lib/roles';
+import {
+  SIDEBAR_COLLAPSED_WIDTH,
+  SIDEBAR_DURATION_MS,
+  SIDEBAR_EASE,
+  SIDEBAR_EXPANDED_WIDTH,
+  sidebarCollapsedAtom,
+} from '@/lib/sidebar-state';
 import { useTeachingContext } from '@/lib/teaching-context';
 import { TeachingContextSelect } from '@/components/teaching-context-select';
-import { LanguageToggle } from '@/components/language-toggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 
 
@@ -51,11 +56,23 @@ const roleLabelKeys: Record<'teacher' | 'student', TranslationKey> = {
   student: 'role.student',
 };
 
+const widthTransition = {
+  transitionProperty: 'width',
+  transitionDuration: `${SIDEBAR_DURATION_MS}ms`,
+  transitionTimingFunction: SIDEBAR_EASE,
+  willChange: 'width',
+  // Do NOT use contain:paint — it clips the collapse control that sits
+  // half outside the rail (`-right-3`).
+} as const;
+
 
 export function AppSidebar() {
   const location = useLocation();
-  const signOut = useSafeSignOut();
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom);
+  // Layout flips with `collapsed` immediately — no delayed "icons in a wide
+  // empty rail" frame on expand. Overflow on the rail clips labels while the
+  // width swipe catches up, which reads as a reveal rather than a pause.
   const { data: account } = useCurrentAccount();
   const user = account?.user ?? null;
   const role = account?.profile?.role ?? null;
@@ -75,23 +92,52 @@ export function AppSidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 text-sidebar-foreground h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border shadow-[18px_0_50px_rgba(29,58,98,0.10)] overflow-hidden bg-sidebar">
-        <div className="absolute -left-20 top-12 h-52 w-52 rounded-full bg-secondary blob-soft" />
-        <div className="absolute -right-24 bottom-24 h-56 w-56 rounded-full bg-accent blob-soft" />
-        <div className="relative z-10 h-full">
-          <SidebarContent
-            user={user}
-            role={role}
-            location={location}
-            unreadMessages={unreadMessages}
-            unreadNotifications={unreadNotifications}
-            navItems={activeNavItems}
-            teachingScopes={scopes}
-            activeTeachingScopeId={activeScopeId}
-            onTeachingScopeChange={setActiveScopeId}
-            onLogout={() => signOut('/login')}
-          />
+      <aside
+        style={{
+          ...widthTransition,
+          width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH,
+        }}
+        className="hidden lg:block fixed left-0 top-0 z-40 h-screen overflow-visible text-sidebar-foreground"
+      >
+        {/* Soft edge only — avoid animating a large box-shadow blur with width. */}
+        <div className="relative h-full overflow-hidden border-r border-sidebar-border bg-sidebar">
+          {/* Blurred blobs are expensive to composite. Never opacity-tween them
+              during the width swipe — mount only when expanded. */}
+          {!collapsed && (
+            <>
+              <div className="pointer-events-none absolute -left-20 top-12 h-52 w-52 rounded-full bg-secondary blob-soft" />
+              <div className="pointer-events-none absolute -right-24 bottom-24 h-56 w-56 rounded-full bg-accent blob-soft" />
+            </>
+          )}
+          <div
+            className="relative z-10 h-full"
+            style={{ width: collapsed ? '100%' : SIDEBAR_EXPANDED_WIDTH }}
+          >
+            <SidebarContent
+              user={user}
+              role={role}
+              location={location}
+              unreadMessages={unreadMessages}
+              unreadNotifications={unreadNotifications}
+              navItems={activeNavItems}
+              teachingScopes={scopes}
+              activeTeachingScopeId={activeScopeId}
+              onTeachingScopeChange={setActiveScopeId}
+              collapsed={collapsed}
+            />
+          </div>
         </div>
+        {/* Anchored to the rail's right edge — same spot collapsed or expanded
+            because the aside's right edge is always the spine of the button. */}
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="absolute top-24 z-50 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border border-sidebar-border bg-card text-foreground shadow-md hover:bg-secondary hover:text-secondary-foreground"
+          style={{ left: '100%' }}
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
       </aside>
 
       {/* Mobile Bottom Navigation */}
@@ -108,7 +154,7 @@ export function AppSidebar() {
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-x-auto">
         <div className="flex min-w-max items-center h-16 px-2">
           {activeNavItems.map((item) => {
-            const isActive = item.path === '/' 
+            const isActive = item.path === '/'
               ? location.pathname === '/'
               : location.pathname.startsWith(item.path);
             const Icon = item.icon;
@@ -118,8 +164,8 @@ export function AppSidebar() {
                 to={item.path}
                 className={cn(
                   'relative flex min-w-16 flex-col items-center justify-center px-2 py-2 rounded-2xl transition-all',
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-lg' 
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-lg'
                     : 'text-foreground hover:bg-secondary hover:text-secondary-foreground'
                 )}
               >
@@ -150,7 +196,7 @@ function SidebarContent({
   teachingScopes,
   activeTeachingScopeId,
   onTeachingScopeChange,
-  onLogout,
+  collapsed,
 }: {
   user: { name: string; image: string | null } | null;
   role: EduNetsRole | null;
@@ -161,9 +207,13 @@ function SidebarContent({
   teachingScopes: TeachingScope[];
   activeTeachingScopeId: string | null;
   onTeachingScopeChange: (scopeId: string) => void;
-  onLogout: () => Promise<boolean>;
+  collapsed: boolean;
 }) {
   const { t, locale } = useTranslation();
+  // Stable across collapse toggles — avoid re-formatting the date on every swipe.
+  const dateLabel = format(new Date(), locale === 'zh' ? 'yyyy年M月d日' : 'dd MMM yyyy', {
+    locale: locale === 'zh' ? zhCN : undefined,
+  });
   const initials = user?.name
     .split(/\s+/)
     .filter(Boolean)
@@ -172,119 +222,145 @@ function SidebarContent({
     .join('') || 'EN';
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="p-5">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+    <div className="flex h-full w-full flex-col">
+      {/* Brand — keep both assets mounted; toggle with CSS so Next/Image
+          doesn't re-decode on every collapse. Expanded keeps the original
+          top breathing room (pt-5) so the logo isn't jammed under the edge. */}
+      <div className={cn('relative shrink-0', collapsed ? 'flex h-[3.75rem] items-center justify-center px-2' : 'px-5 pt-5 pb-3')}>
+        <div
+          className={cn(
+            'flex items-center justify-center',
+            collapsed ? 'visible' : 'absolute opacity-0 pointer-events-none',
+          )}
+          aria-hidden={!collapsed}
+        >
+          <Image
+            src="/branding/spidey-icon.png"
+            alt="EduNets"
+            width={380}
+            height={380}
+            className="h-6 w-6 select-none object-contain"
+            priority
+          />
+        </div>
+        <div
+          className={cn(
+            collapsed ? 'absolute opacity-0 pointer-events-none' : 'visible',
+          )}
+          aria-hidden={collapsed}
         >
           <Image
             src="/branding/edunets-logo.png"
             alt="EduNets"
             width={881}
             height={459}
-            className="h-9 w-auto select-none"
+            sizes="160px"
+            className="select-none object-contain object-left"
+            style={{ height: 32, width: 'auto', maxWidth: 160 }}
+            priority
           />
-          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">{t('sidebar.tagline')}</p>
-        </motion.div>
+          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">
+            {t('sidebar.tagline')}
+          </p>
+        </div>
       </div>
 
-      {/* Account Info */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="mx-4 rounded-[1.35rem] border border-sidebar-border bg-card text-card-foreground px-4 py-4 shadow-[0_14px_34px_rgba(29,58,98,0.12)]"
+      {/* Account — square avatar chip vs full card. */}
+      <div
+        title={collapsed ? (user?.name || t('role.member')) : undefined}
+        className={cn(
+          'shrink-0 border border-sidebar-border bg-card text-card-foreground',
+          collapsed
+            ? 'mx-auto flex h-11 w-11 items-center justify-center rounded-2xl'
+            : 'mx-4 rounded-[1.35rem] px-4 py-3 shadow-[0_8px_20px_rgba(29,58,98,0.08)]',
+        )}
       >
-        <div className="flex items-center gap-3">
-          <Avatar className="w-11 h-11 border-2 border-white shadow-sm">
+        <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3')}>
+          <Avatar className={cn(
+            'shrink-0 border-2 border-white',
+            collapsed ? 'h-8 w-8' : 'h-10 w-10',
+          )}>
             <AvatarImage src={user?.image ?? undefined} />
             <AvatarFallback className={cn(
-              'text-sm font-bold',
+              'text-xs font-bold',
               isTeachingRole(role) ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'bg-primary text-primary-foreground',
             )}>
               {initials}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-card-foreground truncate">
-              {user?.name || t('role.member')}
-            </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              {role ? t(roleLabelKeys[role]) : t('role.member')}
-              {' · '}
-              {format(new Date(), locale === 'zh' ? 'yyyy年M月d日' : 'dd MMM yyyy', {
-                locale: locale === 'zh' ? zhCN : undefined,
-              })}
-            </p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-card-foreground">
+                {user?.name || t('role.member')}
+              </p>
+              <p className="truncate text-xs font-semibold text-muted-foreground">
+                {role ? t(roleLabelKeys[role]) : t('role.member')}
+                {' · '}
+                {dateLabel}
+              </p>
+            </div>
+          )}
         </div>
-      </motion.div>
+      </div>
 
-      {isTeachingRole(role) && teachingScopes.length > 0 && (
-        <TeachingContextSelect
-          scopes={teachingScopes}
-          activeScopeId={activeTeachingScopeId}
-          onChange={onTeachingScopeChange}
-        />
+      {!collapsed && isTeachingRole(role) && teachingScopes.length > 0 && (
+        <div className="px-4 pt-3">
+          <TeachingContextSelect
+            scopes={teachingScopes}
+            activeScopeId={activeTeachingScopeId}
+            onChange={onTeachingScopeChange}
+          />
+        </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item: NavItem, index: number) => {
-          const isActive = item.path === '/' 
+      <nav className={cn(
+        'min-h-0 flex-1 space-y-1 overflow-y-auto',
+        collapsed ? 'px-2 py-3' : 'p-4',
+      )}>
+        {navItems.map((item: NavItem) => {
+          const isActive = item.path === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(item.path);
           const Icon = item.icon;
-          
+          const badgeCount = item.path === '/ask-teacher'
+            ? unreadMessages
+            : item.path === '/notifications'
+              ? unreadNotifications
+              : 0;
+
           return (
-            <motion.div
+            <NavLink
               key={item.path}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 + index * 0.05 }}
+              to={item.path}
+              title={collapsed ? t(item.labelKey) : undefined}
+              className={cn(
+                'relative flex items-center text-sm font-bold',
+                collapsed
+                  ? 'mx-auto h-11 w-11 justify-center rounded-2xl'
+                  : 'gap-3 rounded-full px-4 py-3.5',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-foreground hover:bg-secondary hover:text-secondary-foreground',
+              )}
             >
-              <NavLink
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3.5 rounded-full text-sm font-bold transition-all relative',
-                  isActive 
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_14px_34px_rgba(29,58,98,0.20)]' 
-                    : 'text-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1'
-                )}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{t(item.labelKey)}</span>
-                {item.path === '/ask-teacher' && unreadMessages > 0 && (
-                  <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadMessages}</span>
-                )}
-                {item.path === '/notifications' && unreadNotifications > 0 && (
-                  <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadNotifications}</span>
-                )}
-              </NavLink>
-            </motion.div>
+              <Icon className="h-5 w-5 shrink-0" />
+              {!collapsed && (
+                <>
+                  <span className="min-w-0 truncate">{t(item.labelKey)}</span>
+                  {badgeCount > 0 && (
+                    <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">
+                      {badgeCount}
+                    </span>
+                  )}
+                </>
+              )}
+              {collapsed && badgeCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+              )}
+            </NavLink>
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="space-y-3 border-t border-sidebar-border p-4">
-        <LanguageToggle />
-        <button
-          type="button"
-          onClick={() => void onLogout()}
-          className="flex w-full items-center justify-center gap-2 rounded-[1.15rem] border border-sidebar-border bg-card px-3 py-2.5 text-xs font-black text-foreground transition-colors hover:bg-secondary"
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          {t('sidebar.logOut')}
-        </button>
-        <div className="rounded-[1.15rem] bg-secondary text-secondary-foreground p-3 text-center shadow-[0_14px_30px_rgba(29,58,98,0.10)]">
-          <p className="text-xs font-bold leading-relaxed">
-            {isTeachingRole(role) ? t('sidebar.footer.teacher') : t('sidebar.footer.learner')}
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

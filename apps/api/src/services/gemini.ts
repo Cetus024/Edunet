@@ -145,10 +145,25 @@ export async function generateGeminiContent(
       if (!response.ok) {
         const retryable = response.status === 429 || response.status === 503;
         const waitMs = retryDelayMs(response);
-        await response.body?.cancel();
+        let upstreamHint = '';
+        try {
+          const errBody = await response.text();
+          upstreamHint = errBody.slice(0, 240);
+        } catch {
+          await response.body?.cancel();
+        }
         if (retryable && attempt < 2 && Date.now() + waitMs + 1000 < deadline) {
           await delay(waitMs, undefined, { signal: abort.signal });
           continue;
+        }
+        if (process.env.NODE_ENV !== 'production' && upstreamHint) {
+          console.error(JSON.stringify({
+            level: 'error',
+            scope: 'gemini',
+            status: response.status,
+            model: config.model,
+            hint: upstreamHint,
+          }));
         }
         throw new AnalysisProviderError(
           response.status === 429 ? 'rate_limited' : 'provider_error',

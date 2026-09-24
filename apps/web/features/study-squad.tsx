@@ -649,6 +649,13 @@ export default function StudySquadPage() {
                     </Button>
                     <Button
                       variant="outline"
+                      onClick={() => navigate('/study-squad/relay')}
+                      className="rounded-full border-primary text-foreground hover:bg-secondary"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" /> {t('squad.relay.start')}
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={() => openConceptWeb()}
                       className="rounded-full border-primary text-foreground hover:bg-secondary"
                     >
@@ -805,6 +812,33 @@ export default function StudySquadPage() {
             </CardContent>
           </Card>
         </section>
+
+        <Card className="card-shadow border-border bg-card text-card-foreground">
+          <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-2xl">
+              <Badge className="mb-2 rounded-full border-0 bg-secondary text-secondary-foreground">
+                {t('squad.relay.badge')}
+              </Badge>
+              <h2 className="text-xl font-bold tracking-tight">{t('squad.relay.title')}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{t('squad.relay.blurb')}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                onClick={() => navigate('/study-squad/relay')}
+                className="rounded-full bg-primary text-primary-foreground hover:bg-accent"
+              >
+                <Sparkles className="mr-2 h-4 w-4" /> {t('squad.relay.start')}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/study-squad/relay')}
+                className="rounded-full"
+              >
+                {t('squad.relay.join')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="card-shadow border-border bg-card text-card-foreground">

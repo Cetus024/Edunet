@@ -22,8 +22,9 @@ import {
   type AssessmentMode,
   type ModeCalculation,
 } from '../lib/knowledge-model.js';
-import { getKeyedQuestions } from '../lib/question-bank.js';
+import { getKeyedQuestions, parseQuizOptionsSnapshot, serializeQuizOptionsSnapshot } from '../lib/question-bank.js';
 import { calculatePercentCorrect } from '../lib/scoring.js';
+import { gradeEssayAnswer } from './essay-grading.js';
 import { commitModeProgress, loadModeProgress, lockTopic, type ApiTransaction } from './phase1-progress.js';
 
 export type AssessmentAnswerInput = {
@@ -188,6 +189,7 @@ async function loadAssessmentSession(userId: string, submissionId: string, resum
       isCorrect: quizAttemptAnswers.isCorrect,
       marksObtained: quizAttemptAnswers.marksObtained,
       maximumMarks: quizAttemptAnswers.maximumMarks,
+      gradingFeedback: quizAttemptAnswers.gradingFeedback,
       answeredAt: quizAttemptAnswers.answeredAt,
     }).from(quizAttemptAnswers)
       .where(eq(quizAttemptAnswers.attemptId, attempt.id))
@@ -224,23 +226,29 @@ async function loadAssessmentSession(userId: string, submissionId: string, resum
     status: attempt.status,
     feedbackStatus: attempt.feedbackStatus,
     resumed,
-    questions: questionRows.map((question) => ({
-      questionKey: question.questionKey,
-      type: question.type,
-      topic: question.topic,
-      subtopic: question.subtopicId && question.subtopicSyllabusCode && question.subtopicName
-        ? {
-          id: question.subtopicId,
-          syllabusCode: question.subtopicSyllabusCode,
-          name: question.subtopicName,
-        }
-        : null,
-      text: question.text,
-      ...(question.options ? { options: question.options } : {}),
-      ...(question.source ? { source: question.source } : {}),
-      ...(question.resourceNumber ? { resourceNumber: question.resourceNumber } : {}),
-      ...(question.maxMarks !== null ? { maxMarks: question.maxMarks } : {}),
-    })),
+    questions: questionRows.map((question) => {
+      const parsed = parseQuizOptionsSnapshot(question.options);
+      return {
+        questionKey: question.questionKey,
+        type: question.type,
+        topic: question.topic,
+        subtopic: question.subtopicId && question.subtopicSyllabusCode && question.subtopicName
+          ? {
+            id: question.subtopicId,
+            syllabusCode: question.subtopicSyllabusCode,
+            name: question.subtopicName,
+          }
+          : null,
+        text: question.text,
+        ...(parsed.options ? { options: parsed.options } : {}),
+        ...(parsed.stemBlocks ? { stemBlocks: parsed.stemBlocks } : {}),
+        ...(parsed.optionsImageUrl ? { optionsImageUrl: parsed.optionsImageUrl } : {}),
+        ...(parsed.structuredParts ? { structuredParts: parsed.structuredParts } : {}),
+        ...(question.source ? { source: question.source } : {}),
+        ...(question.resourceNumber ? { resourceNumber: question.resourceNumber } : {}),
+        ...(question.maxMarks !== null ? { maxMarks: question.maxMarks } : {}),
+      };
+    }),
     model: {
       version: KNOWLEDGE_MODEL_VERSION,
       parameters: PHASE1_PARAMETERS,
@@ -263,24 +271,43 @@ async function loadAssessmentSession(userId: string, submissionId: string, resum
 
 export async function createOrResumeAssessmentSession(
   userId: string,
-  input: { submissionId: string; topicId: string; mode: AssessmentMode },
+  input: { submissionId: string; topicId: string; mode: AssessmentMode; subtopicId?: string | undefined },
 ) {
   const result = await db.transaction(async (transaction) => {
     await lockTopic(transaction, userId, input.topicId);
-    const [active] = await transaction.select({ submissionId: quizAttempts.submissionId })
+    const [active] = await transaction.select({
+      submissionId: quizAttempts.submissionId,
+      quizMode: quizAttempts.quizMode,
+      id: quizAttempts.id,
+    })
       .from(quizAttempts)
       .where(and(
         eq(quizAttempts.userId, userId),
         eq(quizAttempts.topicId, input.topicId),
         eq(quizAttempts.status, 'in_progress'),
       )).limit(1);
-    if (active) return { submissionId: active.submissionId, resumed: true };
+
+    // One in-progress attempt per topic (DB unique). Same mode → resume;
+    // different mode → abandon the stale session so the requested mode can start.
+    if (active) {
+      if (active.quizMode === input.mode) {
+        return { submissionId: active.submissionId, resumed: true };
+      }
+      const abandonedAt = new Date();
+      await transaction.update(quizAttempts).set({
+        status: 'abandoned',
+        abandonedAt,
+        submittedAt: abandonedAt,
+        feedbackStatus: 'skipped',
+        feedbackSkippedAt: abandonedAt,
+      }).where(eq(quizAttempts.id, active.id));
+    }
 
     const [usedSubmission] = await transaction.select({ id: quizAttempts.id })
       .from(quizAttempts).where(eq(quizAttempts.submissionId, input.submissionId)).limit(1);
     if (usedSubmission) throw new ApiError(409, 'SUBMISSION_ID_CONFLICT', 'Submission ID has already been used.');
 
-    const questionSet = await getKeyedQuestions(input.topicId, input.mode, input.submissionId);
+    const questionSet = await getKeyedQuestions(input.topicId, input.mode, input.submissionId, input.subtopicId);
     const expectedCount = input.mode === 'mcq' ? 10 : 5;
     if (!questionSet || questionSet.questions.length !== expectedCount) {
       throw new ApiError(409, 'QUESTION_SET_UNAVAILABLE', `This topic does not have a complete ${input.mode.toUpperCase()} set.`);
@@ -334,7 +361,7 @@ export async function createOrResumeAssessmentSession(
       subtopicSyllabusCode: question.subtopic?.syllabusCode ?? null,
       subtopicName: question.subtopic?.name ?? null,
       text: question.text,
-      options: question.options ?? null,
+      options: serializeQuizOptionsSnapshot(question),
       correctAnswer: question.correctAnswer,
       explanation: question.explanation,
       linkedConcept: question.linkedConcept,
@@ -439,6 +466,114 @@ export async function submitAssessmentAnswer(userId: string, submissionId: strin
 }
 
 export async function finishAssessmentSession(userId: string, submissionId: string) {
+  // Essay AI marking runs outside the finish lock (Gemini latency). Then we
+  // re-lock, write marks, and complete mastery in one transaction.
+  const [preflight] = await db.select(attemptSelection)
+    .from(quizAttempts)
+    .where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.submissionId, submissionId)))
+    .limit(1);
+  if (!preflight || (preflight.mode !== 'mcq' && preflight.mode !== 'essay')) {
+    throw new ApiError(404, 'ASSESSMENT_NOT_FOUND', 'This assessment session was not found.');
+  }
+  if (preflight.status === 'completed') {
+    return { ...(await loadAssessmentSession(userId, submissionId, true)), idempotentReplay: true };
+  }
+  if (preflight.status !== 'in_progress') {
+    throw new ApiError(409, 'ASSESSMENT_ABANDONED', 'This assessment was abandoned.');
+  }
+
+  const mode = asAssessmentMode(preflight.mode);
+
+  if (mode === 'essay') {
+    const [questionRows, answerRows] = await Promise.all([
+      db.select({
+        questionKey: quizAttemptQuestions.questionKey,
+        questionIndex: quizAttemptQuestions.questionIndex,
+        text: quizAttemptQuestions.text,
+        correctAnswer: quizAttemptQuestions.correctAnswer,
+        maxMarks: quizAttemptQuestions.maxMarks,
+        explanation: quizAttemptQuestions.explanation,
+      }).from(quizAttemptQuestions)
+        .where(eq(quizAttemptQuestions.attemptId, preflight.id))
+        .orderBy(asc(quizAttemptQuestions.questionIndex)),
+      db.select({
+        questionKey: quizAttemptAnswers.questionKey,
+        questionIndex: quizAttemptAnswers.questionIndex,
+        submittedAnswer: quizAttemptAnswers.submittedAnswer,
+      }).from(quizAttemptAnswers)
+        .where(eq(quizAttemptAnswers.attemptId, preflight.id))
+        .orderBy(asc(quizAttemptAnswers.questionIndex)),
+    ]);
+
+    if (answerRows.length !== preflight.totalQuestions) {
+      throw new ApiError(409, 'ASSESSMENT_INCOMPLETE', `Answer all ${preflight.totalQuestions} questions before finishing.`);
+    }
+
+    const grades: Array<{
+      questionKey: string;
+      marksObtained: number;
+      maximumMarks: number;
+      isCorrect: boolean | null;
+      gradingFeedback: {
+        summary: string;
+        parts: Array<{
+          label: string;
+          verdict: 'correct' | 'partial' | 'incorrect';
+          marksObtained: number;
+          maximumMarks: number | null;
+          feedback: string;
+        }>;
+      };
+    }> = [];
+    for (const answer of answerRows) {
+      const question = questionRows.find((row) => row.questionKey === answer.questionKey);
+      if (!question) throw new Error(`Question snapshot ${answer.questionKey} is missing.`);
+      const maximumMarks = question.maxMarks ?? 10;
+      const markScheme = typeof question.correctAnswer === 'string'
+        ? question.correctAnswer
+        : (question.explanation || String(question.correctAnswer));
+      const grade = await gradeEssayAnswer({
+        questionText: question.text,
+        markScheme,
+        maximumMarks,
+        studentAnswerRaw: String(answer.submittedAnswer ?? ''),
+      });
+      grades.push({
+        questionKey: answer.questionKey,
+        marksObtained: grade.marksObtained,
+        maximumMarks: grade.maximumMarks,
+        isCorrect: grade.isCorrect,
+        gradingFeedback: grade.feedback,
+      });
+    }
+
+    await db.transaction(async (transaction) => {
+      const attempt = await loadLockedAssessmentAttempt(transaction, userId, submissionId);
+      if (attempt.status !== 'in_progress') {
+        throw new ApiError(409, 'ASSESSMENT_ABANDONED', 'This assessment was abandoned.');
+      }
+      for (const grade of grades) {
+        await transaction.update(quizAttemptAnswers).set({
+          marksObtained: grade.marksObtained,
+          maximumMarks: grade.maximumMarks,
+          isCorrect: grade.isCorrect,
+          gradingFeedback: grade.gradingFeedback,
+        }).where(and(
+          eq(quizAttemptAnswers.attemptId, attempt.id),
+          eq(quizAttemptAnswers.questionKey, grade.questionKey),
+        ));
+      }
+      const totalMarks = grades.reduce((sum, grade) => sum + grade.marksObtained, 0);
+      const totalMaximum = grades.reduce((sum, grade) => sum + grade.maximumMarks, 0);
+      await transaction.update(quizAttempts).set({
+        marksObtained: totalMarks,
+        maximumMarks: totalMaximum,
+        percentCorrect: totalMaximum === 0 ? 0 : (totalMarks / totalMaximum) * 100,
+        correctAnswers: grades.filter((grade) => grade.isCorrect === true).length,
+      }).where(eq(quizAttempts.id, attempt.id));
+    });
+  }
+
   const result = await db.transaction(async (transaction) => {
     const attempt = await loadLockedAssessmentAttempt(transaction, userId, submissionId);
     if (attempt.status === 'completed') return { idempotentReplay: true };

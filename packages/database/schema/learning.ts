@@ -140,7 +140,30 @@ export const quizAttemptQuestions = pgTable('quiz_attempt_question', {
   subtopicSyllabusCode: text('subtopic_syllabus_code'),
   subtopicName: text('subtopic_name'),
   text: text('text').notNull(),
-  options: jsonb('options').$type<string[]>(),
+  // Legacy sets store string[]; Question Bank rich stems store
+  // { choices, stemBlocks?, optionsImageUrl?, structuredParts? }.
+  options: jsonb('options').$type<string[] | {
+    choices: string[];
+    stemBlocks?: Array<
+      | { type: 'text'; value: string }
+      | { type: 'math'; latex: string }
+      | { type: 'image'; url: string }
+    >;
+    optionsImageUrl?: string;
+    structuredParts?: Array<{
+      label: string;
+      prompt: string;
+      marks: number | null;
+      visuals?: Array<{ url: string }>;
+      children?: Array<{
+        label: string;
+        prompt: string;
+        marks: number | null;
+        visuals?: Array<{ url: string }>;
+        children?: unknown[];
+      }>;
+    }>;
+  }>(),
   correctAnswer: jsonb('correct_answer').$type<string | number>().notNull(),
   explanation: text('explanation').notNull(),
   linkedConcept: text('linked_concept').notNull(),
@@ -160,6 +183,28 @@ export const quizAttemptAnswers = pgTable('quiz_attempt_answer', {
   isCorrect: boolean('is_correct'),
   marksObtained: doublePrecision('marks_obtained'),
   maximumMarks: doublePrecision('maximum_marks'),
+  /** Gemini essay review: per-part verdict + short why (null for MCQ / older attempts). */
+  gradingFeedback: jsonb('grading_feedback').$type<{
+    summary: string;
+    markPoints?: Array<{
+      id: string;
+      code?: 'B' | 'M' | 'A';
+      earned: boolean;
+      marks: number;
+      dependsOn?: string | null;
+      partLabel?: string | null;
+      schemeSentence: string;
+      analysis: string;
+    }>;
+    senseBonus?: { awarded: number; reason: string };
+    parts: Array<{
+      label: string;
+      verdict: 'correct' | 'partial' | 'incorrect' | 'sense';
+      marksObtained: number;
+      maximumMarks: number | null;
+      feedback: string;
+    }>;
+  }>(),
   answeredAt: timestamp('answered_at'),
 }, (table) => [
   primaryKey({ columns: [table.attemptId, table.questionKey] }),
