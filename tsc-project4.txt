@@ -1,8 +1,0 @@
-lib/quiz-question-bank.ts(25,17): error TS2323: Cannot redeclare exported variable 'getQuestionsForSelection'.
-lib/quiz-question-bank.ts(25,17): error TS2393: Duplicate function implementation.
-lib/quiz-question-bank.ts(466,17): error TS2323: Cannot redeclare exported variable 'getQuestionsForSelection'.
-lib/quiz-question-bank.ts(466,17): error TS2393: Duplicate function implementation.
-services/edunets-api/src/services/enquiries.ts(183,9): error TS2554: Expected 3 arguments, but got 2.
-services/edunets-api/tests/enquiries-database.test.ts(120,43): error TS2339: Property 'requesterUserId' does not exist on type '{ requesterDisplayName: string; requesterClassSnapshot: string | null; topicId: string; topicNameSnapshot: string; isDemo: boolean; demoKey: string; recipientUserId: string | null; }'.
-services/edunets-api/tests/enquiries-database.test.ts(230,13): error TS2322: Type 'string | null' is not assignable to type 'string'.
-  Type 'null' is not assignable to type 'string'.

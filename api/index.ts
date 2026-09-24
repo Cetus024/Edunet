@@ -29,40 +29,40 @@ const handler = createServerlessHandler({
     // load .env.local through the database module, so validate them afterward.
     if (process.env.VERCEL === '1') validateConfiguration();
 
-    const database = await loadModule('database-module', () => import('../database/client.js'));
+    const database = await loadModule('database-module', () => import('../packages/database/client.js'));
     if (process.env.VERCEL !== '1') validateConfiguration();
-    await loadModule('environment-module', () => import('../services/edunets-api/src/env.js'));
-    await loadModule('auth-module', () => import('../services/edunets-api/src/auth.js'));
-    await loadModule('errors-module', () => import('../services/edunets-api/src/errors.js'));
+    await loadModule('environment-module', () => import('../apps/api/src/env.js'));
+    await loadModule('auth-module', () => import('../apps/api/src/auth.js'));
+    await loadModule('errors-module', () => import('../apps/api/src/errors.js'));
     await loadModule(
       'request-context-module',
-      () => import('../services/edunets-api/src/middleware/request-context.js'),
+      () => import('../apps/api/src/middleware/request-context.js'),
     );
-    await loadModule('api-v1-route', () => import('../services/edunets-api/src/routes/api-v1.js'));
-    await loadModule('enquiries-route', () => import('../services/edunets-api/src/routes/enquiries.js'));
+    await loadModule('api-v1-route', () => import('../apps/api/src/routes/api-v1.js'));
+    await loadModule('enquiries-route', () => import('../apps/api/src/routes/enquiries.js'));
     await loadModule(
       'study-squads-route',
-      () => import('../services/edunets-api/src/routes/study-squads.js'),
+      () => import('../apps/api/src/routes/study-squads.js'),
     );
     await loadModule(
       'squad-quiz-route',
-      () => import('../services/edunets-api/src/routes/squad-quiz.js'),
+      () => import('../apps/api/src/routes/squad-quiz.js'),
     );
     await loadModule(
       'notifications-route',
-      () => import('../services/edunets-api/src/routes/notifications.js'),
+      () => import('../apps/api/src/routes/notifications.js'),
     );
     await loadModule(
       'revision-rooms-route',
-      () => import('../services/edunets-api/src/routes/revision-rooms.js'),
+      () => import('../apps/api/src/routes/revision-rooms.js'),
     );
     await loadModule(
       'learning-work-route',
-      () => import('../services/edunets-api/src/routes/learning-work.js'),
+      () => import('../apps/api/src/routes/learning-work.js'),
     );
     const application = await loadModule(
       'application-module',
-      () => import('../services/edunets-api/src/app.js'),
+      () => import('../apps/api/src/app.js'),
     );
 
     try {

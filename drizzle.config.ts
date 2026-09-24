@@ -1,7 +1,7 @@
 import { defineConfig } from 'drizzle-kit';
 
-import './database/env';
-import { EDUNETS_SCHEMA_NAME } from './database/constants';
+import './packages/database/env';
+import { EDUNETS_SCHEMA_NAME } from './packages/database/constants';
 
 // A deliberately unusable fallback lets schema-only generation run without
 // credentials. Commands that connect to PostgreSQL must provide
@@ -11,8 +11,8 @@ const databaseUrl = process.env.DATABASE_DIRECT_URL
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './database/schema/index.ts',
-  out: './database/migrations',
+  schema: './packages/database/schema/index.ts',
+  out: './packages/database/migrations',
   dbCredentials: { url: databaseUrl },
   schemaFilter: [EDUNETS_SCHEMA_NAME],
   migrations: {

@@ -1,13 +1,16 @@
 # dependencies
 node_modules
-services/edunets-api/node_modules
+apps/*/node_modules
+services/*/node_modules
 
 # next.js build output
 .next/
 out/
+apps/web/.next/
+apps/web/out/
 
 # api build output
-services/edunets-api/dist/
+apps/api/dist/
 
 # env files (never commit secrets)
 .env.local
@@ -16,6 +19,15 @@ services/edunets-api/dist/
 # logs / debug output
 *.log
 full-tsc-output.txt
+tsc-*.txt
+tsc-*.json
+trace.txt
+tsconfig-debug.json
+
+# local question-bank / pytest scratch
+.pytest-questionbank-*/
+.questionbank-test-venv/
+.internal/
 
 # misc
 .DS_Store

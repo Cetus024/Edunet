@@ -1,0 +1,181 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786176627332,
+      "tag": "0000_absent_cloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786177192374,
+      "tag": "0001_mixed_mephisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786178462315,
+      "tag": "0002_broad_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786183509695,
+      "tag": "0003_user_learning_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786183538350,
+      "tag": "0004_teacher_tutor_enquiries",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786283171541,
+      "tag": "0005_futuristic_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786426547874,
+      "tag": "0006_icy_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786442650329,
+      "tag": "0007_legal_hammerhead",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786454042018,
+      "tag": "0008_sparkling_black_cat",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787577848538,
+      "tag": "0009_violet_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788242599773,
+      "tag": "0010_bkt_knowledge_model",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788335047857,
+      "tag": "0011_phase1_dual_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788419540519,
+      "tag": "0012_solid_network",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788425276883,
+      "tag": "0013_pale_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788428766112,
+      "tag": "0014_tense_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788429772198,
+      "tag": "0015_fat_lester",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788439191576,
+      "tag": "0016_outgoing_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788595961233,
+      "tag": "0017_tearful_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788621224860,
+      "tag": "0018_curriculum_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789649305811,
+      "tag": "0019_petite_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789652377181,
+      "tag": "0020_common_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789653565882,
+      "tag": "0021_repair_class_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789652497679,
+      "tag": "0022_reference_rag",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789960000000,
+      "tag": "0023_study_relay",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790243107423,
+      "tag": "0024_colossal_sharon_carter",
+      "breakpoints": true
+    }
+  ]
+}
