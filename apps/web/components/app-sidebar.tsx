@@ -1,11 +1,15 @@
 'use client';
 
 import { NavLink, useLocation } from '@/lib/navigation';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { useAtom } from 'jotai';
 import Image from 'next/image';
-import { LayoutDashboard, Brain, Share2, Inbox, Users, MessageCircle, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, Bell, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
+import { useNotifications } from '@/lib/api/notifications';
 
 import { cn } from '@/lib/utils';
 import { isTeachingRole, type EduNetsRole } from '@/lib/roles';
@@ -31,19 +35,26 @@ const learnerNavItems: NavItem[] = [
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
+  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
   { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/study-squad', labelKey: 'nav.studySquad', shortKey: 'nav.studySquad.short', icon: Users },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 
-// Teachers get no Notifications or Revision Hub entry: unread notifications
-// are folded into Teacher Home's priority list instead. Profile + notifications
-// + streak live in AppTopBar.
 const teachingNavItems: NavItem[] = [
   { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: LayoutDashboard },
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
+  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
+  { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
+
+const roleLabelKeys: Record<'teacher' | 'student', TranslationKey> = {
+  teacher: 'role.teacher',
+  student: 'role.student',
+};
 
 const widthTransition = {
   transitionProperty: 'width',
@@ -71,6 +82,11 @@ export function AppSidebar() {
     userId: user?.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
   });
+  const { data: notificationData } = useNotifications(
+    user?.id ?? null,
+    Boolean(account?.onboardingCompleted),
+  );
+  const unreadNotifications = notificationData?.unreadCount ?? 0;
 
   const activeNavItems = usesTeachingWorkspace ? teachingNavItems : learnerNavItems;
   return (
@@ -98,9 +114,11 @@ export function AppSidebar() {
             style={{ width: collapsed ? '100%' : SIDEBAR_EXPANDED_WIDTH }}
           >
             <SidebarContent
+              user={user}
               role={role}
               location={location}
               unreadMessages={unreadMessages}
+              unreadNotifications={unreadNotifications}
               navItems={activeNavItems}
               teachingScopes={scopes}
               activeTeachingScopeId={activeScopeId}
@@ -156,6 +174,9 @@ export function AppSidebar() {
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadMessages}</span>
                 )}
+                {item.path === '/notifications' && unreadNotifications > 0 && (
+                  <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadNotifications}</span>
+                )}
               </NavLink>
             );
           })}
@@ -166,25 +187,39 @@ export function AppSidebar() {
 }
 
 function SidebarContent({
+  user,
   role,
   location,
   unreadMessages,
+  unreadNotifications,
   navItems,
   teachingScopes,
   activeTeachingScopeId,
   onTeachingScopeChange,
   collapsed,
 }: {
+  user: { name: string; image: string | null } | null;
   role: EduNetsRole | null;
   location: { pathname: string };
   unreadMessages: number;
+  unreadNotifications: number;
   navItems: NavItem[];
   teachingScopes: TeachingScope[];
   activeTeachingScopeId: string | null;
   onTeachingScopeChange: (scopeId: string) => void;
   collapsed: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  // Stable across collapse toggles — avoid re-formatting the date on every swipe.
+  const dateLabel = format(new Date(), locale === 'zh' ? 'yyyy年M月d日' : 'dd MMM yyyy', {
+    locale: locale === 'zh' ? zhCN : undefined,
+  });
+  const initials = user?.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'EN';
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -230,6 +265,44 @@ function SidebarContent({
         </div>
       </div>
 
+      {/* Account — square avatar chip vs full card. */}
+      <div
+        title={collapsed ? (user?.name || t('role.member')) : undefined}
+        className={cn(
+          'shrink-0 border border-sidebar-border bg-card text-card-foreground',
+          collapsed
+            ? 'mx-auto flex h-11 w-11 items-center justify-center rounded-2xl'
+            : 'mx-4 rounded-[1.35rem] px-4 py-3 shadow-[0_8px_20px_rgba(29,58,98,0.08)]',
+        )}
+      >
+        <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3')}>
+          <Avatar className={cn(
+            'shrink-0 border-2 border-white',
+            collapsed ? 'h-8 w-8' : 'h-10 w-10',
+          )}>
+            <AvatarImage src={user?.image ?? undefined} />
+            <AvatarFallback className={cn(
+              'text-xs font-bold',
+              isTeachingRole(role) ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'bg-primary text-primary-foreground',
+            )}>
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-card-foreground">
+                {user?.name || t('role.member')}
+              </p>
+              <p className="truncate text-xs font-semibold text-muted-foreground">
+                {role ? t(roleLabelKeys[role]) : t('role.member')}
+                {' · '}
+                {dateLabel}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
       {!collapsed && isTeachingRole(role) && teachingScopes.length > 0 && (
         <div className="px-4 pt-3">
           <TeachingContextSelect
@@ -249,7 +322,11 @@ function SidebarContent({
             ? location.pathname === '/'
             : location.pathname.startsWith(item.path);
           const Icon = item.icon;
-          const badgeCount = item.path === '/ask-teacher' ? unreadMessages : 0;
+          const badgeCount = item.path === '/ask-teacher'
+            ? unreadMessages
+            : item.path === '/notifications'
+              ? unreadNotifications
+              : 0;
 
           return (
             <NavLink
