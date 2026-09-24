@@ -36,13 +36,16 @@ const learnerNavItems: NavItem[] = [
   { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 
+// Teachers get no Notifications or Revision Hub entry: unread notifications
+// are folded into Teacher Home's priority list instead, and /capture-hub was
+// never reachable for a teaching role anyway (it is absent from
+// teachingRouteAllowed in features/auth/auth-gates.tsx, so the link bounced
+// straight back to /ask-teacher). Learners keep both.
 const teachingNavItems: NavItem[] = [
   { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: LayoutDashboard },
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
-  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
-  { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 

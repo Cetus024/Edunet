@@ -1,18 +1,25 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { AlertCircle, ChevronRight, MessageCircle, Share2, Users } from 'lucide-react';
+import { AlertCircle, Bell, ChevronRight, MessageCircle, Share2, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@/lib/navigation';
 import { useCurrentAccount } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 import { useTeacherStudents } from '@/lib/api/teacher-students';
 import { useTeacherClassPulse, type TopicHealth } from '@/lib/api/teacher-class-pulse';
 import { useTeachingContext } from '@/lib/teaching-context';
+import {
+  markNotificationRead,
+  notificationsQueryKey,
+  useNotifications,
+  type AppNotification,
+} from '@/lib/api/notifications';
 
 type RankedAction = {
   id: string;
@@ -32,6 +39,23 @@ const STATUS_DOT: Record<TopicHealth['status'], string> = {
   unstarted: 'bg-muted-foreground/40',
 };
 
+// Unread notifications rank by how directly they block a student: a question
+// aimed at this teacher outranks a reply or a room event, and anything from
+// the last 24h outranks an older item of the same kind. Deliberately coarse -
+// there is no engagement signal in the data to justify finer weighting.
+const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function notificationUrgency(notification: AppNotification): number {
+  const base = notification.type === 'teacher_enquiry'
+    ? 80
+    : notification.type === 'teacher_reply'
+      ? 65
+      : 55;
+  const createdAt = new Date(notification.createdAt).getTime();
+  const isRecent = Number.isFinite(createdAt) && Date.now() - createdAt < RECENT_WINDOW_MS;
+  return Math.min(99, base + (isRecent ? 12 : 0));
+}
+
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const { data: account } = useCurrentAccount();
@@ -47,6 +71,23 @@ export default function TeacherDashboardPage() {
     isLoading: pulseLoading,
     error: pulseError,
   } = useTeacherClassPulse({ enabled: Boolean(account?.onboardingCompleted && activeScopeId), scopeId: activeScopeId });
+
+  const queryClient = useQueryClient();
+  const { data: notificationData } = useNotifications(
+    account?.user.id ?? null,
+    Boolean(account?.onboardingCompleted),
+  );
+
+  // Same behaviour the standalone Notifications page had: mark read, refresh
+  // the feed, then follow the notification's own href.
+  const openNotification = useCallback(async (notification: AppNotification) => {
+    try {
+      await markNotificationRead(notification.id);
+      await queryClient.invalidateQueries({ queryKey: notificationsQueryKey });
+    } finally {
+      navigate(notification.href);
+    }
+  }, [navigate, queryClient]);
 
   const students = useMemo(() => rosterData?.students ?? [], [rosterData]);
   const topics = useMemo(() => pulse?.topics ?? [], [pulse]);
@@ -72,21 +113,30 @@ export default function TeacherDashboardPage() {
       }))
       .sort((first, second) => second.urgency - first.urgency);
 
-    const messageAction: RankedAction[] = unreadCount > 0 ? [{
-      id: 'messages',
-      sourceLabel: 'Messages',
-      sourceIcon: MessageCircle,
-      urgency: Math.min(99, 50 + unreadCount * 12),
-      headline: `${unreadCount} student${unreadCount === 1 ? '' : 's'} ${unreadCount === 1 ? 'is' : 'are'} waiting on a reply`,
-      description: 'Open the inbox, answer the newest questions, and clear the unread queue.',
-      actionLabel: 'Open Messages',
-      onAction: () => navigate('/ask-teacher'),
-    }] : [];
+    // Replaces the old single "N students are waiting" row: each unread
+    // notification carries its own title, body and href, so it is both more
+    // specific and lands the teacher on the exact thread rather than the inbox.
+    const notificationActions: RankedAction[] = (notificationData?.notifications ?? [])
+      .filter((notification) => notification.readAt === null)
+      .map((notification) => ({
+        id: `notification-${notification.id}`,
+        sourceLabel: notification.type === 'teacher_enquiry' || notification.type === 'teacher_reply'
+          ? 'Messages'
+          : 'Notifications',
+        sourceIcon: notification.type === 'teacher_enquiry' || notification.type === 'teacher_reply'
+          ? MessageCircle
+          : Bell,
+        urgency: notificationUrgency(notification),
+        headline: notification.title,
+        description: notification.body,
+        actionLabel: 'Open',
+        onAction: () => { void openNotification(notification); },
+      }));
 
-    return [...topicActions, ...messageAction]
+    return [...topicActions, ...notificationActions]
       .sort((first, second) => second.urgency - first.urgency)
-      .slice(0, 4);
-  }, [navigate, topics, unreadCount]);
+      .slice(0, 6);
+  }, [navigate, notificationData, openNotification, topics]);
 
   const hotspotCount = topics.filter((topic) => topic.status === 'critical').length;
 
