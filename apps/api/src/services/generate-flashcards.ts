@@ -1,5 +1,5 @@
-import { CURRICULUM_TOPIC_BY_ID } from '../../../../lib/curriculum.js';
-import { formatStudentFacingText } from '../../../../lib/study-notes.js';
+import { CURRICULUM_TOPIC_BY_ID } from '../../../../apps/web/lib/curriculum.js';
+import { formatStudentFacingText } from '../../../../apps/web/lib/study-notes.js';
 import type { AnalysisModel } from './explanation-analysis.js';
 import {
   retrieveTopicPassages,
