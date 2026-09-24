@@ -26,6 +26,37 @@
 
 ---
 
+## 2026-09-24 · 工作区未提交 · Spidey 校验修复 + 动机回复
+
+**修复「Request validation failed」；测验求助只给鼓励；偏题礼貌拒绝；短段落**
+
+- **做了什么**：放宽 materials／消息长度校验，前端过滤空字段；测验／学科求助改动机文案且不给答案；偏题礼貌引导；回复拆成短段落。
+- **为什么**：空 topic 的旧材料会触发 Zod 400；产品要导航向导而非答题助手。
+- **影响面**：`spideyChatSchema`、聊天 UI 载荷、`spidey-chat` 文案与 normalise。
+
+---
+
+## 2026-09-24 · 工作区未提交 · Spidey 推荐顺序 + 顶栏恢复
+
+**起步先推 Smart Quiz／Revision Hub；顶栏放 streak／日期／铃铛／头像**
+
+- **做了什么**：Spidey 起步与下一步回复改为先 Smart Quiz（测知识）再 Revision Hub（复习笔记），芯片同序；恢复 `AppTopBar`（页标题 + streak 胶囊 + 日期 + 通知铃 + 头像），侧栏去掉账号卡与 Notifications／Profile。
+- **为什么**：推荐顺序与导航稿对齐；顶栏改动曾被回退。
+- **影响面**：`spidey-chat`、`app-top-bar`、`app-shell`、`app-sidebar`、Dashboard streak 胶囊。
+
+---
+
+## 2026-09-24 · 工作区未提交 · Spidey 散文回复 + 可点导航
+
+**取消 bullet；起步／下一步给可点跳转；Spidey／团队只讲短故事**
+
+- **做了什么**：回复改为散文；「Where do I start / How to start / Where next」走固定起步或下一步回复并附 `[[go:/path|Label]]` 芯片（前端渲染为按钮并 navigate）；Spidey／团队背景走短故事且不加芯片；范围仅限 EduNets／团队／Spidey；顺带恢复限流与输入硬化。
+- **为什么**：对齐聊天体验与导航引导要求。
+- **影响面**：`spidey-chat` 服务与聊天 UI；旧 bullet 渲染路径移除。
+- **坑**：导航 path 有白名单，模型胡编的 path 会被丢掉。
+
+---
+
 ## 2026-09-24 · 工作区未提交 · Spidey 功能一句话提示
 
 **进入每个功能页时弹出一行用途提示；点击 Spidey 仍开完整聊天**

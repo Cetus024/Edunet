@@ -30,6 +30,7 @@ import { getGeminiChatModel } from '../services/gemini.js';
 import { generateTopicNotes } from '../services/generate-topic-notes.js';
 import { generateFlashcards } from '../services/generate-flashcards.js';
 import { answerSpideyChat } from '../services/spidey-chat.js';
+import { checkSpideyRateLimit } from '../services/spidey-security.js';
 import {
   captureEvaluateSchema,
   captureGenerateFlashcardsSchema,
@@ -1042,8 +1043,21 @@ api.post('/me/capture/generate-flashcards', loadSession, requireSession, async (
 // Spidey: general study-guide chat (EduNets features, tips, saved materials).
 // Uses Gemini 3.1 Flash-Lite on GEMINI_API_KEY, not the 3.5 Flash OCR model.
 api.post('/me/spidey/chat', loadSession, requireSession, async (context) => {
-  requireUserId(context);
+  const userId = requireUserId(context);
   const input = spideyChatSchema.parse(await readJson(context));
+
+  const rate = checkSpideyRateLimit(userId);
+  if (!rate.allowed) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: {
+        reason: 'rate_limited',
+        retryAfterSeconds: rate.retryAfterSeconds,
+      },
+    });
+  }
+
   const model = getGeminiChatModel();
   if (!model) {
     return context.json({
