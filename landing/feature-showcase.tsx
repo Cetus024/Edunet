@@ -330,7 +330,7 @@ export function FeatureShowcase() {
             eyebrow="From lesson to notes"
             icon={Mic2}
             index={2}
-            title="Capture Hub"
+            title="Revision Hub"
           >
             <CapturePreview />
           </FeatureCard>

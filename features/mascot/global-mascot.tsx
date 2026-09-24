@@ -29,10 +29,13 @@ import {
 } from './state';
 
 const COLLAPSED_KEY = 'edunets-mascot-collapsed';
-const ROUTE_PROMPTS_KEY = 'edunets-mascot-route-prompts';
 const DRAG_THRESHOLD_PX = 5;
 const VIEWPORT_GUTTER_PX = 12;
 const MOBILE_APP_NAV_CLEARANCE_PX = 96;
+const FEATURE_TIP_OPEN_DELAY_MS = 450;
+const FEATURE_TIP_VISIBLE_MS = 5200;
+
+type PanelMode = 'closed' | 'tip' | 'chat';
 
 type Point = {
   x: number;
@@ -186,7 +189,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/concept-web')) {
     return {
       scene: 'insight',
-      message: 'Follow the links to see how each idea supports the next.',
+      message: 'Concept Web maps how each idea links so you can revise the connections.',
       appRoute: true,
     };
   }
@@ -194,7 +197,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/quiz')) {
     return {
       scene: 'question',
-      message: 'Focus on one question at a time. You have got this.',
+      message: 'Smart Quiz adapts questions so you can practise one topic at a time.',
       appRoute: true,
     };
   }
@@ -202,7 +205,15 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/ask-teacher')) {
     return {
       scene: 'question',
-      message: 'Capture the exact point you want your teacher to explain.',
+      message: 'Ask Teacher sends a clear question so your teacher can explain the sticky point.',
+      appRoute: true,
+    };
+  }
+
+  if (matchesRoute(pathname, '/notifications')) {
+    return {
+      scene: 'insight',
+      message: 'Notifications keep you up to date on alerts and classroom updates.',
       appRoute: true,
     };
   }
@@ -210,7 +221,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/rescue-room') || matchesRoute(pathname, '/rescue-join')) {
     return {
       scene: 'question',
-      message: 'Write your solution, check the OCR text, and review the feedback before the next question.',
+      message: 'Rescue Room is live practice — write, check OCR, then review feedback.',
       compact: true,
       appRoute: true,
     };
@@ -219,7 +230,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/revision-room')) {
     return {
       scene: 'study',
-      message: 'Write each step clearly, then check the recognized text before analysing your work.',
+      message: 'Revision Room is for step-by-step work — write clearly, then check the text.',
       appRoute: true,
     };
   }
@@ -227,7 +238,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/capture-hub')) {
     return {
       scene: 'study',
-      message: 'Capture a lesson and turn it into a stronger revision trail.',
+      message: 'Revision Hub checks your notes, builds flashcards, and opens Notes Library.',
       appRoute: true,
     };
   }
@@ -235,7 +246,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/study-squad')) {
     return {
       scene: 'study',
-      message: 'Learning sticks better when the whole squad moves together.',
+      message: 'Study Squad is group revision — learn faster when the team moves together.',
       appRoute: true,
     };
   }
@@ -243,7 +254,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/profile')) {
     return {
       scene: 'study',
-      message: 'Your progress shows where the next small review will help most.',
+      message: 'Profile shows your progress so you know where a small review will help most.',
       appRoute: true,
     };
   }
@@ -251,7 +262,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/dashboard')) {
     return {
       scene: 'study',
-      message: 'Your weakest topic is the best place to start today.',
+      message: 'Dashboard is your hub — start with the weakest topic for today.',
       appRoute: true,
     };
   }
@@ -260,17 +271,6 @@ function configForPath(pathname: string): RouteMascotConfig {
     scene: 'welcome',
     message: 'That page is not in the learning web yet. Let us find another route.',
   };
-}
-
-function readPromptedRoutes(): string[] {
-  try {
-    const value = sessionStorage.getItem(ROUTE_PROMPTS_KEY);
-    if (!value) return [];
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
 }
 
 function writeCollapsedPreference(collapsed: boolean) {
@@ -286,13 +286,14 @@ function GlobalMascotContent() {
   const reduceMotion = useReducedMotion();
   const landingScene = useAtomValue(landingMascotSceneAtom);
   const [feedback, setFeedback] = useAtom(mascotFeedbackAtom);
-  const [bubbleOpen, setBubbleOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>('closed');
   const [collapsed, setCollapsed] = useState(false);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [position, setPosition] = useState<Point | null>(null);
   const [bubbleOffset, setBubbleOffset] = useState<Point | null>(null);
   const [dragging, setDragging] = useState(false);
   const feedbackRef = useRef(feedback);
+  const panelModeRef = useRef(panelMode);
   const mascotButtonRef = useRef<HTMLButtonElement>(null);
   const bubbleRef = useRef<HTMLElement>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
@@ -301,7 +302,10 @@ function GlobalMascotContent() {
   const routeConfig = useMemo(() => configForPath(pathname), [pathname]);
   const routeScene = pathname === '/' ? landingScene ?? routeConfig.scene : routeConfig.scene;
   const scene = feedback?.scene ?? routeScene;
-  const message = feedback?.message ?? (pathname === '/' ? landingMessages[routeScene] : routeConfig.message);
+  const tipMessage = feedback?.message ?? (pathname === '/' ? landingMessages[routeScene] : routeConfig.message);
+  const bubbleOpen = panelMode !== 'closed';
+  const showChat = panelMode === 'chat' && Boolean(routeConfig.appRoute);
+  const showTip = bubbleOpen && !showChat;
 
   const moveMascot = useCallback(
     (candidate: Point) => {
@@ -325,22 +329,42 @@ function GlobalMascotContent() {
     const bubbleRect = bubble.getBoundingClientRect();
     const edges = getViewportEdges(Boolean(routeConfig.appRoute));
     const gap = 8;
-    const centeredX = buttonRect.left + (buttonRect.width - bubbleRect.width) / 2;
-    const bubbleX = clamp(centeredX, edges.left, Math.max(edges.left, edges.right - bubbleRect.width));
-    const aboveY = buttonRect.top - bubbleRect.height - gap;
+    const availableHeight = Math.max(160, edges.bottom - edges.top);
+    const maxBubbleHeight = Math.min(availableHeight - 8, Math.floor(window.innerHeight * 0.78));
+    if (bubble.style.maxHeight !== `${maxBubbleHeight}px`) {
+      bubble.style.maxHeight = `${maxBubbleHeight}px`;
+    }
+    // Full chat scrolls inside; tip bubbles stay compact.
+    const nextOverflow = showChat ? 'hidden' : 'visible';
+    if (bubble.style.overflowY !== nextOverflow) {
+      bubble.style.overflowY = nextOverflow;
+    }
+
+    const width = bubbleRect.width || bubble.offsetWidth;
+    const height = Math.min(bubble.scrollHeight || bubbleRect.height, maxBubbleHeight);
+    const centeredX = buttonRect.left + (buttonRect.width - width) / 2;
+    const bubbleX = clamp(centeredX, edges.left, Math.max(edges.left, edges.right - width));
+    const aboveY = buttonRect.top - height - gap;
     const belowY = buttonRect.bottom + gap;
     const hasRoomAbove = aboveY >= edges.top;
-    const hasRoomBelow = belowY + bubbleRect.height <= edges.bottom;
-    const preferredY = hasRoomAbove || !hasRoomBelow ? aboveY : belowY;
-    const bubbleY = clamp(preferredY, edges.top, Math.max(edges.top, edges.bottom - bubbleRect.height));
+    const hasRoomBelow = belowY + height <= edges.bottom;
+    let preferredY = hasRoomAbove || !hasRoomBelow ? aboveY : belowY;
+    if (!hasRoomAbove && !hasRoomBelow) {
+      preferredY = edges.top + Math.max(0, (availableHeight - height) / 2);
+    }
+    const bubbleY = clamp(preferredY, edges.top, Math.max(edges.top, edges.bottom - height));
     const nextOffset = { x: bubbleX - buttonRect.left, y: bubbleY - buttonRect.top };
 
     setBubbleOffset((current) => (current && pointsMatch(current, nextOffset) ? current : nextOffset));
-  }, [routeConfig.appRoute]);
+  }, [routeConfig.appRoute, showChat]);
 
   useEffect(() => {
     feedbackRef.current = feedback;
   }, [feedback]);
+
+  useEffect(() => {
+    panelModeRef.current = panelMode;
+  }, [panelMode]);
 
   useEffect(() => {
     try {
@@ -353,39 +377,35 @@ function GlobalMascotContent() {
 
   useEffect(() => {
     setFeedback(null);
-    setBubbleOpen(false);
+    setPanelMode('closed');
   }, [pathname, setFeedback]);
 
+  // One-line feature tip every time the student opens a screen.
   useEffect(() => {
-    if (!preferencesReady || collapsed || routeConfig.hidden || routeConfig.compact) return;
-
-    const promptedRoutes = readPromptedRoutes();
-    if (promptedRoutes.includes(pathname)) return;
+    if (!preferencesReady || collapsed || routeConfig.hidden) return;
 
     const openTimer = window.setTimeout(() => {
-      try {
-        sessionStorage.setItem(ROUTE_PROMPTS_KEY, JSON.stringify([...promptedRoutes, pathname]));
-      } catch {
-        // The prompt can still appear when session storage is unavailable.
-      }
-      setBubbleOpen(true);
-    }, 650);
+      if (panelModeRef.current === 'chat') return;
+      setPanelMode('tip');
+    }, FEATURE_TIP_OPEN_DELAY_MS);
     const closeTimer = window.setTimeout(() => {
-      if (!feedbackRef.current) setBubbleOpen(false);
-    }, 6650);
+      if (panelModeRef.current === 'tip' && !feedbackRef.current) {
+        setPanelMode('closed');
+      }
+    }, FEATURE_TIP_OPEN_DELAY_MS + FEATURE_TIP_VISIBLE_MS);
     return () => {
       window.clearTimeout(openTimer);
       window.clearTimeout(closeTimer);
     };
-  }, [collapsed, pathname, preferencesReady, routeConfig.compact, routeConfig.hidden]);
+  }, [collapsed, pathname, preferencesReady, routeConfig.hidden]);
 
   useEffect(() => {
     if (!feedback) return;
-    if (!collapsed) setBubbleOpen(true);
+    if (!collapsed) setPanelMode('tip');
 
     const timer = window.setTimeout(() => {
       setFeedback(null);
-      setBubbleOpen(false);
+      if (panelModeRef.current === 'tip') setPanelMode('closed');
     }, feedback.durationMs);
 
     return () => window.clearTimeout(timer);
@@ -398,8 +418,19 @@ function GlobalMascotContent() {
     }
 
     const frame = window.requestAnimationFrame(updateBubbleOffset);
-    return () => window.cancelAnimationFrame(frame);
-  }, [bubbleOpen, collapsed, message, position, updateBubbleOffset]);
+    const bubble = bubbleRef.current;
+    let observer: ResizeObserver | undefined;
+    if (bubble && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        window.requestAnimationFrame(updateBubbleOffset);
+      });
+      observer.observe(bubble);
+    }
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [bubbleOpen, collapsed, tipMessage, panelMode, position, updateBubbleOffset]);
 
   useEffect(() => {
     const keepMascotInViewport = () => {
@@ -466,7 +497,7 @@ function GlobalMascotContent() {
 
   const setCollapsedState = (nextCollapsed: boolean) => {
     setCollapsed(nextCollapsed);
-    setBubbleOpen(!nextCollapsed);
+    setPanelMode(nextCollapsed ? 'closed' : 'tip');
     writeCollapsedPreference(nextCollapsed);
   };
 
@@ -545,9 +576,15 @@ function GlobalMascotContent() {
 
     if (collapsed) {
       setCollapsedState(false);
-    } else {
-      setBubbleOpen((open) => !open);
+      return;
     }
+
+    // Tip is auto; click opens (or closes) the full chatbot on app pages.
+    if (routeConfig.appRoute) {
+      setPanelMode((mode) => (mode === 'chat' ? 'closed' : 'chat'));
+      return;
+    }
+    setPanelMode((mode) => (mode === 'closed' ? 'tip' : 'closed'));
   };
 
   const handleMascotKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -579,8 +616,8 @@ function GlobalMascotContent() {
         {bubbleOpen && !collapsed && (
           <motion.aside
             ref={bubbleRef}
-            aria-live={routeConfig.appRoute ? 'off' : 'polite'}
-            aria-atomic={routeConfig.appRoute ? undefined : true}
+            aria-live={showChat ? 'off' : 'polite'}
+            aria-atomic={showChat ? undefined : true}
             style={
               bubbleOffset
                 ? { left: bubbleOffset.x, top: bubbleOffset.y }
@@ -591,36 +628,56 @@ function GlobalMascotContent() {
             exit={reduceMotion ? undefined : { opacity: 0, y: 5, scale: 0.97 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
             onAnimationComplete={updateBubbleOffset}
-            className="pointer-events-auto absolute z-10 w-[min(22rem,calc(100vw-2rem))] rounded-[1.25rem] border border-border bg-card p-4 text-card-foreground shadow-[0_20px_55px_rgba(29,58,98,0.2)]"
-          >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-primary">
-                {routeConfig.appRoute ? 'Spidey' : 'EduNets guide'}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCollapsedState(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Minimize EduNets guide"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBubbleOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Close mascot message"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            {routeConfig.appRoute ? (
-              <SpideyChat />
-            ) : (
-              <p className="text-sm font-bold leading-relaxed">{message}</p>
+            className={cn(
+              'pointer-events-auto absolute z-10 flex flex-col overflow-hidden rounded-[1.35rem] border border-[#1D3A62]/12 bg-white text-card-foreground shadow-[0_20px_55px_rgba(29,58,98,0.22)]',
+              showChat
+                ? 'min-h-[18rem] w-[min(24rem,calc(100vw-2rem))] max-h-[min(78dvh,36rem)] p-3.5'
+                : 'w-[min(18rem,calc(100vw-2rem))] p-3',
             )}
+          >
+            {showChat ? (
+              <SpideyChat
+                onContentChange={updateBubbleOffset}
+                onClose={() => setPanelMode('closed')}
+              />
+            ) : showTip ? (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#6486B5]">
+                    Spidey tip
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setPanelMode('closed')}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#6486B5] transition-colors hover:bg-[#6486B5]/10 hover:text-[#1D3A62] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6486B5]"
+                    aria-label="Close tip"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className="text-sm font-semibold leading-snug text-[#1D3A62]">{tipMessage}</p>
+                {routeConfig.appRoute ? (
+                  <button
+                    type="button"
+                    onClick={() => setPanelMode('chat')}
+                    className="text-left text-xs font-semibold text-[#6486B5] underline-offset-2 hover:underline"
+                  >
+                    Ask Spidey
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedState(true)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary"
+                      aria-label="Minimize EduNets guide"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </motion.aside>
         )}
       </AnimatePresence>
@@ -644,19 +701,20 @@ function GlobalMascotContent() {
           ? 'Drag to move Spidey. Click to open or close the help chatbot.'
           : 'Drag to move the EduNets guide. Click to open or close its message.'}
         className={cn(
-          'pointer-events-auto relative flex touch-none select-none items-center justify-center rounded-full border border-white/70 bg-secondary/80 shadow-[0_18px_45px_rgba(29,58,98,0.22)] backdrop-blur-sm transition-[width,height,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'pointer-events-auto relative flex touch-none select-none items-center justify-center overflow-hidden rounded-full border border-white/70 bg-secondary/80 shadow-[0_12px_28px_rgba(29,58,98,0.2)] backdrop-blur-sm transition-[width,height,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           dragging ? 'cursor-grabbing' : 'cursor-grab',
-          collapsed
-            ? 'h-11 w-11 p-0.5'
-            : routeConfig.compact
-              ? 'h-14 w-14 p-0.5'
-              : 'h-16 w-16 p-0.5 lg:h-24 lg:w-24',
+          // Match a typical floating chat avatar (~56px), not a large hero mascot.
+          collapsed ? 'h-12 w-12 p-0.5' : 'h-14 w-14 p-0.5',
         )}
         aria-label={collapsed
           ? 'Expand EduNets guide'
-          : bubbleOpen
-            ? (routeConfig.appRoute ? 'Close Spidey chatbot' : 'Close EduNets guide message')
-            : (routeConfig.appRoute ? 'Open Spidey help chatbot' : 'Open EduNets guide message')}
+          : panelMode === 'chat'
+            ? 'Close Spidey chatbot'
+            : routeConfig.appRoute
+              ? 'Open Spidey help chatbot'
+              : bubbleOpen
+                ? 'Close EduNets guide tip'
+                : 'Open EduNets guide tip'}
         aria-describedby="edunets-mascot-drag-help"
         aria-expanded={!collapsed && bubbleOpen}
       >
