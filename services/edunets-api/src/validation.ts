@@ -155,10 +155,6 @@ export const captureEvaluateSchema = z.strictObject({
 
 export const captureGenerateNotesSchema = z.strictObject({
   topicId: z.string().trim().min(1).max(128),
-  focus: z.strictObject({
-    name: z.string().trim().min(1).max(160),
-    description: z.string().trim().max(500).optional(),
-  }).optional(),
 });
 
 export const captureGenerateFlashcardsSchema = z.strictObject({
@@ -172,13 +168,13 @@ export const captureGenerateFlashcardsSchema = z.strictObject({
 export const spideyChatSchema = z.strictObject({
   messages: z.array(z.strictObject({
     role: z.enum(['user', 'assistant']),
-    text: z.string().trim().min(1).max(1_500),
-  })).min(1).max(8),
+    text: z.string().trim().min(1).max(8_000),
+  })).min(1).max(12),
   materials: z.array(z.strictObject({
     name: z.string().trim().min(1).max(160),
     subject: z.string().trim().min(1).max(64),
     topic: z.string().trim().min(1).max(160),
-  })).max(12).optional(),
+  })).max(20).optional(),
 });
 
 export const createStudySquadSchema = z.strictObject({

@@ -27,8 +27,6 @@ export const navDict = {
   'nav.myProfile': { en: 'My Profile', zh: '个人资料' },
   'nav.myProfile.short': { en: 'My', zh: '我的' },
 
-  'topbar.streak': { en: '{days}-day streak', zh: '连续 {days} 天' },
-
   'sidebar.tagline': {
     en: 'Weave stronger bonds, retain every lesson',
     zh: '编织更紧密的联系，记住每一堂课',

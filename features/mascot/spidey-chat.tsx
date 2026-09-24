@@ -1,16 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { ArrowUp, X } from 'lucide-react';
-import emojiRegex from 'emoji-regex';
 import { toast } from 'sonner';
 
 import { sendSpideyChat } from '@/lib/api/spidey';
 import { ApiConnectionError, isApiError } from '@/lib/api/client';
 import { materialsLibraryAtom } from '@/features/materials/library-store';
-import { useNavigate } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 
 type DisplayMessage = {
@@ -19,83 +17,17 @@ type DisplayMessage = {
   text: string;
 };
 
-type NavChip = { path: string; label: string };
+const BULLET_LINE = /^(?:[-*•]|\d+[.)])\s+/;
 
-type MessageBlock =
-  | { type: 'text'; text: string }
-  | { type: 'nav'; items: NavChip[] };
+const WELCOME_TEXT =
+  "Hi! I'm Spidey — ask me about Revision Hub, flashcards, Notes Library, Quiz, or anything else on EduNets.";
 
-const GO_LINK = /\[\[go:(\/[a-z0-9/-]+)\|([^\]]{1,40})\]\]/gi;
-
-const ALLOWED_NAV = new Set([
-  '/dashboard',
-  '/quiz',
-  '/concept-web',
-  '/capture-hub',
-  '/study-squad',
-  '/ask-teacher',
-  '/notifications',
-  '/profile',
-]);
-
-const WELCOME_TEXT = [
-  "Hi! I'm Spidey! 🕷️ Ask me where to start, what a feature does, or who made EduNets.",
-  'I can also suggest where to go next and give you quick buttons to open those pages.',
-].join('\n');
-
-function extractNavChips(text: string): NavChip[] {
-  const items: NavChip[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(GO_LINK)) {
-    const path = match[1] ?? '';
-    const label = (match[2] ?? '').trim();
-    if (!ALLOWED_NAV.has(path) || !label || seen.has(path)) continue;
-    seen.add(path);
-    items.push({ path, label });
-  }
-  return items;
-}
-
-function stripNavChips(text: string): string {
-  return text.replace(GO_LINK, '').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-function parseSpideyBlocks(text: string): MessageBlock[] {
-  const nav = extractNavChips(text);
-  const prose = stripNavChips(text)
-    .replace(/\r\n/g, '\n')
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const blocks: MessageBlock[] = prose.map((line) => ({ type: 'text', text: line }));
-  if (nav.length > 0) blocks.push({ type: 'nav', items: nav });
-  return blocks;
-}
-
-function SpideyEmojiText({ text }: { text: string }) {
-  const regex = emojiRegex();
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null = regex.exec(text);
-  let key = 0;
-
-  while (match) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-    nodes.push(
-      <span key={`emoji-${key}`} className="inline-block translate-y-[0.05em] text-[1.15em] leading-none">
-        {match[0]}
-      </span>,
-    );
-    key += 1;
-    lastIndex = match.index + match[0].length;
-    match = regex.exec(text);
-  }
-
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return <>{nodes}</>;
+function cleanSpideyLine(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/^#{1,6}\s+/, '')
+    .replace(BULLET_LINE, '')
+    .trim();
 }
 
 function SpideyAvatar({ size = 28 }: { size?: number }) {
@@ -109,6 +41,7 @@ function SpideyAvatar({ size = 28 }: { size?: number }) {
         alt=""
         fill
         sizes={`${size}px`}
+        // Wide scene art — pin the circle on Spidey's face/body, not the chart.
         className="object-cover object-[26%_48%]"
         draggable={false}
       />
@@ -116,19 +49,11 @@ function SpideyAvatar({ size = 28 }: { size?: number }) {
   );
 }
 
-function SpideyMessageBody({
-  text,
-  role,
-  onNavigate,
-}: {
-  text: string;
-  role: DisplayMessage['role'];
-  onNavigate?: (path: string) => void;
-}) {
+function SpideyMessageBody({ text, role }: { text: string; role: DisplayMessage['role'] }) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean);
+  const intro = lines.filter((line) => !BULLET_LINE.test(line)).map(cleanSpideyLine).filter(Boolean);
+  const bullets = lines.filter((line) => BULLET_LINE.test(line)).map(cleanSpideyLine).filter(Boolean);
   const isUser = role === 'user';
-  const blocks = isUser
-    ? [{ type: 'text' as const, text }]
-    : parseSpideyBlocks(text);
 
   return (
     <div
@@ -139,31 +64,18 @@ function SpideyMessageBody({
           : 'bg-[#FFF8DE] text-[#17233A] ring-1 ring-[#1D3A62]/08',
       )}
     >
-      <div className="space-y-2">
-        {blocks.map((block, index) => {
-          if (block.type === 'nav') {
-            return (
-              <div key={`nav-${index}`} className="flex flex-wrap gap-1.5 pt-1">
-                {block.items.map((item) => (
-                  <button
-                    key={item.path}
-                    type="button"
-                    onClick={() => onNavigate?.(item.path)}
-                    className="rounded-full border border-[#1D3A62]/15 bg-white px-3 py-1.5 text-[12px] font-bold text-[#1D3A62] shadow-sm transition hover:-translate-y-0.5 hover:border-[#6486B5] hover:bg-[#6486B5]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6486B5]"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            );
-          }
-          return (
-            <p key={`text-${index}`} className="font-medium">
-              <SpideyEmojiText text={block.text} />
-            </p>
-          );
-        })}
-      </div>
+      {intro.map((line, index) => (
+        <p key={`intro-${index}`} className={index > 0 ? 'mt-1.5' : undefined}>
+          {line}
+        </p>
+      ))}
+      {bullets.length > 0 && (
+        <ul className={`${intro.length > 0 ? 'mt-1.5' : ''} list-disc space-y-1 pl-4`}>
+          {bullets.map((line, index) => (
+            <li key={`bullet-${index}`}>{line}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -187,7 +99,6 @@ type SpideyChatProps = {
 
 export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
   const materials = useAtomValue(materialsLibraryAtom);
-  const navigate = useNavigate();
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [busy, setBusy] = useState(false);
@@ -214,11 +125,6 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  const openNav = (path: string) => {
-    navigate(path);
-    onClose?.();
-  };
 
   const send = async (text: string) => {
     if (busy) return;
@@ -272,10 +178,11 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
+      {/* Header — title + close */}
       <div className="flex shrink-0 items-center gap-2.5 border-b border-[#1D3A62]/10 pb-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold tracking-tight text-[#1D3A62]">Ask Spidey</p>
-          <p className="truncate text-[11px] text-[#6486B5]">Your friendly EduNets guide</p>
+          <p className="truncate text-[11px] text-[#6486B5]">Your EduNets study guide</p>
         </div>
         {onClose ? (
           <button
@@ -289,11 +196,12 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
         ) : null}
       </div>
 
+      {/* Messages */}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain py-3 pr-0.5">
         {messages.length === 0 && !busy ? (
           <div className="flex items-start gap-2">
             <SpideyAvatar size={32} />
-            <SpideyMessageBody role="assistant" text={WELCOME_TEXT} onNavigate={openNav} />
+            <SpideyMessageBody role="assistant" text={WELCOME_TEXT} />
           </div>
         ) : null}
 
@@ -306,11 +214,7 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
               className={cn('flex items-end gap-2', isUser ? 'justify-end' : 'justify-start')}
             >
               {!isUser ? <SpideyAvatar size={32} /> : null}
-              <SpideyMessageBody
-                role={message.role}
-                text={message.text}
-                onNavigate={isUser ? undefined : openNav}
-              />
+              <SpideyMessageBody role={message.role} text={message.text} />
             </div>
           );
         })}
@@ -325,6 +229,7 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
         ) : null}
       </div>
 
+      {/* Input + footer */}
       <div className="shrink-0 border-t border-[#1D3A62]/10 pt-3">
         <form
           className="flex items-center gap-2"
@@ -338,7 +243,7 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             disabled={busy}
-            placeholder="Ask about EduNets, Spidey, or the team…"
+            placeholder="Ask anything about EduNets…"
             className="h-11 min-w-0 flex-1 rounded-2xl border border-[#1D3A62]/12 bg-[#FFF8DE]/60 px-3.5 text-sm text-[#17233A] outline-none placeholder:text-[#6486B5]/70 focus-visible:border-[#6486B5] focus-visible:ring-2 focus-visible:ring-[#6486B5]/35 disabled:opacity-60"
           />
           <button
@@ -351,7 +256,7 @@ export function SpideyChat({ onContentChange, onClose }: SpideyChatProps = {}) {
           </button>
         </form>
         <p className="mt-2 text-center text-[10px] leading-snug text-[#6486B5]/90">
-          Powered by AI · EduNets, Spidey & the team only
+          Powered by AI · A little help getting around EduNets
         </p>
       </div>
     </div>

@@ -18,13 +18,6 @@ describe('notesRetrievalQuery', () => {
   it('uses the topic syllabus rather than a vague make-notes phrase', () => {
     expect(notesRetrievalQuery('chemistry-organic-chemistry')).toMatch(/Organic Chemistry/i);
   });
-
-  it('narrows the query when a subtopic focus is provided', () => {
-    expect(notesRetrievalQuery('chemistry-organic-chemistry', {
-      name: 'Alkenes',
-      description: 'Reactions and tests for unsaturation.',
-    })).toMatch(/Focus on subtopic: Alkenes/i);
-  });
 });
 
 describe('buildTopicNotesPrompt', () => {
@@ -44,16 +37,6 @@ describe('buildTopicNotesPrompt', () => {
     expect(prompt).not.toContain('Must-know facts');
     expect(prompt).not.toContain('p.361');
     expect(prompt).toMatch(/Never mention page numbers/i);
-  });
-
-  it('includes the subtopic focus line when provided', () => {
-    const focused = buildTopicNotesPrompt('chemistry-organic-chemistry', PASSAGES, {
-      name: 'Alkenes',
-      description: 'Reactions and tests for unsaturation.',
-    });
-    expect(focused).toContain('SUBTOPIC FOCUS: Alkenes');
-    expect(focused).toContain('# Alkenes');
-    expect(focused).toMatch(/Ignore passage material that is clearly about other subtopics/i);
   });
 });
 

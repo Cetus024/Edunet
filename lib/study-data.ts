@@ -58,18 +58,6 @@ export function getEffectiveScore(topic: TopicData): number | null {
   return topic.memoryScore;
 }
 
-/** Compact header streak: 1 if any topic was reviewed today, otherwise 0. */
-export function countLearnerStreakDays(subjects: readonly SubjectData[]): number {
-  const today = new Date();
-  const reviewedToday = subjects
-    .flatMap((subject) => subject.topics)
-    .some((topic) => {
-      if (!topic.lastReviewedAt) return false;
-      return new Date(topic.lastReviewedAt).toDateString() === today.toDateString();
-    });
-  return reviewedToday ? 1 : 0;
-}
-
 export function isAtRisk(topic: TopicData): boolean {
   const score = getEffectiveScore(topic);
   if (score === null) return false;

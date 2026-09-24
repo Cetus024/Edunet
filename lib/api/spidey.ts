@@ -15,7 +15,7 @@ export type SpideyMaterialContext = {
 
 export type SpideyChatFailure = {
   retryAfterSeconds?: number;
-  reason: 'not_configured' | 'provider_error' | 'rate_limited' | 'timeout' | 'incomplete_output' | 'blocked';
+  reason: 'not_configured' | 'provider_error' | 'rate_limited' | 'timeout' | 'incomplete_output';
 };
 
 export type SpideyChatResponse = {

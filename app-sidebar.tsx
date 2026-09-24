@@ -1,11 +1,15 @@
 'use client';
 
 import { NavLink, useLocation } from '@/lib/navigation';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { motion } from 'motion/react';
 import Image from 'next/image';
-import { LayoutDashboard, Brain, Share2, Inbox, Users, MessageCircle, LogOut, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Brain, Share2, Inbox, User, Users, MessageCircle, LogOut, Bell, type LucideIcon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
+import { useNotifications } from '@/lib/api/notifications';
 import { useSafeSignOut } from '@/features/auth/use-safe-sign-out';
 
 import { cn } from '@/lib/utils';
@@ -26,21 +30,29 @@ const learnerNavItems: NavItem[] = [
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
+  { path: '/notifications', labelKey: 'nav.notifications', shortKey: 'nav.notifications.short', icon: Bell },
   { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/study-squad', labelKey: 'nav.studySquad', shortKey: 'nav.studySquad.short', icon: Users },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
 
 // Teachers get no Notifications or Revision Hub entry: unread notifications
 // are folded into Teacher Home's priority list instead, and /capture-hub was
 // never reachable for a teaching role anyway (it is absent from
 // teachingRouteAllowed in features/auth/auth-gates.tsx, so the link bounced
-// straight back to /ask-teacher). Profile + notifications live in AppTopBar.
+// straight back to /ask-teacher). Learners keep both.
 const teachingNavItems: NavItem[] = [
   { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: LayoutDashboard },
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
   { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
+  { path: '/profile', labelKey: 'nav.myProfile', shortKey: 'nav.myProfile.short', icon: User },
 ];
+
+const roleLabelKeys: Record<'teacher' | 'student', TranslationKey> = {
+  teacher: 'role.teacher',
+  student: 'role.student',
+};
 
 
 export function AppSidebar() {
@@ -56,6 +68,11 @@ export function AppSidebar() {
     userId: user?.id ?? null,
     enabled: Boolean(account?.onboardingCompleted),
   });
+  const { data: notificationData } = useNotifications(
+    user?.id ?? null,
+    Boolean(account?.onboardingCompleted),
+  );
+  const unreadNotifications = notificationData?.unreadCount ?? 0;
 
   const activeNavItems = usesTeachingWorkspace ? teachingNavItems : learnerNavItems;
   return (
@@ -66,9 +83,11 @@ export function AppSidebar() {
         <div className="absolute -right-24 bottom-24 h-56 w-56 rounded-full bg-accent blob-soft" />
         <div className="relative z-10 h-full">
           <SidebarContent
+            user={user}
             role={role}
             location={location}
             unreadMessages={unreadMessages}
+            unreadNotifications={unreadNotifications}
             navItems={activeNavItems}
             teachingScopes={scopes}
             activeTeachingScopeId={activeScopeId}
@@ -92,7 +111,7 @@ export function AppSidebar() {
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 bg-sidebar text-sidebar-foreground z-50 rounded-[1.5rem] border border-sidebar-border shadow-[0_18px_45px_rgba(29,58,98,0.18)] safe-area-inset-bottom overflow-x-auto">
         <div className="flex min-w-max items-center h-16 px-2">
           {activeNavItems.map((item) => {
-            const isActive = item.path === '/'
+            const isActive = item.path === '/' 
               ? location.pathname === '/'
               : location.pathname.startsWith(item.path);
             const Icon = item.icon;
@@ -102,8 +121,8 @@ export function AppSidebar() {
                 to={item.path}
                 className={cn(
                   'relative flex min-w-16 flex-col items-center justify-center px-2 py-2 rounded-2xl transition-all',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-lg'
+                  isActive 
+                    ? 'bg-primary text-primary-foreground shadow-lg' 
                     : 'text-foreground hover:bg-secondary hover:text-secondary-foreground'
                 )}
               >
@@ -111,6 +130,9 @@ export function AppSidebar() {
                 <span className="text-[10px] mt-1 font-medium">{t(item.shortKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadMessages}</span>
+                )}
+                {item.path === '/notifications' && unreadNotifications > 0 && (
+                  <span className="absolute -right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-black text-destructive-foreground">{unreadNotifications}</span>
                 )}
               </NavLink>
             );
@@ -122,25 +144,38 @@ export function AppSidebar() {
 }
 
 function SidebarContent({
+  user,
   role,
   location,
   unreadMessages,
+  unreadNotifications,
   navItems,
   teachingScopes,
   activeTeachingScopeId,
   onTeachingScopeChange,
   onLogout,
 }: {
+  user: { name: string; image: string | null } | null;
   role: EduNetsRole | null;
   location: { pathname: string };
   unreadMessages: number;
+  unreadNotifications: number;
   navItems: NavItem[];
   teachingScopes: TeachingScope[];
   activeTeachingScopeId: string | null;
   onTeachingScopeChange: (scopeId: string) => void;
   onLogout: () => Promise<boolean>;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const isProfileActive = location.pathname.startsWith('/profile');
+  // The account card above already links to /profile on desktop.
+  const desktopNavItems = navItems.filter((item) => item.path !== '/profile');
+  const initials = user?.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'EN';
 
   return (
     <div className="flex flex-col h-full">
@@ -161,6 +196,52 @@ function SidebarContent({
         </motion.div>
       </div>
 
+      {/* Account Info - doubles as the My Profile trigger, which is why the
+          nav list below drops its own /profile entry. The mobile bottom bar
+          keeps that entry, because this card renders only in the desktop
+          sidebar and removing it there would strand profile access. */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mx-4"
+      >
+        <NavLink
+          to="/profile"
+          aria-label={t('nav.myProfile')}
+          className={cn(
+            'block rounded-[1.35rem] border bg-card text-card-foreground px-4 py-4 shadow-[0_14px_34px_rgba(29,58,98,0.12)] transition-all',
+            'hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(29,58,98,0.18)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+            isProfileActive ? 'border-primary' : 'border-sidebar-border hover:border-primary/40',
+          )}
+        >
+        <div className="flex items-center gap-3">
+          <Avatar className="w-11 h-11 border-2 border-white shadow-sm">
+            <AvatarImage src={user?.image ?? undefined} />
+            <AvatarFallback className={cn(
+              'text-sm font-bold',
+              isTeachingRole(role) ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'bg-primary text-primary-foreground',
+            )}>
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-card-foreground truncate">
+              {user?.name || t('role.member')}
+            </p>
+            <p className="text-xs font-semibold text-muted-foreground">
+              {role ? t(roleLabelKeys[role]) : t('role.member')}
+              {' · '}
+              {format(new Date(), locale === 'zh' ? 'yyyy年M月d日' : 'dd MMM yyyy', {
+                locale: locale === 'zh' ? zhCN : undefined,
+              })}
+            </p>
+          </div>
+        </div>
+        </NavLink>
+      </motion.div>
+
       {isTeachingRole(role) && teachingScopes.length > 0 && (
         <TeachingContextSelect
           scopes={teachingScopes}
@@ -169,14 +250,14 @@ function SidebarContent({
         />
       )}
 
-      {/* Navigation — profile + notifications live in AppTopBar */}
+      {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item: NavItem, index: number) => {
-          const isActive = item.path === '/'
+        {desktopNavItems.map((item: NavItem, index: number) => {
+          const isActive = item.path === '/' 
             ? location.pathname === '/'
             : location.pathname.startsWith(item.path);
           const Icon = item.icon;
-
+          
           return (
             <motion.div
               key={item.path}
@@ -188,8 +269,8 @@ function SidebarContent({
                 to={item.path}
                 className={cn(
                   'flex items-center gap-3 px-4 py-3.5 rounded-full text-sm font-bold transition-all relative',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_14px_34px_rgba(29,58,98,0.20)]'
+                  isActive 
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_14px_34px_rgba(29,58,98,0.20)]' 
                     : 'text-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1'
                 )}
               >
@@ -197,6 +278,9 @@ function SidebarContent({
                 <span>{t(item.labelKey)}</span>
                 {item.path === '/ask-teacher' && unreadMessages > 0 && (
                   <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadMessages}</span>
+                )}
+                {item.path === '/notifications' && unreadNotifications > 0 && (
+                  <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-2 text-xs font-black text-destructive-foreground">{unreadNotifications}</span>
                 )}
               </NavLink>
             </motion.div>

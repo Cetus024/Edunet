@@ -17,15 +17,5 @@
       "chemistry-organic-chemistry",
       "chemistry-maintaining-air-quality"
     ]
-  },
-  {
-    "file": "Math_Text.pdf",
-    "title": "O-Level Mathematics textbook",
-    "subjectId": "e-math",
-    "topicIds": [
-      "math-number-algebra",
-      "math-geometry-measurement",
-      "math-statistics-probability"
-    ]
   }
 ]

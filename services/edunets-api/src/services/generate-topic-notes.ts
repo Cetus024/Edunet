@@ -13,40 +13,21 @@ export const TOPIC_NOTES_MAX_TOKENS = 4000;
 export const NO_TEXTBOOK_REPLY =
   'This topic has no staff textbook in the syllabus database yet. Study notes can only be written from ingested textbooks.';
 
-export type NotesFocus = {
-  name: string;
-  description?: string;
-};
-
 export type TopicNotesResult = {
   text: string;
   citations: NoteCitation[];
   grounded: boolean;
 };
 
-export function notesRetrievalQuery(topicId: string, focus?: NotesFocus | null): string {
+export function notesRetrievalQuery(topicId: string): string {
   const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicHint = topic ? `${topic.name}. ${topic.description}` : topicId;
-  if (focus?.name) {
-    const focusHint = focus.description?.trim()
-      ? `${focus.name}. ${focus.description.trim()}`
-      : focus.name;
-    return `${topicHint}. Focus on subtopic: ${focusHint}. Key definitions, explanations, worked examples, exam questions, and revision notes for that subtopic only.`;
-  }
   return `${topicHint}. Key definitions, explanations, worked examples, exam questions, and revision notes.`;
 }
 
-export function buildTopicNotesPrompt(
-  topicId: string,
-  passages: readonly RetrievedPassage[],
-  focus?: NotesFocus | null,
-): string {
+export function buildTopicNotesPrompt(topicId: string, passages: readonly RetrievedPassage[]): string {
   const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicLabel = topic ? `${topic.name} (${topic.id})` : topicId;
-  const notesTitle = focus?.name?.trim() || topic?.name || 'Study notes';
-  const focusLine = focus?.name
-    ? `SUBTOPIC FOCUS: ${focus.name}${focus.description?.trim() ? ` — ${focus.description.trim()}` : ''}`
-    : null;
   const passageLines = passages.map((passage, index) => (
     `[Passage ${index + 1}: ${passage.title}]\n${passage.content.trim()}`
   )).join('\n\n');
@@ -54,20 +35,17 @@ export function buildTopicNotesPrompt(
   return [
     'You are writing O-Level revision notes for a Singapore secondary student.',
     'Use ONLY the TEXTBOOK PASSAGES below. Do not use outside knowledge.',
-    focusLine
-      ? 'Keep the notes on the SUBTOPIC FOCUS below. Ignore passage material that is clearly about other subtopics.'
-      : 'Cover the full topic using the passages.',
     'Never mention page numbers, figure numbers, Fig., diagrams by number, or "as shown in Figure". Teach the chemistry, not the book layout.',
     '',
     `TOPIC: ${topicLabel}`,
-    ...(focusLine ? [focusLine, ''] : ['']),
+    '',
     'TEXTBOOK PASSAGES:',
     passageLines,
     '',
     'TASK: Write full revision notes a student can actually study from, not a list of facts.',
     'Write GitHub-flavoured Markdown. The app renders formulas with KaTeX and mhchem.',
     'Use this exact layout:',
-    `# ${notesTitle}`,
+    `# ${topic ? topic.name : 'Study notes'}`,
     '',
     '## Overview',
     'Two or three short paragraphs that introduce the topic and why it matters in the exam.',
@@ -106,35 +84,29 @@ export async function generateTopicNotes(
   topicId: string,
   model: AnalysisModel,
   retrieve: (topicId: string, query: string) => Promise<RetrievedPassage[]> = retrieveTopicPassages,
-  focus?: NotesFocus | null,
 ): Promise<TopicNotesResult> {
-  const query = notesRetrievalQuery(topicId.trim(), focus);
+  const query = notesRetrievalQuery(topicId.trim());
   const passages = query ? await retrieve(topicId.trim(), query) : [];
   if (passages.length === 0) {
     return { text: NO_TEXTBOOK_REPLY, citations: [], grounded: false };
   }
 
-  const reply = (await model.complete(buildTopicNotesPrompt(topicId, passages, focus), {
+  const reply = (await model.complete(buildTopicNotesPrompt(topicId, passages), {
     maxTokens: TOPIC_NOTES_MAX_TOKENS,
     timeoutMs: 60_000,
   })).trim();
 
   return {
-    text: reply ? ensureTopicNotesMarkup(topicId, reply, focus) : NO_TEXTBOOK_REPLY,
+    text: reply ? ensureTopicNotesMarkup(topicId, reply) : NO_TEXTBOOK_REPLY,
     citations: passagesToCitations(passages),
     grounded: Boolean(reply),
   };
 }
 
-export function ensureTopicNotesMarkup(
-  topicId: string,
-  text: string,
-  focus?: NotesFocus | null,
-): string {
+export function ensureTopicNotesMarkup(topicId: string, text: string): string {
   const cleaned = dropDanglingClauses(stripTextbookPointers(sanitiseStudyNotesMarkup(text)));
   if (!cleaned) return cleaned;
   if (/^#{1,3}\s+\S/m.test(cleaned)) return cleaned;
   const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
-  const title = focus?.name?.trim() || topic?.name || 'Study notes';
-  return `# ${title}\n\n${cleaned}`;
+  return `# ${topic?.name ?? 'Study notes'}\n\n${cleaned}`;
 }

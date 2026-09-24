@@ -308,10 +308,7 @@ function NotesLibraryLayer({
   setNotesGenSubject,
   notesGenTopic,
   setNotesGenTopic,
-  notesGenSubtopicId,
-  setNotesGenSubtopicId,
   notesGenTopics,
-  notesGenSubtopics,
   resolvedNotesGenTopicId,
   isGeneratingNotes,
   onGenerateNotes,
@@ -335,10 +332,7 @@ function NotesLibraryLayer({
   setNotesGenSubject: (value: string) => void;
   notesGenTopic: string;
   setNotesGenTopic: (value: string) => void;
-  notesGenSubtopicId: string;
-  setNotesGenSubtopicId: (value: string) => void;
   notesGenTopics: string[];
-  notesGenSubtopics: { id: string; name: string; syllabusCode: string }[];
   resolvedNotesGenTopicId: string | null;
   isGeneratingNotes: boolean;
   onGenerateNotes: () => void;
@@ -394,7 +388,6 @@ function NotesLibraryLayer({
                 onValueChange={(value) => {
                   setNotesGenSubject(value);
                   setNotesGenTopic('');
-                  setNotesGenSubtopicId('');
                 }}
               >
                 <SelectTrigger className="rounded-xl">
@@ -413,10 +406,7 @@ function NotesLibraryLayer({
               </Select>
               <Select
                 value={notesGenTopic}
-                onValueChange={(topic) => {
-                  setNotesGenTopic(topic);
-                  setNotesGenSubtopicId('');
-                }}
+                onValueChange={setNotesGenTopic}
                 disabled={!notesGenSubject}
               >
                 <SelectTrigger className="rounded-xl">
@@ -431,26 +421,6 @@ function NotesLibraryLayer({
                 </SelectContent>
               </Select>
             </div>
-            {notesGenTopic && notesGenSubtopics.length > 0 ? (
-              <Select
-                value={notesGenSubtopicId || '__whole__'}
-                onValueChange={(value) => {
-                  setNotesGenSubtopicId(value === '__whole__' ? '' : value);
-                }}
-              >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Whole topic or pick a subtopic" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__whole__">Whole topic</SelectItem>
-                  {notesGenSubtopics.map((subtopic) => (
-                    <SelectItem key={subtopic.id} value={subtopic.id}>
-                      {subtopic.syllabusCode ? `${subtopic.syllabusCode} · ${subtopic.name}` : subtopic.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
             {notesGenTopic && !resolvedNotesGenTopicId && (
               <p className="text-xs text-amber-800">
                 This topic is not connected to syllabus data, so notes cannot be generated.
@@ -720,8 +690,6 @@ export default function CaptureHubPage() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [notesGenSubject, setNotesGenSubject] = useState('');
   const [notesGenTopic, setNotesGenTopic] = useState('');
-  /** Empty string = whole topic; otherwise a curriculum subtopic id. */
-  const [notesGenSubtopicId, setNotesGenSubtopicId] = useState('');
   const [libraryNotes, setLibraryNotes] = useState('');
 
   // Keep generated summaries separate from loading/error states and demo metadata.
@@ -943,21 +911,6 @@ export default function CaptureHubPage() {
     return resolveRubricTopicId(subjectName, notesGenTopic);
   }, [notesGenSubject, notesGenTopic]);
 
-  const notesGenSubtopics = useMemo(() => {
-    if (!notesGenSubject || !notesGenTopic) return [];
-    return CURRICULUM
-      .find((subject) => subject.id === notesGenSubject)
-      ?.topics.find((topic) => topic.name === notesGenTopic)
-      ?.subtopics ?? [];
-  }, [notesGenSubject, notesGenTopic]);
-
-  const notesGenFocus = useMemo(() => {
-    if (!notesGenSubtopicId) return undefined;
-    const subtopic = notesGenSubtopics.find((candidate) => candidate.id === notesGenSubtopicId);
-    if (!subtopic) return undefined;
-    return { name: subtopic.name, description: subtopic.description };
-  }, [notesGenSubtopicId, notesGenSubtopics]);
-
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
     const subjectName = subjects.find((subject) => subject.id === selectedSubject)?.name;
@@ -974,18 +927,9 @@ export default function CaptureHubPage() {
       return;
     }
     setIsGeneratingNotes(true);
-    appendDebugLog(
-      'Generate',
-      'running',
-      notesGenFocus
-        ? `Writing study notes for ${notesGenFocus.name} from the staff textbook.`
-        : 'Writing study notes from the staff textbook.',
-    );
+    appendDebugLog('Generate', 'running', 'Writing study notes from the staff textbook.');
     try {
-      const result = await generateTopicNotesApi({
-        topicId: resolvedNotesGenTopicId,
-        focus: notesGenFocus,
-      });
+      const result = await generateTopicNotesApi({ topicId: resolvedNotesGenTopicId });
       if (!result.available) {
         const message = result.failure
           ? describeCaptureFailure(result.failure)
@@ -1293,10 +1237,7 @@ export default function CaptureHubPage() {
           setNotesGenSubject={setNotesGenSubject}
           notesGenTopic={notesGenTopic}
           setNotesGenTopic={setNotesGenTopic}
-          notesGenSubtopicId={notesGenSubtopicId}
-          setNotesGenSubtopicId={setNotesGenSubtopicId}
           notesGenTopics={notesGenTopics}
-          notesGenSubtopics={notesGenSubtopics}
           resolvedNotesGenTopicId={resolvedNotesGenTopicId}
           isGeneratingNotes={isGeneratingNotes}
           onGenerateNotes={() => void handleGenerateNotes()}

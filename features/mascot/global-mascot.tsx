@@ -29,39 +29,13 @@ import {
 } from './state';
 
 const COLLAPSED_KEY = 'edunets-mascot-collapsed';
-const FIRST_WELCOME_KEY = 'edunets-spidey-first-welcome-done';
-const SESSION_WELCOME_KEY = 'edunets-spidey-session-welcome-done';
 const DRAG_THRESHOLD_PX = 5;
 const VIEWPORT_GUTTER_PX = 12;
 const MOBILE_APP_NAV_CLEARANCE_PX = 96;
 const FEATURE_TIP_OPEN_DELAY_MS = 450;
-const FEATURE_TIP_VISIBLE_MS = 5500;
-const WELCOME_TIP_VISIBLE_MS = 12_000;
-const MOTIVATION_INTERVAL_MS = 5 * 60 * 1000;
-const MOTIVATION_VISIBLE_MS = 6500;
+const FEATURE_TIP_VISIBLE_MS = 5200;
 
 type PanelMode = 'closed' | 'tip' | 'chat';
-type TipKind = 'feature' | 'welcome' | 'nudge';
-
-const FIRST_VISIT_MESSAGE =
-  "Hi, I'm Spidey! 🕷️ New here? Start at your Dashboard to check your reminders, then try a Smart Quiz. After that, explore the Concept Web or Revision Hub, and bring friends into Study Squad. Ask me anytime if you're lost!";
-
-const WELCOME_BACK_MESSAGES = [
-  'Welcome back to EduNets! Need any help navigating around?',
-  'Good to see you again! Want a quick tip on where to go next?',
-  'Welcome back! I can help you find your way around EduNets anytime.',
-];
-
-const MOTIVATION_TIPS = [
-  'Small revision beats cramming — even 10 focused minutes builds your web.',
-  'You showed up today. That already strengthens the threads!',
-  'A short Smart Quiz now can stop a topic from fading later.',
-  'Progress is a web, not a straight line. Keep spinning gently.',
-  'Try one fading topic on Concept Web — tiny reviews add up.',
-  'Breathe, pick one screen, and take the next small step. You have got this.',
-  'Friends in Study Squad make revision lighter. Want to invite someone later?',
-  'Your future self will thank you for one calm review session today.',
-];
 
 type Point = {
   x: number;
@@ -307,73 +281,12 @@ function writeCollapsedPreference(collapsed: boolean) {
   }
 }
 
-function readStorageFlag(key: string, storage: 'local' | 'session'): boolean {
-  try {
-    const store = storage === 'local' ? localStorage : sessionStorage;
-    return store.getItem(key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function writeStorageFlag(key: string, storage: 'local' | 'session') {
-  try {
-    const store = storage === 'local' ? localStorage : sessionStorage;
-    store.setItem(key, 'true');
-  } catch {
-    // Storage is optional in restricted WebViews.
-  }
-}
-
-function pickWelcomeBackMessage(): string {
-  const index = Math.floor(Math.random() * WELCOME_BACK_MESSAGES.length);
-  return WELCOME_BACK_MESSAGES[index] ?? WELCOME_BACK_MESSAGES[0]!;
-}
-
-function pickMotivationTip(exclude?: string | null): string {
-  const options = exclude
-    ? MOTIVATION_TIPS.filter((tip) => tip !== exclude)
-    : MOTIVATION_TIPS;
-  const pool = options.length > 0 ? options : MOTIVATION_TIPS;
-  const index = Math.floor(Math.random() * pool.length);
-  return pool[index] ?? MOTIVATION_TIPS[0]!;
-}
-
-function resolveLandingTip(isAppRoute: boolean, featureMessage: string): {
-  message: string;
-  kind: TipKind;
-  visibleMs: number;
-} {
-  if (!isAppRoute) {
-    return { message: featureMessage, kind: 'feature', visibleMs: FEATURE_TIP_VISIBLE_MS };
-  }
-
-  if (!readStorageFlag(FIRST_WELCOME_KEY, 'local')) {
-    writeStorageFlag(FIRST_WELCOME_KEY, 'local');
-    writeStorageFlag(SESSION_WELCOME_KEY, 'session');
-    return { message: FIRST_VISIT_MESSAGE, kind: 'welcome', visibleMs: WELCOME_TIP_VISIBLE_MS };
-  }
-
-  if (!readStorageFlag(SESSION_WELCOME_KEY, 'session')) {
-    writeStorageFlag(SESSION_WELCOME_KEY, 'session');
-    return {
-      message: pickWelcomeBackMessage(),
-      kind: 'welcome',
-      visibleMs: FEATURE_TIP_VISIBLE_MS + 1500,
-    };
-  }
-
-  return { message: featureMessage, kind: 'feature', visibleMs: FEATURE_TIP_VISIBLE_MS };
-}
-
 function GlobalMascotContent() {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
   const landingScene = useAtomValue(landingMascotSceneAtom);
   const [feedback, setFeedback] = useAtom(mascotFeedbackAtom);
   const [panelMode, setPanelMode] = useState<PanelMode>('closed');
-  const [tipKind, setTipKind] = useState<TipKind>('feature');
-  const [tipOverride, setTipOverride] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [position, setPosition] = useState<Point | null>(null);
@@ -381,7 +294,6 @@ function GlobalMascotContent() {
   const [dragging, setDragging] = useState(false);
   const feedbackRef = useRef(feedback);
   const panelModeRef = useRef(panelMode);
-  const tipOverrideRef = useRef<string | null>(null);
   const mascotButtonRef = useRef<HTMLButtonElement>(null);
   const bubbleRef = useRef<HTMLElement>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
@@ -390,13 +302,10 @@ function GlobalMascotContent() {
   const routeConfig = useMemo(() => configForPath(pathname), [pathname]);
   const routeScene = pathname === '/' ? landingScene ?? routeConfig.scene : routeConfig.scene;
   const scene = feedback?.scene ?? routeScene;
-  const tipMessage = tipOverride
-    ?? feedback?.message
-    ?? (pathname === '/' ? landingMessages[routeScene] : routeConfig.message);
+  const tipMessage = feedback?.message ?? (pathname === '/' ? landingMessages[routeScene] : routeConfig.message);
   const bubbleOpen = panelMode !== 'closed';
   const showChat = panelMode === 'chat' && Boolean(routeConfig.appRoute);
   const showTip = bubbleOpen && !showChat;
-  const tipLabel = tipKind === 'welcome' ? 'Spidey' : tipKind === 'nudge' ? 'Spidey nudge' : 'Spidey tip';
 
   const moveMascot = useCallback(
     (candidate: Point) => {
@@ -458,10 +367,6 @@ function GlobalMascotContent() {
   }, [panelMode]);
 
   useEffect(() => {
-    tipOverrideRef.current = tipOverride;
-  }, [tipOverride]);
-
-  useEffect(() => {
     try {
       setCollapsed(localStorage.getItem(COLLAPSED_KEY) === 'true');
     } catch {
@@ -475,56 +380,28 @@ function GlobalMascotContent() {
     setPanelMode('closed');
   }, [pathname, setFeedback]);
 
-  // First visit / welcome-back / one-line feature tip when a screen opens.
+  // One-line feature tip every time the student opens a screen.
   useEffect(() => {
     if (!preferencesReady || collapsed || routeConfig.hidden) return;
 
-    const landing = resolveLandingTip(Boolean(routeConfig.appRoute), routeConfig.message);
     const openTimer = window.setTimeout(() => {
       if (panelModeRef.current === 'chat') return;
-      setTipOverride(landing.message);
-      setTipKind(landing.kind);
       setPanelMode('tip');
     }, FEATURE_TIP_OPEN_DELAY_MS);
     const closeTimer = window.setTimeout(() => {
       if (panelModeRef.current === 'tip' && !feedbackRef.current) {
         setPanelMode('closed');
       }
-    }, FEATURE_TIP_OPEN_DELAY_MS + landing.visibleMs);
+    }, FEATURE_TIP_OPEN_DELAY_MS + FEATURE_TIP_VISIBLE_MS);
     return () => {
       window.clearTimeout(openTimer);
       window.clearTimeout(closeTimer);
     };
-  }, [collapsed, pathname, preferencesReady, routeConfig.appRoute, routeConfig.hidden, routeConfig.message]);
-
-  // Gentle study nudge every 5 minutes while the student is on an app screen.
-  useEffect(() => {
-    if (!preferencesReady || collapsed || !routeConfig.appRoute || routeConfig.hidden) return;
-
-    const timer = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (panelModeRef.current === 'chat') return;
-      const tip = pickMotivationTip(tipOverrideRef.current);
-      setTipOverride(tip);
-      setTipKind('nudge');
-      setPanelMode('tip');
-      window.setTimeout(() => {
-        if (panelModeRef.current === 'tip' && !feedbackRef.current) {
-          setPanelMode('closed');
-        }
-      }, MOTIVATION_VISIBLE_MS);
-    }, MOTIVATION_INTERVAL_MS);
-
-    return () => window.clearInterval(timer);
-  }, [collapsed, preferencesReady, routeConfig.appRoute, routeConfig.hidden]);
+  }, [collapsed, pathname, preferencesReady, routeConfig.hidden]);
 
   useEffect(() => {
     if (!feedback) return;
-    if (!collapsed) {
-      setTipOverride(null);
-      setTipKind('feature');
-      setPanelMode('tip');
-    }
+    if (!collapsed) setPanelMode('tip');
 
     const timer = window.setTimeout(() => {
       setFeedback(null);
@@ -755,9 +632,7 @@ function GlobalMascotContent() {
               'pointer-events-auto absolute z-10 flex flex-col overflow-hidden rounded-[1.35rem] border border-[#1D3A62]/12 bg-white text-card-foreground shadow-[0_20px_55px_rgba(29,58,98,0.22)]',
               showChat
                 ? 'min-h-[18rem] w-[min(24rem,calc(100vw-2rem))] max-h-[min(78dvh,36rem)] p-3.5'
-                : tipKind === 'welcome'
-                  ? 'w-[min(22rem,calc(100vw-2rem))] p-3.5'
-                  : 'w-[min(18rem,calc(100vw-2rem))] p-3',
+                : 'w-[min(18rem,calc(100vw-2rem))] p-3',
             )}
           >
             {showChat ? (
@@ -769,7 +644,7 @@ function GlobalMascotContent() {
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#6486B5]">
-                    {tipLabel}
+                    Spidey tip
                   </p>
                   <button
                     type="button"
