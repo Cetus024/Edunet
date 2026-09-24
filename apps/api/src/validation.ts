@@ -167,16 +167,26 @@ export const captureGenerateNotesSchema = z.strictObject({
   topicId: z.string().trim().min(1).max(128),
 });
 
+export const captureGenerateFlashcardsSchema = z.strictObject({
+  topicId: z.string().trim().min(1).max(128),
+  focus: z.strictObject({
+    name: z.string().trim().min(1).max(160),
+    description: z.string().trim().max(500).optional(),
+  }).optional(),
+});
+
 export const spideyChatSchema = z.strictObject({
   messages: z.array(z.strictObject({
     role: z.enum(['user', 'assistant']),
-    text: z.string().trim().min(1).max(8_000),
+    // Assistant replies may include nav chips; keep room for a short history turn.
+    text: z.string().trim().min(1).max(4_000),
   })).min(1).max(12),
   materials: z.array(z.strictObject({
     name: z.string().trim().min(1).max(160),
-    subject: z.string().trim().min(1).max(64),
-    topic: z.string().trim().min(1).max(160),
-  })).max(20).optional(),
+    // Allow blank subject/topic from older saved materials; the service drops empties.
+    subject: z.string().trim().max(64).default(''),
+    topic: z.string().trim().max(160).default(''),
+  })).max(12).optional(),
 });
 
 export const createStudySquadSchema = z.strictObject({

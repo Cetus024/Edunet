@@ -20,12 +20,14 @@ export const navDict = {
   'nav.messages.short': { en: 'Messages', zh: '消息' },
   'nav.notifications': { en: 'Notifications', zh: '通知中心' },
   'nav.notifications.short': { en: 'Alerts', zh: '通知' },
-  'nav.captureHub': { en: 'Capture Hub', zh: '随手记' },
-  'nav.captureHub.short': { en: 'Capture', zh: '随手记' },
+  'nav.captureHub': { en: 'Revision Hub', zh: '复习中心' },
+  'nav.captureHub.short': { en: 'Revision', zh: '复习' },
   'nav.studySquad': { en: 'Study Squad', zh: '学习小队' },
   'nav.studySquad.short': { en: 'Study', zh: '小队' },
   'nav.myProfile': { en: 'My Profile', zh: '个人资料' },
   'nav.myProfile.short': { en: 'My', zh: '我的' },
+
+  'topbar.streak': { en: '{days}-day streak', zh: '连续 {days} 天' },
 
   'sidebar.tagline': {
     en: 'Weave stronger bonds, retain every lesson',

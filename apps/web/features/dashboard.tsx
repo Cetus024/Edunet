@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { ChevronRight, Flame, CheckCircle2, TrendingUp, Clock, Inbox } from 'lucide-react';
+import { ChevronRight, CheckCircle2, TrendingUp, Clock, Inbox } from 'lucide-react';
 import Image from 'next/image';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
@@ -495,14 +495,7 @@ function StudentDashboard() {
     const scores = startedTopics
       .map((topic) => getEffectiveScore(topic))
       .filter((score): score is number => score !== null);
-    const reviewedToday = startedTopics.some((topic) => {
-      if (!topic.lastReviewedAt) return false;
-      const reviewed = new Date(topic.lastReviewedAt);
-      const today = new Date();
-      return reviewed.toDateString() === today.toDateString();
-    });
     return {
-      days: reviewedToday ? 1 : 0,
       topicsReviewed: startedTopics.length,
       avgScore: scores.length
         ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
@@ -680,18 +673,7 @@ function StudentDashboard() {
         </h2>
         
         <div className="flex flex-wrap gap-3">
-          {/* Streak days */}
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-primary text-primary-foreground shadow-lg"
-          >
-            <Flame className="w-5 h-5" />
-            <span className="font-bold">{streakStats.days}-day streak</span>
-          </motion.div>
-
-          {/* Topics reviewed */}
+          {/* Topics reviewed — day streak lives in AppTopBar */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

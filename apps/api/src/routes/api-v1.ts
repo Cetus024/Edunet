@@ -28,9 +28,12 @@ import { summarizeNotes } from '../services/summarize-notes.js';
 import { analysisFailure } from '../services/analysis-error.js';
 import { getGeminiChatModel } from '../services/gemini.js';
 import { generateTopicNotes } from '../services/generate-topic-notes.js';
+import { generateFlashcards } from '../services/generate-flashcards.js';
 import { answerSpideyChat } from '../services/spidey-chat.js';
+import { checkSpideyRateLimit } from '../services/spidey-security.js';
 import {
   captureEvaluateSchema,
+  captureGenerateFlashcardsSchema,
   captureGenerateNotesSchema,
   captureOcrSchema,
   captureSummarizeSchema,
@@ -993,11 +996,68 @@ api.post('/me/capture/generate-notes', loadSession, requireSession, async (conte
   }
 });
 
+// Capture Hub: exam-critical flashcards from retrieved staff textbook passages.
+api.post('/me/capture/generate-flashcards', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureGenerateFlashcardsSchema.parse(await readJson(context));
+
+  const model = getGeminiChatModel();
+  if (!model) {
+    return context.json({
+      available: false,
+      cards: null,
+      failure: { stage: 'generate', reason: 'not_configured' },
+    });
+  }
+
+  try {
+    const result = await generateFlashcards(input.topicId, model, undefined, input.focus);
+    if (!result.grounded) {
+      return context.json({
+        available: true,
+        cards: null,
+        failure: { stage: 'generate', reason: 'no_textbook' },
+      });
+    }
+    if (result.cards.length === 0) {
+      return context.json({
+        available: true,
+        cards: null,
+        failure: { stage: 'generate', reason: 'incomplete_output' },
+      });
+    }
+    return context.json({
+      available: true,
+      cards: result.cards,
+      failure: null,
+    });
+  } catch (error) {
+    return context.json({
+      available: true,
+      cards: null,
+      failure: { stage: 'generate', ...analysisFailure(error) },
+    });
+  }
+});
+
 // Spidey: general study-guide chat (EduNets features, tips, saved materials).
 // Uses Gemini 3.1 Flash-Lite on GEMINI_API_KEY, not the 3.5 Flash OCR model.
 api.post('/me/spidey/chat', loadSession, requireSession, async (context) => {
-  requireUserId(context);
+  const userId = requireUserId(context);
   const input = spideyChatSchema.parse(await readJson(context));
+
+  const rate = checkSpideyRateLimit(userId);
+  if (!rate.allowed) {
+    return context.json({
+      available: true,
+      text: null,
+      failure: {
+        reason: 'rate_limited',
+        retryAfterSeconds: rate.retryAfterSeconds,
+      },
+    });
+  }
+
   const model = getGeminiChatModel();
   if (!model) {
     return context.json({

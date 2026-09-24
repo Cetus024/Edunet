@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useAtomValue } from 'jotai';
 
 import { AppSidebar } from '@/components/app-sidebar';
+import { AppTopBar } from '@/components/app-top-bar';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
 import {
@@ -47,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           willChange: 'margin-left',
         }}
       >
+        <AppTopBar />
         {children}
       </main>
     </div>

@@ -253,14 +253,14 @@ export function buildNoteEvaluationPrompt(
     'Do not return a percentage or a mark total. The app calculates that.',
     'verdict must be one of: accurate, partial, incorrect, missing.',
     '- accurate: the notes discuss this point AND the science is complete and correct. Full credit.',
-    '- For accurate, set point to one short plain sentence of what the notes got right, like "Oxidation and reduction are correctly defined in terms of electron loss and gain." No markdown.',
+    '- For accurate, set point to one short plain sentence of what the notes got right. Keep it brief and positive. No markdown.',
     '- partial: mentioned but incomplete or imprecise. Half credit.',
-    '- For partial or missing, set point to one short plain sentence naming the gap, like "Definition of oxidation and reduction in terms of the gain and loss of oxygen." Start with a noun phrase such as "Definition of", "The formal definition of", "Examples of", or "The rules for". One idea. No markdown, figures, pages, or LaTeX.',
+    '- For partial or missing, set point to one short plain sentence naming the gap, like "Definition of oxidation and reduction in terms of the gain and loss of oxygen." Start with a noun phrase such as "Definition of", "Examples of", or "The rules for". One idea. No markdown, figures, pages, or LaTeX.',
     '- incorrect: discussed but CONTRADICTS the mark scheme. No credit. Put the textbook wording in correction.',
     '- missing: not discussed. Does not score.',
-    '- improvements: 3-6 next steps starting with a verb (Add, Rewrite, Define, Compare, List, Include). No page numbers, figure numbers, textbook titles, or markdown.',
-    '- summary: two sentences, addressed to the student as "you".',
-    'If the notes are too short or off-topic, mark every point missing and say so in summary.',
+    '- improvements: 2-4 short, motivating next steps the student can try. Start with Try, Add, or Keep. Friendly coach tone, not stern. One idea each. No page numbers, figure numbers, textbook titles, or markdown.',
+    '- summary: one short encouraging sentence addressed to the student as "you". Celebrate what they attempted.',
+    'If the notes are too short or off-topic, mark every point missing and say kindly in summary that a bit more detail will help you guide them.',
   ].join('\n');
 }
 
