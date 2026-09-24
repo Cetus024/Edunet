@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '../../../../packages/database/index.js';
 import { quizQuestions } from '../../../../packages/database/schema/catalog.js';
-import { CURRICULUM_TOPIC_BY_ID } from '../../../../apps/web/lib/curriculum.js';
+import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
 
 /**
  * Judges a spoken explanation against the syllabus content this project already
@@ -42,7 +42,7 @@ export interface AnalysisModel {
 }
 
 export function buildTopicRubric(topicId: string): TopicGrounding['subconcepts'] | null {
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   if (!topic) return null;
 
   if (topic.subtopics.length > 0) {

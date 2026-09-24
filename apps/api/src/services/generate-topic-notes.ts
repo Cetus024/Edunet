@@ -1,4 +1,4 @@
-import { CURRICULUM_TOPIC_BY_ID } from '../../../../apps/web/lib/curriculum.js';
+import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
 import { sanitiseStudyNotesMarkup, stripTextbookPointers, dropDanglingClauses } from '../../../../apps/web/lib/study-notes.js';
 import type { AnalysisModel } from './explanation-analysis.js';
 import {
@@ -20,13 +20,13 @@ export type TopicNotesResult = {
 };
 
 export function notesRetrievalQuery(topicId: string): string {
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicHint = topic ? `${topic.name}. ${topic.description}` : topicId;
   return `${topicHint}. Key definitions, explanations, worked examples, exam questions, and revision notes.`;
 }
 
 export function buildTopicNotesPrompt(topicId: string, passages: readonly RetrievedPassage[]): string {
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicLabel = topic ? `${topic.name} (${topic.id})` : topicId;
   const passageLines = passages.map((passage, index) => (
     `[Passage ${index + 1}: ${passage.title}]\n${passage.content.trim()}`
@@ -107,6 +107,6 @@ export function ensureTopicNotesMarkup(topicId: string, text: string): string {
   const cleaned = dropDanglingClauses(stripTextbookPointers(sanitiseStudyNotesMarkup(text)));
   if (!cleaned) return cleaned;
   if (/^#{1,3}\s+\S/m.test(cleaned)) return cleaned;
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   return `# ${topic?.name ?? 'Study notes'}\n\n${cleaned}`;
 }

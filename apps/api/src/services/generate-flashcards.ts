@@ -1,4 +1,4 @@
-import { CURRICULUM_TOPIC_BY_ID } from '../../../../apps/web/lib/curriculum.js';
+import * as Curriculum from '../../../../apps/web/lib/curriculum.js';
 import { formatStudentFacingText } from '../../../../apps/web/lib/study-notes.js';
 import type { AnalysisModel } from './explanation-analysis.js';
 import {
@@ -29,7 +29,7 @@ export type FlashcardFocus = {
 };
 
 export function flashcardsRetrievalQuery(topicId: string, focus?: FlashcardFocus | null): string {
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicHint = topic ? `${topic.name}. ${topic.description}` : topicId;
   if (focus?.name) {
     const focusHint = focus.description?.trim()
@@ -45,7 +45,7 @@ export function buildFlashcardsPrompt(
   passages: readonly RetrievedPassage[],
   focus?: FlashcardFocus | null,
 ): string {
-  const topic = CURRICULUM_TOPIC_BY_ID.get(topicId);
+  const topic = Curriculum.CURRICULUM_TOPIC_BY_ID.get(topicId);
   const topicLabel = topic ? `${topic.name} (${topic.id})` : topicId;
   const focusLine = focus?.name
     ? `SUBTOPIC FOCUS: ${focus.name}${focus.description?.trim() ? ` — ${focus.description.trim()}` : ''}`
