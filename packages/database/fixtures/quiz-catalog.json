@@ -1,0 +1,4761 @@
+{
+  "version": 1,
+  "subjects": [
+    {
+      "id": "biology",
+      "name": "Biology",
+      "icon": "🧬",
+      "position": 0,
+      "topics": [
+        {
+          "id": "biology-cell-division-mitosis",
+          "name": "Cell Division (Mitosis)",
+          "position": 0,
+          "questions": [
+            {
+              "id": "biology-cell-division-mitosis-q001",
+              "type": "mcq",
+              "text": "What is the main outcome of mitosis?",
+              "correctAnswer": "1",
+              "explanation": "Mitosis produces two genetically identical daughter cells with the same chromosome number as the parent cell.",
+              "linkedConcept": "Purpose of Mitosis",
+              "options": [
+                "Four genetically different cells",
+                "Two genetically identical cells",
+                "Two haploid gametes",
+                "One cell with half the chromosomes"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-cell-division-mitosis-q002",
+              "type": "mcq",
+              "text": "During which stage of mitosis do chromosomes line up at the equator of the cell?",
+              "correctAnswer": "1",
+              "explanation": "Chromosomes align along the cell equator during metaphase.",
+              "linkedConcept": "Stages of Mitosis",
+              "options": [
+                "Prophase",
+                "Metaphase",
+                "Anaphase",
+                "Telophase"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-cell-division-mitosis-q003",
+              "type": "mcq",
+              "text": "What happens during anaphase?",
+              "correctAnswer": "2",
+              "explanation": "During anaphase, sister chromatids separate and are pulled to opposite poles by spindle fibres.",
+              "linkedConcept": "Chromosome Separation",
+              "options": [
+                "DNA replicates",
+                "Nuclear membranes reform",
+                "Sister chromatids move to opposite poles",
+                "Chromosomes become invisible"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-cell-division-mitosis-q004",
+              "type": "fill-blank",
+              "text": "Mitosis is important for growth, repair and _____ reproduction.",
+              "correctAnswer": "asexual",
+              "explanation": "Mitosis produces genetically identical cells and is used in asexual reproduction.",
+              "linkedConcept": "Functions of Mitosis",
+              "options": null,
+              "blankWord": "asexual",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-cell-division-mitosis-q005",
+              "type": "structured",
+              "text": "Explain why daughter cells produced by mitosis have the same chromosome number as the parent cell.",
+              "correctAnswer": "chromosome number",
+              "explanation": "DNA is replicated before mitosis, and one copy of every chromosome is separated into each daughter cell, maintaining the chromosome number.",
+              "linkedConcept": "Chromosome Maintenance",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-nutrition",
+          "name": "Nutrition",
+          "position": 1,
+          "questions": [
+            {
+              "id": "biology-nutrition-q001",
+              "type": "mcq",
+              "text": "Which enzyme digests starch into maltose?",
+              "correctAnswer": "0",
+              "explanation": "Amylase catalyses the breakdown of starch into maltose.",
+              "linkedConcept": "Chemical Digestion",
+              "options": [
+                "Amylase",
+                "Protease",
+                "Lipase",
+                "Pepsin"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-nutrition-q002",
+              "type": "mcq",
+              "text": "Where does most absorption of digested food occur?",
+              "correctAnswer": "1",
+              "explanation": "The small intestine has villi and microvilli that provide a large surface area for absorption.",
+              "linkedConcept": "Absorption",
+              "options": [
+                "Stomach",
+                "Small intestine",
+                "Large intestine",
+                "Oesophagus"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-nutrition-q003",
+              "type": "mcq",
+              "text": "What is the function of bile in digestion?",
+              "correctAnswer": "1",
+              "explanation": "Bile emulsifies large fat droplets into smaller droplets, increasing surface area for lipase.",
+              "linkedConcept": "Fat Digestion",
+              "options": [
+                "Digest protein",
+                "Emulsify fats",
+                "Convert starch to glucose",
+                "Absorb water"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-nutrition-q004",
+              "type": "fill-blank",
+              "text": "Finger-like projections called _____ increase the absorptive surface area of the small intestine.",
+              "correctAnswer": "villi",
+              "explanation": "Villi greatly increase the surface area available for absorption.",
+              "linkedConcept": "Small Intestine",
+              "options": null,
+              "blankWord": "villi",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-nutrition-q005",
+              "type": "structured",
+              "text": "A student has bleeding gums and wounds that heal slowly. Name the deficient vitamin and explain your answer.",
+              "correctAnswer": "vitamin C",
+              "explanation": "Vitamin C is required for healthy connective tissue; deficiency causes scurvy, including bleeding gums and poor wound healing.",
+              "linkedConcept": "Balanced Diet",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-respiration",
+          "name": "Respiration",
+          "position": 2,
+          "questions": [
+            {
+              "id": "biology-respiration-q001",
+              "type": "mcq",
+              "text": "Which word equation represents aerobic respiration?",
+              "correctAnswer": "1",
+              "explanation": "Aerobic respiration releases energy by reacting glucose with oxygen to form carbon dioxide and water.",
+              "linkedConcept": "Aerobic Respiration",
+              "options": [
+                "glucose → lactic acid",
+                "glucose + oxygen → carbon dioxide + water",
+                "carbon dioxide + water → glucose + oxygen",
+                "glucose → ethanol + carbon dioxide"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-respiration-q002",
+              "type": "mcq",
+              "text": "In which organelle does most aerobic respiration occur?",
+              "correctAnswer": "2",
+              "explanation": "Most aerobic respiration takes place in mitochondria.",
+              "linkedConcept": "Mitochondria",
+              "options": [
+                "Nucleus",
+                "Ribosome",
+                "Mitochondrion",
+                "Chloroplast"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-respiration-q003",
+              "type": "mcq",
+              "text": "Which substance accumulates in muscles during vigorous anaerobic respiration?",
+              "correctAnswer": "1",
+              "explanation": "Human muscle cells produce lactic acid during anaerobic respiration.",
+              "linkedConcept": "Anaerobic Respiration",
+              "options": [
+                "Ethanol",
+                "Lactic acid",
+                "Urea",
+                "Glycogen"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-respiration-q004",
+              "type": "fill-blank",
+              "text": "Extra oxygen needed after exercise to remove lactic acid is called the oxygen _____.",
+              "correctAnswer": "debt",
+              "explanation": "The oxygen debt is repaid after exercise through continued rapid breathing and heart rate.",
+              "linkedConcept": "Oxygen Debt",
+              "options": null,
+              "blankWord": "debt",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-respiration-q005",
+              "type": "structured",
+              "text": "Explain why breathing rate increases during exercise.",
+              "correctAnswer": "oxygen",
+              "explanation": "Working muscles respire faster and require more oxygen while producing more carbon dioxide, so ventilation increases.",
+              "linkedConcept": "Gas Exchange During Exercise",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-transport",
+          "name": "Transport",
+          "position": 3,
+          "questions": [
+            {
+              "id": "biology-transport-q001",
+              "type": "mcq",
+              "text": "Which substance in red blood cells binds reversibly with oxygen?",
+              "correctAnswer": "1",
+              "explanation": "Haemoglobin combines reversibly with oxygen to transport it around the body.",
+              "linkedConcept": "Blood",
+              "options": [
+                "Fibrin",
+                "Haemoglobin",
+                "Plasma",
+                "Glycogen"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-transport-q002",
+              "type": "mcq",
+              "text": "Which blood vessel carries blood away from the heart?",
+              "correctAnswer": "0",
+              "explanation": "Arteries carry blood away from the heart under relatively high pressure.",
+              "linkedConcept": "Blood Vessels",
+              "options": [
+                "Artery",
+                "Vein",
+                "Capillary",
+                "Venule"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-transport-q003",
+              "type": "mcq",
+              "text": "Which plant tissue transports water and mineral ions from roots to leaves?",
+              "correctAnswer": "1",
+              "explanation": "Xylem vessels transport water and dissolved mineral ions upwards through a plant.",
+              "linkedConcept": "Plant Transport",
+              "options": [
+                "Phloem",
+                "Xylem",
+                "Epidermis",
+                "Mesophyll"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-transport-q004",
+              "type": "fill-blank",
+              "text": "The liquid component of blood that transports dissolved substances is called _____.",
+              "correctAnswer": "plasma",
+              "explanation": "Plasma transports blood cells, nutrients, hormones, carbon dioxide and urea.",
+              "linkedConcept": "Blood Components",
+              "options": null,
+              "blankWord": "plasma",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-transport-q005",
+              "type": "structured",
+              "text": "Explain why the human circulatory system is described as a double circulation.",
+              "correctAnswer": "twice",
+              "explanation": "Blood passes through the heart twice in one complete circuit: once through the pulmonary circuit and once through the systemic circuit.",
+              "linkedConcept": "Double Circulation",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-reproduction",
+          "name": "Reproduction",
+          "position": 4,
+          "questions": [
+            {
+              "id": "biology-reproduction-q001",
+              "type": "mcq",
+              "text": "Where does fertilisation normally occur in the human female reproductive system?",
+              "correctAnswer": "1",
+              "explanation": "Fertilisation normally occurs in the oviduct when a sperm nucleus fuses with an egg nucleus.",
+              "linkedConcept": "Human Reproduction",
+              "options": [
+                "Uterus",
+                "Oviduct",
+                "Ovary",
+                "Cervix"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-reproduction-q002",
+              "type": "mcq",
+              "text": "What is a main function of the placenta?",
+              "correctAnswer": "1",
+              "explanation": "The placenta allows exchange of oxygen, nutrients and wastes without direct mixing of maternal and fetal blood.",
+              "linkedConcept": "Pregnancy",
+              "options": [
+                "Produce sperm",
+                "Exchange substances between mother and fetus",
+                "Release the egg",
+                "Store urine"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-reproduction-q003",
+              "type": "mcq",
+              "text": "Which feature is characteristic of asexual reproduction?",
+              "correctAnswer": "2",
+              "explanation": "Asexual reproduction involves one parent and usually produces genetically identical offspring.",
+              "linkedConcept": "Asexual Reproduction",
+              "options": [
+                "Fusion of gametes",
+                "Two parents are always required",
+                "Genetically identical offspring",
+                "Meiosis produces variation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-reproduction-q004",
+              "type": "fill-blank",
+              "text": "The release of a mature egg from an ovary is called _____.",
+              "correctAnswer": "ovulation",
+              "explanation": "Ovulation is the release of a mature ovum from an ovary.",
+              "linkedConcept": "Menstrual Cycle",
+              "options": null,
+              "blankWord": "ovulation",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-reproduction-q005",
+              "type": "structured",
+              "text": "Describe one adaptation of a sperm cell for reaching and fertilising an egg.",
+              "correctAnswer": "flagellum",
+              "explanation": "A sperm has a flagellum for swimming, many mitochondria for energy and an acrosome containing enzymes to penetrate the egg.",
+              "linkedConcept": "Gamete Adaptations",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-ecology",
+          "name": "Ecology",
+          "position": 5,
+          "questions": [
+            {
+              "id": "biology-ecology-q001",
+              "type": "mcq",
+              "text": "Which organisms form the first trophic level in a food chain?",
+              "correctAnswer": "0",
+              "explanation": "Producers capture energy, usually by photosynthesis, and form the first trophic level.",
+              "linkedConcept": "Food Chains",
+              "options": [
+                "Producers",
+                "Primary consumers",
+                "Secondary consumers",
+                "Decomposers"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-ecology-q002",
+              "type": "mcq",
+              "text": "What is the role of decomposers in an ecosystem?",
+              "correctAnswer": "1",
+              "explanation": "Decomposers break down dead matter and release mineral nutrients back into the environment.",
+              "linkedConcept": "Nutrient Cycling",
+              "options": [
+                "Make sunlight",
+                "Recycle mineral nutrients",
+                "Consume only living plants",
+                "Prevent respiration"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-ecology-q003",
+              "type": "mcq",
+              "text": "Why is less energy available at each higher trophic level?",
+              "correctAnswer": "1",
+              "explanation": "Energy is lost as heat through respiration and in uneaten or undigested material.",
+              "linkedConcept": "Energy Transfer",
+              "options": [
+                "Energy is created by consumers",
+                "Energy is lost through respiration and waste",
+                "Producers use no energy",
+                "All biomass is eaten"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-ecology-q004",
+              "type": "fill-blank",
+              "text": "A network of interconnected food chains is called a food _____.",
+              "correctAnswer": "web",
+              "explanation": "A food web shows the feeding relationships among multiple organisms in an ecosystem.",
+              "linkedConcept": "Food Webs",
+              "options": null,
+              "blankWord": "web",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-ecology-q005",
+              "type": "structured",
+              "text": "Explain how deforestation can reduce biodiversity.",
+              "correctAnswer": "habitat loss",
+              "explanation": "Deforestation causes habitat loss, removes food sources and breeding sites, and can lead to population decline or extinction.",
+              "linkedConcept": "Human Impact",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "biology-genetics",
+          "name": "Genetics",
+          "position": 6,
+          "questions": [
+            {
+              "id": "biology-genetics-q001",
+              "type": "mcq",
+              "text": "What is an allele?",
+              "correctAnswer": "0",
+              "explanation": "An allele is an alternative form of a gene found at the same locus on homologous chromosomes.",
+              "linkedConcept": "Alleles",
+              "options": [
+                "A form of a gene",
+                "A whole chromosome",
+                "A type of protein",
+                "A cell organelle"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-genetics-q002",
+              "type": "mcq",
+              "text": "Which term describes the genetic constitution of an organism?",
+              "correctAnswer": "1",
+              "explanation": "Genotype refers to the alleles an organism possesses.",
+              "linkedConcept": "Genotype and Phenotype",
+              "options": [
+                "Phenotype",
+                "Genotype",
+                "Variation",
+                "Mutation rate"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-genetics-q003",
+              "type": "mcq",
+              "text": "Which genotype is heterozygous?",
+              "correctAnswer": "2",
+              "explanation": "A heterozygous genotype contains two different alleles, such as Tt.",
+              "linkedConcept": "Inheritance",
+              "options": [
+                "TT",
+                "tt",
+                "Tt",
+                "T"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-genetics-q004",
+              "type": "fill-blank",
+              "text": "The molecule that carries genetic information is _____.",
+              "correctAnswer": "DNA",
+              "explanation": "DNA stores genetic information in the sequence of its bases.",
+              "linkedConcept": "DNA",
+              "options": null,
+              "blankWord": "DNA",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "biology-genetics-q005",
+              "type": "structured",
+              "text": "A heterozygous tall plant, Tt, is crossed with a short plant, tt. State the probability of a short offspring.",
+              "correctAnswer": "50%",
+              "explanation": "The cross Tt × tt gives Tt, tt, Tt and tt, so 2 out of 4 offspring are expected to be short: 50%.",
+              "linkedConcept": "Monohybrid Crosses",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chemistry",
+      "name": "Chemistry",
+      "icon": "⚗️",
+      "position": 1,
+      "topics": [
+        {
+          "id": "chemistry-atomic-structure",
+          "name": "Atomic Structure",
+          "position": 0,
+          "questions": [
+            {
+              "id": "chemistry-atomic-structure-q001",
+              "type": "mcq",
+              "text": "An atom has 11 protons and 12 neutrons. What is its nucleon number?",
+              "correctAnswer": "2",
+              "explanation": "Nucleon number equals protons plus neutrons: 11 + 12 = 23.",
+              "linkedConcept": "Subatomic Particles",
+              "options": [
+                "11",
+                "12",
+                "23",
+                "24"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-atomic-structure-q002",
+              "type": "mcq",
+              "text": "Which statement about isotopes is correct?",
+              "correctAnswer": "2",
+              "explanation": "Isotopes are atoms of the same element with the same proton number but different neutron numbers.",
+              "linkedConcept": "Isotopes",
+              "options": [
+                "They have different proton numbers",
+                "They have the same neutron number",
+                "They have the same proton number but different neutron numbers",
+                "They are different elements"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-atomic-structure-q003",
+              "type": "mcq",
+              "text": "What is the electronic configuration of a sodium atom with proton number 11?",
+              "correctAnswer": "1",
+              "explanation": "A neutral sodium atom has 11 electrons arranged 2,8,1.",
+              "linkedConcept": "Electronic Structure",
+              "options": [
+                "2,8",
+                "2,8,1",
+                "2,7,2",
+                "2,8,8"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-atomic-structure-q004",
+              "type": "fill-blank",
+              "text": "The number of _____ in an atom determines which element it is.",
+              "correctAnswer": "protons",
+              "explanation": "Every element has a unique proton number.",
+              "linkedConcept": "Proton Number",
+              "options": null,
+              "blankWord": "protons",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-atomic-structure-q005",
+              "type": "structured",
+              "text": "A chlorine atom has 17 electrons. Explain how it forms a chloride ion and state the ion's number of electrons.",
+              "correctAnswer": "18",
+              "explanation": "A chlorine atom gains one electron to form Cl⁻, giving the ion 18 electrons and a full outer shell.",
+              "linkedConcept": "Ion Formation",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-covalent-bonding",
+          "name": "Covalent Bonding",
+          "position": 1,
+          "questions": [
+            {
+              "id": "chemistry-covalent-bonding-q001",
+              "type": "mcq",
+              "text": "How is a covalent bond formed?",
+              "correctAnswer": "1",
+              "explanation": "A covalent bond is the electrostatic attraction between a shared pair of electrons and two nuclei.",
+              "linkedConcept": "Covalent Bonds",
+              "options": [
+                "By transferring protons",
+                "By sharing a pair of electrons",
+                "By attraction between ions",
+                "By sharing neutrons"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-covalent-bonding-q002",
+              "type": "mcq",
+              "text": "How many covalent bonds are present in one carbon dioxide molecule, O=C=O?",
+              "correctAnswer": "1",
+              "explanation": "Carbon dioxide contains two double covalent bonds between carbon and the oxygen atoms.",
+              "linkedConcept": "Molecular Structure",
+              "options": [
+                "One",
+                "Two",
+                "Three",
+                "Four"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-covalent-bonding-q003",
+              "type": "mcq",
+              "text": "Why do simple molecular substances usually have low melting points?",
+              "correctAnswer": "1",
+              "explanation": "Only weak intermolecular forces are overcome during melting; the covalent bonds remain intact.",
+              "linkedConcept": "Properties of Molecules",
+              "options": [
+                "Their covalent bonds are weak",
+                "Weak intermolecular forces need little energy to overcome",
+                "They contain free ions",
+                "They have giant lattices"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-covalent-bonding-q004",
+              "type": "fill-blank",
+              "text": "Diamond is an example of a _____ covalent structure.",
+              "correctAnswer": "giant",
+              "explanation": "Diamond has a giant three-dimensional covalent network.",
+              "linkedConcept": "Giant Covalent Structures",
+              "options": null,
+              "blankWord": "giant",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-covalent-bonding-q005",
+              "type": "structured",
+              "text": "Explain why each oxygen atom forms two covalent bonds in a water molecule.",
+              "correctAnswer": "two electrons",
+              "explanation": "An oxygen atom has six outer-shell electrons and shares two electrons, one with each hydrogen, to achieve a full outer shell.",
+              "linkedConcept": "Dot-and-Cross Diagrams",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-stoichiometry",
+          "name": "Stoichiometry",
+          "position": 2,
+          "questions": [
+            {
+              "id": "chemistry-stoichiometry-q001",
+              "type": "mcq",
+              "text": "What is the relative molecular mass of H₂O? (H = 1, O = 16)",
+              "correctAnswer": "2",
+              "explanation": "Mr(H₂O) = 2(1) + 16 = 18.",
+              "linkedConcept": "Relative Mass",
+              "options": [
+                "16",
+                "17",
+                "18",
+                "20"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-stoichiometry-q002",
+              "type": "mcq",
+              "text": "How many moles are present in 44 g of CO₂? (Mr = 44)",
+              "correctAnswer": "1",
+              "explanation": "Number of moles = mass ÷ molar mass = 44 ÷ 44 = 1 mol.",
+              "linkedConcept": "Mole Calculations",
+              "options": [
+                "0.5 mol",
+                "1 mol",
+                "2 mol",
+                "44 mol"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-stoichiometry-q003",
+              "type": "mcq",
+              "text": "For 2H₂ + O₂ → 2H₂O, how many moles of O₂ react completely with 2 moles of H₂?",
+              "correctAnswer": "1",
+              "explanation": "The equation shows a 2:1 mole ratio of H₂ to O₂.",
+              "linkedConcept": "Mole Ratio",
+              "options": [
+                "0.5",
+                "1",
+                "2",
+                "4"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-stoichiometry-q004",
+              "type": "fill-blank",
+              "text": "One _____ contains 6.02 × 10²³ particles.",
+              "correctAnswer": "mole",
+              "explanation": "A mole is the amount of substance containing the Avogadro constant of particles.",
+              "linkedConcept": "Avogadro Constant",
+              "options": null,
+              "blankWord": "mole",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-stoichiometry-q005",
+              "type": "structured",
+              "text": "Magnesium burns in oxygen to form magnesium oxide. Calculate the mass of MgO formed from 2.4 g of Mg. (Ar: Mg = 24, O = 16)",
+              "correctAnswer": "4.0",
+              "explanation": "2.4 g Mg is 0.10 mol. The Mg:MgO ratio is 1:1, so 0.10 mol MgO forms; mass = 0.10 × 40 = 4.0 g.",
+              "linkedConcept": "Mass Calculations",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-acids-bases",
+          "name": "Acids & Bases",
+          "position": 3,
+          "questions": [
+            {
+              "id": "chemistry-acids-bases-q001",
+              "type": "mcq",
+              "text": "Which pH value represents a strongly acidic solution?",
+              "correctAnswer": "0",
+              "explanation": "A strongly acidic solution has a low pH, such as pH 2.",
+              "linkedConcept": "pH Scale",
+              "options": [
+                "2",
+                "7",
+                "9",
+                "13"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-acids-bases-q002",
+              "type": "mcq",
+              "text": "What are the products when an acid reacts completely with an alkali?",
+              "correctAnswer": "1",
+              "explanation": "Neutralisation between an acid and an alkali produces a salt and water.",
+              "linkedConcept": "Neutralisation",
+              "options": [
+                "Salt and hydrogen",
+                "Salt and water",
+                "Water and oxygen",
+                "Acid and salt"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-acids-bases-q003",
+              "type": "mcq",
+              "text": "Which substance is a base?",
+              "correctAnswer": "2",
+              "explanation": "Ammonia acts as a base by accepting hydrogen ions in water.",
+              "linkedConcept": "Bases",
+              "options": [
+                "Hydrochloric acid",
+                "Sulfuric acid",
+                "Ammonia",
+                "Carbon dioxide"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-acids-bases-q004",
+              "type": "fill-blank",
+              "text": "Acids produce _____ ions when dissolved in water.",
+              "correctAnswer": "hydrogen",
+              "explanation": "Acids dissociate in water to produce hydrogen ions, H⁺.",
+              "linkedConcept": "Acid Properties",
+              "options": null,
+              "blankWord": "hydrogen",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-acids-bases-q005",
+              "type": "structured",
+              "text": "Write the word equation for the reaction between hydrochloric acid and sodium hydroxide.",
+              "correctAnswer": "sodium chloride",
+              "explanation": "Hydrochloric acid + sodium hydroxide → sodium chloride + water.",
+              "linkedConcept": "Salt Preparation",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-redox-reactions",
+          "name": "Redox Reactions",
+          "position": 4,
+          "questions": [
+            {
+              "id": "chemistry-redox-reactions-q001",
+              "type": "mcq",
+              "text": "Which statement defines oxidation in terms of electrons?",
+              "correctAnswer": "1",
+              "explanation": "Oxidation is the loss of electrons.",
+              "linkedConcept": "Electron Transfer",
+              "options": [
+                "Gain of electrons",
+                "Loss of electrons",
+                "Sharing electrons",
+                "No electron transfer"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-redox-reactions-q002",
+              "type": "mcq",
+              "text": "What happens to an oxidising agent during a redox reaction?",
+              "correctAnswer": "0",
+              "explanation": "An oxidising agent causes another substance to be oxidised and is itself reduced.",
+              "linkedConcept": "Oxidising Agents",
+              "options": [
+                "It is reduced",
+                "It is oxidised",
+                "It loses all protons",
+                "It remains unchanged"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-redox-reactions-q003",
+              "type": "mcq",
+              "text": "In Fe²⁺ → Fe³⁺ + e⁻, the iron(II) ion is:",
+              "correctAnswer": "2",
+              "explanation": "Fe²⁺ loses an electron, so it is oxidised to Fe³⁺.",
+              "linkedConcept": "Oxidation States",
+              "options": [
+                "reduced",
+                "neutralised",
+                "oxidised",
+                "precipitated"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-redox-reactions-q004",
+              "type": "fill-blank",
+              "text": "The gain of electrons is called _____.",
+              "correctAnswer": "reduction",
+              "explanation": "Reduction is the gain of electrons.",
+              "linkedConcept": "Reduction",
+              "options": null,
+              "blankWord": "reduction",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-redox-reactions-q005",
+              "type": "structured",
+              "text": "Hydrogen reacts with copper(II) oxide to form copper and water. Explain what happens to copper(II) oxide.",
+              "correctAnswer": "reduced",
+              "explanation": "Copper(II) oxide loses oxygen and is reduced to copper; hydrogen gains oxygen and is oxidised.",
+              "linkedConcept": "Redox by Oxygen Transfer",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-organic-chemistry",
+          "name": "Organic Chemistry",
+          "position": 5,
+          "questions": [
+            {
+              "id": "chemistry-organic-chemistry-q001",
+              "type": "mcq",
+              "text": "Members of the same homologous series have the same:",
+              "correctAnswer": "1",
+              "explanation": "Members share the same functional group and general formula, giving similar chemical properties.",
+              "linkedConcept": "Homologous Series",
+              "options": [
+                "molecular formula",
+                "functional group",
+                "number of carbon atoms",
+                "boiling point"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-organic-chemistry-q002",
+              "type": "mcq",
+              "text": "Which test distinguishes an alkene from an alkane?",
+              "correctAnswer": "1",
+              "explanation": "An alkene decolourises bromine water because it contains a carbon-carbon double bond.",
+              "linkedConcept": "Unsaturation",
+              "options": [
+                "Add limewater",
+                "Add bromine water",
+                "Test with litmus",
+                "Add sodium chloride"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-organic-chemistry-q003",
+              "type": "mcq",
+              "text": "Which process produces ethanol from glucose using yeast?",
+              "correctAnswer": "1",
+              "explanation": "Yeast enzymes ferment glucose anaerobically to ethanol and carbon dioxide.",
+              "linkedConcept": "Alcohols",
+              "options": [
+                "Cracking",
+                "Fermentation",
+                "Polymerisation",
+                "Neutralisation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-organic-chemistry-q004",
+              "type": "fill-blank",
+              "text": "Oxidation of ethanol can produce _____ acid.",
+              "correctAnswer": "ethanoic",
+              "explanation": "Ethanol is oxidised to ethanoic acid.",
+              "linkedConcept": "Carboxylic Acids",
+              "options": null,
+              "blankWord": "ethanoic",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-organic-chemistry-q005",
+              "type": "structured",
+              "text": "State the products of the complete combustion of a hydrocarbon.",
+              "correctAnswer": "carbon dioxide",
+              "explanation": "Complete combustion of a hydrocarbon in excess oxygen produces carbon dioxide and water.",
+              "linkedConcept": "Combustion",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "chemistry-rate-of-reaction",
+          "name": "Rate of Reaction",
+          "position": 6,
+          "questions": [
+            {
+              "id": "chemistry-rate-of-reaction-q001",
+              "type": "mcq",
+              "text": "Why does increasing temperature usually increase reaction rate?",
+              "correctAnswer": "1",
+              "explanation": "At higher temperature, particles move faster and a larger proportion of collisions have sufficient energy.",
+              "linkedConcept": "Collision Theory",
+              "options": [
+                "Particles become larger",
+                "More particles have energy above activation energy",
+                "The concentration becomes zero",
+                "Collisions stop"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-rate-of-reaction-q002",
+              "type": "mcq",
+              "text": "How does a catalyst increase reaction rate?",
+              "correctAnswer": "1",
+              "explanation": "A catalyst provides an alternative reaction pathway with lower activation energy.",
+              "linkedConcept": "Catalysts",
+              "options": [
+                "Raises activation energy",
+                "Lowers activation energy",
+                "Increases product mass",
+                "Changes the equilibrium yield permanently"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-rate-of-reaction-q003",
+              "type": "mcq",
+              "text": "Why does powdered calcium carbonate react faster than equal-mass marble chips?",
+              "correctAnswer": "0",
+              "explanation": "Powder has a larger surface area, causing more frequent collisions with acid particles.",
+              "linkedConcept": "Surface Area",
+              "options": [
+                "It has a larger surface area",
+                "It has a smaller mass",
+                "It is a different compound",
+                "It lowers the temperature"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-rate-of-reaction-q004",
+              "type": "fill-blank",
+              "text": "Reaction rates are explained using _____ theory.",
+              "correctAnswer": "collision",
+              "explanation": "Collision theory explains how collision frequency and energy affect reaction rate.",
+              "linkedConcept": "Collision Theory",
+              "options": null,
+              "blankWord": "collision",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "chemistry-rate-of-reaction-q005",
+              "type": "structured",
+              "text": "Explain why increasing reactant concentration increases reaction rate.",
+              "correctAnswer": "collisions",
+              "explanation": "More particles occupy each unit volume, so collisions occur more frequently and there are more successful collisions per second.",
+              "linkedConcept": "Concentration and Rate",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "physics",
+      "name": "Physics",
+      "icon": "⚛️",
+      "position": 2,
+      "topics": [
+        {
+          "id": "physics-speed-acceleration",
+          "name": "Speed & Acceleration",
+          "position": 0,
+          "questions": [
+            {
+              "id": "physics-speed-acceleration-q001",
+              "type": "mcq",
+              "text": "A runner travels 100 m in 20 s. What is the runner's average speed?",
+              "correctAnswer": "1",
+              "explanation": "Average speed = total distance ÷ total time = 100 ÷ 20 = 5 m/s.",
+              "linkedConcept": "Speed",
+              "options": [
+                "2 m/s",
+                "5 m/s",
+                "20 m/s",
+                "80 m/s"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-speed-acceleration-q002",
+              "type": "mcq",
+              "text": "A car accelerates uniformly from 0 m/s to 20 m/s in 5 s. What is its acceleration?",
+              "correctAnswer": "1",
+              "explanation": "Acceleration = change in velocity ÷ time = (20 − 0) ÷ 5 = 4 m/s².",
+              "linkedConcept": "Acceleration",
+              "options": [
+                "2 m/s²",
+                "4 m/s²",
+                "5 m/s²",
+                "100 m/s²"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-speed-acceleration-q003",
+              "type": "mcq",
+              "text": "What does the area under a velocity-time graph represent?",
+              "correctAnswer": "1",
+              "explanation": "The area under a velocity-time graph gives displacement.",
+              "linkedConcept": "Motion Graphs",
+              "options": [
+                "Acceleration",
+                "Displacement",
+                "Force",
+                "Power"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-speed-acceleration-q004",
+              "type": "fill-blank",
+              "text": "Speed is a _____ quantity because it has magnitude but no direction.",
+              "correctAnswer": "scalar",
+              "explanation": "A scalar has magnitude only; velocity is the corresponding vector quantity.",
+              "linkedConcept": "Scalars and Vectors",
+              "options": null,
+              "blankWord": "scalar",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-speed-acceleration-q005",
+              "type": "structured",
+              "text": "A car increases its velocity from 10 m/s to 25 m/s in 3.0 s. Calculate its acceleration.",
+              "correctAnswer": "5",
+              "explanation": "Acceleration = (25 − 10) ÷ 3.0 = 5.0 m/s².",
+              "linkedConcept": "Acceleration Calculations",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-dynamics",
+          "name": "Dynamics",
+          "position": 1,
+          "questions": [
+            {
+              "id": "physics-dynamics-q001",
+              "type": "mcq",
+              "text": "Which statement describes Newton's first law?",
+              "correctAnswer": "0",
+              "explanation": "With no resultant force, an object remains at rest or moves with constant velocity.",
+              "linkedConcept": "Newton's Laws",
+              "options": [
+                "An object remains at rest or constant velocity unless acted on by a resultant force",
+                "Force equals mass divided by acceleration",
+                "Every force produces energy",
+                "Momentum is never conserved"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-dynamics-q002",
+              "type": "mcq",
+              "text": "What resultant force gives a 2 kg object an acceleration of 3 m/s²?",
+              "correctAnswer": "3",
+              "explanation": "Using F = ma, F = 2 × 3 = 6 N.",
+              "linkedConcept": "Force and Acceleration",
+              "options": [
+                "0.67 N",
+                "1.5 N",
+                "5 N",
+                "6 N"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-dynamics-q003",
+              "type": "mcq",
+              "text": "What is the weight of a 5 kg mass where gravitational field strength is 10 N/kg?",
+              "correctAnswer": "2",
+              "explanation": "Weight = mass × gravitational field strength = 5 × 10 = 50 N.",
+              "linkedConcept": "Weight",
+              "options": [
+                "0.5 N",
+                "5 N",
+                "50 N",
+                "500 N"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-dynamics-q004",
+              "type": "fill-blank",
+              "text": "A change in motion occurs when a non-zero _____ force acts on an object.",
+              "correctAnswer": "resultant",
+              "explanation": "Only a non-zero resultant force produces acceleration.",
+              "linkedConcept": "Resultant Force",
+              "options": null,
+              "blankWord": "resultant",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-dynamics-q005",
+              "type": "structured",
+              "text": "Calculate the momentum of a 3.0 kg trolley moving at 4.0 m/s.",
+              "correctAnswer": "12",
+              "explanation": "Momentum = mass × velocity = 3.0 × 4.0 = 12 kg m/s.",
+              "linkedConcept": "Momentum",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-energy",
+          "name": "Energy",
+          "position": 2,
+          "questions": [
+            {
+              "id": "physics-energy-q001",
+              "type": "mcq",
+              "text": "A 2 kg object is raised by 5 m. Taking g = 10 N/kg, what is its gain in gravitational potential energy?",
+              "correctAnswer": "3",
+              "explanation": "GPE = mgh = 2 × 10 × 5 = 100 J.",
+              "linkedConcept": "Gravitational Potential Energy",
+              "options": [
+                "10 J",
+                "25 J",
+                "50 J",
+                "100 J"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-energy-q002",
+              "type": "mcq",
+              "text": "What is the kinetic energy of a 4 kg object moving at 3 m/s?",
+              "correctAnswer": "2",
+              "explanation": "KE = ½mv² = ½ × 4 × 3² = 18 J.",
+              "linkedConcept": "Kinetic Energy",
+              "options": [
+                "6 J",
+                "12 J",
+                "18 J",
+                "36 J"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-energy-q003",
+              "type": "mcq",
+              "text": "A machine transfers 600 J in 20 s. What is its power?",
+              "correctAnswer": "1",
+              "explanation": "Power = energy transferred ÷ time = 600 ÷ 20 = 30 W.",
+              "linkedConcept": "Power",
+              "options": [
+                "12 W",
+                "30 W",
+                "120 W",
+                "12 000 W"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-energy-q004",
+              "type": "fill-blank",
+              "text": "The principle of energy _____ states that energy cannot be created or destroyed.",
+              "correctAnswer": "conservation",
+              "explanation": "Energy can be transferred between stores but the total amount is conserved.",
+              "linkedConcept": "Conservation of Energy",
+              "options": null,
+              "blankWord": "conservation",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-energy-q005",
+              "type": "structured",
+              "text": "A motor receives 200 J of energy and transfers 150 J usefully. Calculate its efficiency as a percentage.",
+              "correctAnswer": "75%",
+              "explanation": "Efficiency = useful output ÷ total input × 100% = 150 ÷ 200 × 100% = 75%.",
+              "linkedConcept": "Efficiency",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-waves",
+          "name": "Waves",
+          "position": 3,
+          "questions": [
+            {
+              "id": "physics-waves-q001",
+              "type": "mcq",
+              "text": "A wave has frequency 5 Hz and wavelength 2 m. What is its speed?",
+              "correctAnswer": "2",
+              "explanation": "Wave speed = frequency × wavelength = 5 × 2 = 10 m/s.",
+              "linkedConcept": "Wave Equation",
+              "options": [
+                "2.5 m/s",
+                "7 m/s",
+                "10 m/s",
+                "25 m/s"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-waves-q002",
+              "type": "mcq",
+              "text": "In a transverse wave, particles vibrate:",
+              "correctAnswer": "1",
+              "explanation": "Particles in a transverse wave vibrate perpendicular to the direction the wave travels.",
+              "linkedConcept": "Wave Types",
+              "options": [
+                "parallel to the direction of travel",
+                "perpendicular to the direction of travel",
+                "in circles only",
+                "without transferring energy"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-waves-q003",
+              "type": "mcq",
+              "text": "Which waves can travel through a vacuum?",
+              "correctAnswer": "2",
+              "explanation": "Electromagnetic waves do not require a material medium and can travel through a vacuum.",
+              "linkedConcept": "Electromagnetic Spectrum",
+              "options": [
+                "Sound waves only",
+                "Water waves only",
+                "Electromagnetic waves",
+                "All mechanical waves"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-waves-q004",
+              "type": "fill-blank",
+              "text": "The maximum displacement of a point on a wave from its rest position is its _____.",
+              "correctAnswer": "amplitude",
+              "explanation": "Amplitude is the maximum displacement from equilibrium.",
+              "linkedConcept": "Wave Properties",
+              "options": null,
+              "blankWord": "amplitude",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-waves-q005",
+              "type": "structured",
+              "text": "An echo returns 0.40 s after a sound is produced. If sound travels at 340 m/s, calculate the distance to the reflecting wall.",
+              "correctAnswer": "68",
+              "explanation": "The sound travels to the wall and back, so distance = 340 × 0.40 ÷ 2 = 68 m.",
+              "linkedConcept": "Reflection of Sound",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-electricity",
+          "name": "Electricity",
+          "position": 4,
+          "questions": [
+            {
+              "id": "physics-electricity-q001",
+              "type": "mcq",
+              "text": "A charge of 10 C passes a point in 2 s. What is the current?",
+              "correctAnswer": "1",
+              "explanation": "Current = charge ÷ time = 10 ÷ 2 = 5 A.",
+              "linkedConcept": "Electric Current",
+              "options": [
+                "0.2 A",
+                "5 A",
+                "12 A",
+                "20 A"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electricity-q002",
+              "type": "mcq",
+              "text": "A 12 V potential difference produces a current of 3 A. What is the resistance?",
+              "correctAnswer": "1",
+              "explanation": "Using R = V ÷ I, R = 12 ÷ 3 = 4 Ω.",
+              "linkedConcept": "Ohm's Law",
+              "options": [
+                "0.25 Ω",
+                "4 Ω",
+                "9 Ω",
+                "36 Ω"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electricity-q003",
+              "type": "mcq",
+              "text": "Two resistors of 4 Ω and 6 Ω are connected in series. What is their total resistance?",
+              "correctAnswer": "2",
+              "explanation": "Resistances in series add: 4 + 6 = 10 Ω.",
+              "linkedConcept": "Series Circuits",
+              "options": [
+                "2 Ω",
+                "5 Ω",
+                "10 Ω",
+                "24 Ω"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electricity-q004",
+              "type": "fill-blank",
+              "text": "Components connected in _____ have the same potential difference across them.",
+              "correctAnswer": "parallel",
+              "explanation": "Every branch in a parallel circuit has the same potential difference.",
+              "linkedConcept": "Parallel Circuits",
+              "options": null,
+              "blankWord": "parallel",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electricity-q005",
+              "type": "structured",
+              "text": "An appliance operates at 230 V and draws a current of 2.0 A. Calculate its power.",
+              "correctAnswer": "460",
+              "explanation": "Power = potential difference × current = 230 × 2.0 = 460 W.",
+              "linkedConcept": "Electrical Power",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-electromagnetism",
+          "name": "Electromagnetism",
+          "position": 5,
+          "questions": [
+            {
+              "id": "physics-electromagnetism-q001",
+              "type": "mcq",
+              "text": "What is produced around a current-carrying wire?",
+              "correctAnswer": "1",
+              "explanation": "An electric current produces a magnetic field around the conductor.",
+              "linkedConcept": "Magnetic Effect of Current",
+              "options": [
+                "An electric charge only",
+                "A magnetic field",
+                "A gravitational field",
+                "Nuclear radiation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electromagnetism-q002",
+              "type": "mcq",
+              "text": "How can the magnetic field inside a solenoid be made stronger?",
+              "correctAnswer": "2",
+              "explanation": "Increasing current increases the strength of the solenoid's magnetic field.",
+              "linkedConcept": "Solenoids",
+              "options": [
+                "Decrease the current",
+                "Remove turns from the coil",
+                "Increase the current",
+                "Use a plastic core instead of air"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electromagnetism-q003",
+              "type": "mcq",
+              "text": "Which rule gives the direction of force on a current-carrying conductor in a magnetic field?",
+              "correctAnswer": "0",
+              "explanation": "Fleming's left-hand rule relates magnetic field, current and force directions for the motor effect.",
+              "linkedConcept": "Motor Effect",
+              "options": [
+                "Fleming's left-hand rule",
+                "Fleming's right-hand rule",
+                "Lenz's law only",
+                "The wave equation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electromagnetism-q004",
+              "type": "fill-blank",
+              "text": "A device that converts electrical energy into rotational kinetic energy is an electric _____.",
+              "correctAnswer": "motor",
+              "explanation": "An electric motor uses the force on a current-carrying coil in a magnetic field.",
+              "linkedConcept": "D.C. Motor",
+              "options": null,
+              "blankWord": "motor",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-electromagnetism-q005",
+              "type": "structured",
+              "text": "Explain how moving a magnet into a coil can produce a current in the coil.",
+              "correctAnswer": "electromagnetic induction",
+              "explanation": "The changing magnetic flux through the coil induces an e.m.f.; if the circuit is complete, an induced current flows. This is electromagnetic induction.",
+              "linkedConcept": "Electromagnetic Induction",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "physics-nuclear-physics",
+          "name": "Nuclear Physics",
+          "position": 6,
+          "questions": [
+            {
+              "id": "physics-nuclear-physics-q001",
+              "type": "mcq",
+              "text": "What is an alpha particle?",
+              "correctAnswer": "1",
+              "explanation": "An alpha particle contains two protons and two neutrons, the same as a helium nucleus.",
+              "linkedConcept": "Nuclear Radiation",
+              "options": [
+                "An electron",
+                "A helium nucleus",
+                "An electromagnetic wave",
+                "A neutron only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-nuclear-physics-q002",
+              "type": "mcq",
+              "text": "Which radiation is the most penetrating?",
+              "correctAnswer": "2",
+              "explanation": "Gamma radiation is highly penetrating and requires thick lead or concrete for substantial absorption.",
+              "linkedConcept": "Penetrating Power",
+              "options": [
+                "Alpha",
+                "Beta",
+                "Gamma",
+                "All are equal"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-nuclear-physics-q003",
+              "type": "mcq",
+              "text": "A sample has a count rate of 80 counts/min and a half-life of 2 hours. What is its count rate after 4 hours, ignoring background?",
+              "correctAnswer": "1",
+              "explanation": "Four hours is two half-lives: 80 → 40 → 20 counts/min.",
+              "linkedConcept": "Half-Life",
+              "options": [
+                "10 counts/min",
+                "20 counts/min",
+                "40 counts/min",
+                "60 counts/min"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-nuclear-physics-q004",
+              "type": "fill-blank",
+              "text": "Radiation detected when no known source is present is called _____ radiation.",
+              "correctAnswer": "background",
+              "explanation": "Background radiation comes from natural and artificial sources in the environment.",
+              "linkedConcept": "Background Radiation",
+              "options": null,
+              "blankWord": "background",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "physics-nuclear-physics-q005",
+              "type": "structured",
+              "text": "Explain how a chain reaction is maintained during nuclear fission.",
+              "correctAnswer": "neutrons",
+              "explanation": "Fission releases neutrons, which can be absorbed by other fissile nuclei and cause further fission events.",
+              "linkedConcept": "Nuclear Fission",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "history",
+      "name": "History",
+      "icon": "🏛️",
+      "position": 3,
+      "topics": [
+        {
+          "id": "history-world-war-i",
+          "name": "World War I",
+          "position": 0,
+          "questions": [
+            {
+              "id": "history-world-war-i-q001",
+              "type": "mcq",
+              "text": "Which event immediately triggered World War I in 1914?",
+              "correctAnswer": "1",
+              "explanation": "The assassination at Sarajevo triggered the July Crisis and the outbreak of war.",
+              "linkedConcept": "Outbreak of World War I",
+              "options": [
+                "The invasion of Poland",
+                "The assassination of Archduke Franz Ferdinand",
+                "The Russian Revolution",
+                "The Wall Street Crash"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-i-q002",
+              "type": "mcq",
+              "text": "How did the alliance system contribute to the outbreak of World War I?",
+              "correctAnswer": "1",
+              "explanation": "Alliance obligations drew multiple European powers into the conflict.",
+              "linkedConcept": "Alliance System",
+              "options": [
+                "It kept every country neutral",
+                "It turned a regional conflict into a wider war",
+                "It ended militarism",
+                "It removed tension in the Balkans"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-i-q003",
+              "type": "mcq",
+              "text": "Which feature was most associated with fighting on the Western Front?",
+              "correctAnswer": "1",
+              "explanation": "A long system of trenches developed after the failure of early mobile offensives.",
+              "linkedConcept": "Western Front",
+              "options": [
+                "Island hopping",
+                "Trench warfare",
+                "Nuclear weapons",
+                "Guerrilla warfare only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-i-q004",
+              "type": "fill-blank",
+              "text": "The agreement that stopped fighting on 11 November 1918 was the _____.",
+              "correctAnswer": "Armistice",
+              "explanation": "The Armistice ended the fighting, while the peace settlement followed later.",
+              "linkedConcept": "End of World War I",
+              "options": null,
+              "blankWord": "Armistice",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-i-q005",
+              "type": "structured",
+              "text": "Explain one reason why the Treaty of Versailles caused resentment in Germany.",
+              "correctAnswer": "reparations",
+              "explanation": "Germany resented heavy reparations, territorial losses, military restrictions and the war guilt clause.",
+              "linkedConcept": "Treaty of Versailles",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "history-world-war-ii",
+          "name": "World War II",
+          "position": 1,
+          "questions": [
+            {
+              "id": "history-world-war-ii-q001",
+              "type": "mcq",
+              "text": "Which event began World War II in Europe in September 1939?",
+              "correctAnswer": "0",
+              "explanation": "Britain and France declared war after Germany invaded Poland.",
+              "linkedConcept": "Outbreak of World War II",
+              "options": [
+                "Germany invaded Poland",
+                "Japan attacked Pearl Harbor",
+                "Italy invaded Ethiopia",
+                "The Berlin Wall was built"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-ii-q002",
+              "type": "mcq",
+              "text": "What was appeasement?",
+              "correctAnswer": "0",
+              "explanation": "Britain and France made concessions to Hitler in an attempt to preserve peace.",
+              "linkedConcept": "Appeasement",
+              "options": [
+                "A policy of making concessions to avoid war",
+                "A plan to invade the USSR",
+                "The creation of the United Nations",
+                "A strategy of total surrender"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-ii-q003",
+              "type": "mcq",
+              "text": "Which event led directly to the United States entering World War II?",
+              "correctAnswer": "1",
+              "explanation": "Japan's attack on Pearl Harbor in December 1941 brought the United States into the war.",
+              "linkedConcept": "War in the Asia-Pacific",
+              "options": [
+                "The fall of France",
+                "The attack on Pearl Harbor",
+                "The Munich Agreement",
+                "The Yalta Conference"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-ii-q004",
+              "type": "fill-blank",
+              "text": "Germany, Italy and Japan formed the _____ Powers.",
+              "correctAnswer": "Axis",
+              "explanation": "The Axis Powers were the main coalition opposing the Allies.",
+              "linkedConcept": "Wartime Alliances",
+              "options": null,
+              "blankWord": "Axis",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-world-war-ii-q005",
+              "type": "structured",
+              "text": "Explain one military reason for the rapid Japanese conquest of Singapore in 1942.",
+              "correctAnswer": "air superiority",
+              "explanation": "Japan had air superiority, battle-experienced troops, effective intelligence and rapid bicycle infantry, while Allied defences were poorly prepared.",
+              "linkedConcept": "Fall of Singapore",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "history-the-cold-war",
+          "name": "The Cold War",
+          "position": 2,
+          "questions": [
+            {
+              "id": "history-the-cold-war-q001",
+              "type": "mcq",
+              "text": "What was the central ideological rivalry of the Cold War?",
+              "correctAnswer": "1",
+              "explanation": "The USA supported capitalist democracy while the USSR promoted communism and a command economy.",
+              "linkedConcept": "Cold War Rivalry",
+              "options": [
+                "Democracy against monarchy",
+                "Capitalism against communism",
+                "Fascism against nationalism",
+                "Colonialism against feudalism"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-the-cold-war-q002",
+              "type": "mcq",
+              "text": "What was the aim of the Truman Doctrine?",
+              "correctAnswer": "0",
+              "explanation": "The Truman Doctrine promised support to states resisting communist pressure.",
+              "linkedConcept": "Containment",
+              "options": [
+                "To contain the spread of communism",
+                "To divide Germany permanently",
+                "To create the Warsaw Pact",
+                "To end the United Nations"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-the-cold-war-q003",
+              "type": "mcq",
+              "text": "How did the Western Allies respond to the Berlin Blockade?",
+              "correctAnswer": "1",
+              "explanation": "The Berlin Airlift supplied West Berlin by air until the blockade was lifted.",
+              "linkedConcept": "Berlin Blockade",
+              "options": [
+                "They abandoned West Berlin",
+                "They organised the Berlin Airlift",
+                "They invaded the USSR",
+                "They dissolved NATO"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-the-cold-war-q004",
+              "type": "fill-blank",
+              "text": "The Western military alliance formed in 1949 was _____.",
+              "correctAnswer": "NATO",
+              "explanation": "NATO was established as a collective defence alliance led by the United States.",
+              "linkedConcept": "Cold War Alliances",
+              "options": null,
+              "blankWord": "NATO",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-the-cold-war-q005",
+              "type": "structured",
+              "text": "Explain why the Korean War can be described as a Cold War proxy war.",
+              "correctAnswer": "superpowers",
+              "explanation": "The Korean conflict involved local forces but was supported by rival superpowers: the USA and UN backed South Korea while China and the USSR supported North Korea.",
+              "linkedConcept": "Proxy Wars",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 80,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "history-singapore-history",
+          "name": "Singapore History",
+          "position": 3,
+          "questions": [
+            {
+              "id": "history-singapore-history-q001",
+              "type": "mcq",
+              "text": "Who established a British trading post in Singapore in 1819?",
+              "correctAnswer": "0",
+              "explanation": "Stamford Raffles negotiated agreements that established a British trading post in 1819.",
+              "linkedConcept": "Colonial Singapore",
+              "options": [
+                "Stamford Raffles",
+                "Lee Kuan Yew",
+                "David Marshall",
+                "Yusof Ishak"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-singapore-history-q002",
+              "type": "mcq",
+              "text": "In which year did the Japanese occupation of Singapore begin?",
+              "correctAnswer": "1",
+              "explanation": "Singapore fell to Japanese forces in February 1942.",
+              "linkedConcept": "Japanese Occupation",
+              "options": [
+                "1819",
+                "1942",
+                "1959",
+                "1965"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-singapore-history-q003",
+              "type": "mcq",
+              "text": "When did Singapore become an independent sovereign state?",
+              "correctAnswer": "3",
+              "explanation": "Singapore separated from Malaysia and became independent on 9 August 1965.",
+              "linkedConcept": "Independence",
+              "options": [
+                "1955",
+                "1959",
+                "1963",
+                "1965"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-singapore-history-q004",
+              "type": "fill-blank",
+              "text": "Singapore joined Malaysia through _____ in 1963.",
+              "correctAnswer": "merger",
+              "explanation": "Singapore merged with Malaya, Sabah and Sarawak to form Malaysia in 1963.",
+              "linkedConcept": "Merger and Separation",
+              "options": null,
+              "blankWord": "merger",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-singapore-history-q005",
+              "type": "structured",
+              "text": "Explain one reason Singapore promoted rapid industrialisation after independence.",
+              "correctAnswer": "jobs",
+              "explanation": "Industrialisation attracted investment, created jobs, reduced unemployment and supported the survival of a resource-scarce economy.",
+              "linkedConcept": "Economic Development",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "history-decolonisation",
+          "name": "Decolonisation",
+          "position": 4,
+          "questions": [
+            {
+              "id": "history-decolonisation-q001",
+              "type": "mcq",
+              "text": "Which force most directly encouraged people in colonies to demand self-rule?",
+              "correctAnswer": "0",
+              "explanation": "Nationalism encouraged people to identify as a nation and demand political independence.",
+              "linkedConcept": "Nationalism",
+              "options": [
+                "Nationalism",
+                "Feudalism",
+                "Isolationism",
+                "Appeasement"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-decolonisation-q002",
+              "type": "mcq",
+              "text": "How did World War II accelerate decolonisation?",
+              "correctAnswer": "1",
+              "explanation": "European colonial powers emerged weakened, while Asian nationalist movements gained confidence and support.",
+              "linkedConcept": "Impact of World War II",
+              "options": [
+                "It made European empires much stronger",
+                "It weakened colonial powers economically and militarily",
+                "It ended nationalist movements",
+                "It restored all pre-war authority"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-decolonisation-q003",
+              "type": "mcq",
+              "text": "Which territory gained independence from Britain in 1957?",
+              "correctAnswer": "0",
+              "explanation": "The Federation of Malaya achieved independence from Britain in 1957.",
+              "linkedConcept": "Independence in Southeast Asia",
+              "options": [
+                "Malaya",
+                "Vietnam",
+                "Indonesia",
+                "Cambodia"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-decolonisation-q004",
+              "type": "fill-blank",
+              "text": "Government by a country's own people is called self-_____.",
+              "correctAnswer": "government",
+              "explanation": "Self-government transfers domestic political authority to local representatives.",
+              "linkedConcept": "Self-Government",
+              "options": null,
+              "blankWord": "government",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-decolonisation-q005",
+              "type": "structured",
+              "text": "Explain one factor that contributed to the decolonisation of Malaya.",
+              "correctAnswer": "nationalism",
+              "explanation": "Growing nationalism, British post-war policy, political negotiation and the need to counter communist influence all contributed to independence.",
+              "linkedConcept": "Malayan Independence",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "history-united-nations",
+          "name": "United Nations",
+          "position": 5,
+          "questions": [
+            {
+              "id": "history-united-nations-q001",
+              "type": "mcq",
+              "text": "In which year was the United Nations founded?",
+              "correctAnswer": "2",
+              "explanation": "The United Nations was founded in 1945 after World War II.",
+              "linkedConcept": "Origins of the UN",
+              "options": [
+                "1919",
+                "1939",
+                "1945",
+                "1963"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-united-nations-q002",
+              "type": "mcq",
+              "text": "Which UN organ has primary responsibility for international peace and security?",
+              "correctAnswer": "1",
+              "explanation": "The Security Council can pass binding resolutions concerning international peace and security.",
+              "linkedConcept": "Security Council",
+              "options": [
+                "General Assembly",
+                "Security Council",
+                "International Labour Organization",
+                "Secretariat only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-united-nations-q003",
+              "type": "mcq",
+              "text": "Which UN agency leads international public health work?",
+              "correctAnswer": "1",
+              "explanation": "The World Health Organization coordinates international public health efforts.",
+              "linkedConcept": "UN Agencies",
+              "options": [
+                "UNESCO",
+                "WHO",
+                "IMF",
+                "ILO"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-united-nations-q004",
+              "type": "fill-blank",
+              "text": "Each permanent member of the Security Council can block a substantive resolution using a _____.",
+              "correctAnswer": "veto",
+              "explanation": "The five permanent members possess veto power.",
+              "linkedConcept": "Veto Power",
+              "options": null,
+              "blankWord": "veto",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "history-united-nations-q005",
+              "type": "structured",
+              "text": "Explain one limitation faced by United Nations peacekeeping missions.",
+              "correctAnswer": "consent",
+              "explanation": "Peacekeepers often depend on member-state support, adequate resources and the consent and cooperation of parties to a conflict.",
+              "linkedConcept": "UN Peacekeeping",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geography",
+      "name": "Geography",
+      "icon": "🌍",
+      "position": 4,
+      "topics": [
+        {
+          "id": "geography-weather-climate",
+          "name": "Weather & Climate",
+          "position": 0,
+          "questions": [
+            {
+              "id": "geography-weather-climate-q001",
+              "type": "mcq",
+              "text": "Which statement correctly distinguishes weather from climate?",
+              "correctAnswer": "1",
+              "explanation": "Weather is the atmospheric condition at a particular time and place; climate is the long-term pattern of weather.",
+              "linkedConcept": "Weather and Climate",
+              "options": [
+                "Weather is the long-term average while climate changes hourly",
+                "Weather describes short-term atmospheric conditions while climate describes long-term patterns",
+                "Weather and climate mean exactly the same thing",
+                "Climate only refers to rainfall"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-weather-climate-q002",
+              "type": "mcq",
+              "text": "Which instrument measures rainfall?",
+              "correctAnswer": "1",
+              "explanation": "A rain gauge collects and measures precipitation.",
+              "linkedConcept": "Weather Instruments",
+              "options": [
+                "Anemometer",
+                "Rain gauge",
+                "Barometer",
+                "Wind vane"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-weather-climate-q003",
+              "type": "mcq",
+              "text": "Why is convectional rainfall common in equatorial regions?",
+              "correctAnswer": "1",
+              "explanation": "Intense heating causes evaporation and uplift; rising moist air cools, condenses and produces heavy rainfall.",
+              "linkedConcept": "Convectional Rainfall",
+              "options": [
+                "Cold ground prevents evaporation",
+                "Strong heating causes warm moist air to rise and cool",
+                "Air always descends at the equator",
+                "There is no water vapour"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-weather-climate-q004",
+              "type": "fill-blank",
+              "text": "The amount of water vapour in the air compared with the maximum possible is called relative _____.",
+              "correctAnswer": "humidity",
+              "explanation": "Relative humidity expresses how close the air is to saturation.",
+              "linkedConcept": "Humidity",
+              "options": null,
+              "blankWord": "humidity",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-weather-climate-q005",
+              "type": "structured",
+              "text": "Explain one reason cities are often warmer than surrounding rural areas at night.",
+              "correctAnswer": "concrete",
+              "explanation": "Concrete and asphalt absorb heat during the day and release it slowly at night; buildings also reduce ventilation and human activities release waste heat.",
+              "linkedConcept": "Urban Heat Island",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "geography-plate-tectonics",
+          "name": "Plate Tectonics",
+          "position": 1,
+          "questions": [
+            {
+              "id": "geography-plate-tectonics-q001",
+              "type": "mcq",
+              "text": "What drives the movement of tectonic plates?",
+              "correctAnswer": "1",
+              "explanation": "Heat-driven movement in the mantle contributes to plate motion.",
+              "linkedConcept": "Plate Movement",
+              "options": [
+                "Ocean tides only",
+                "Convection currents in the mantle",
+                "Daily changes in air pressure",
+                "Earth's magnetic poles"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-plate-tectonics-q002",
+              "type": "mcq",
+              "text": "Which feature commonly forms at a divergent plate boundary?",
+              "correctAnswer": "1",
+              "explanation": "Plates separate at divergent boundaries, allowing magma to rise and form new crust at mid-ocean ridges.",
+              "linkedConcept": "Plate Boundaries",
+              "options": [
+                "Deep-sea trench",
+                "Mid-ocean ridge",
+                "Fold mountain from collision",
+                "Island arc above subduction"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-plate-tectonics-q003",
+              "type": "mcq",
+              "text": "What is the point inside Earth where an earthquake begins called?",
+              "correctAnswer": "1",
+              "explanation": "The focus is the origin of seismic energy within Earth; the epicentre lies directly above it.",
+              "linkedConcept": "Earthquakes",
+              "options": [
+                "Epicentre",
+                "Focus",
+                "Crater",
+                "Fault scarp"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-plate-tectonics-q004",
+              "type": "fill-blank",
+              "text": "The semi-molten layer beneath the crust is part of the Earth's _____.",
+              "correctAnswer": "mantle",
+              "explanation": "The mantle lies below the crust and contains material that moves slowly over geological time.",
+              "linkedConcept": "Earth Structure",
+              "options": null,
+              "blankWord": "mantle",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-plate-tectonics-q005",
+              "type": "structured",
+              "text": "Explain why explosive volcanoes commonly occur at destructive plate boundaries.",
+              "correctAnswer": "subduction",
+              "explanation": "At a destructive boundary, subduction introduces water and lowers the melting point; viscous, gas-rich magma forms and pressure can build, producing explosive eruptions.",
+              "linkedConcept": "Volcanic Hazards",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 90,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "geography-coasts",
+          "name": "Coasts",
+          "position": 2,
+          "questions": [
+            {
+              "id": "geography-coasts-q001",
+              "type": "mcq",
+              "text": "Which coastal erosion process occurs when waves force air into cracks in a cliff?",
+              "correctAnswer": "1",
+              "explanation": "Hydraulic action compresses air in cracks and weakens the rock.",
+              "linkedConcept": "Coastal Erosion",
+              "options": [
+                "Attrition",
+                "Hydraulic action",
+                "Longshore drift",
+                "Deposition"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-coasts-q002",
+              "type": "mcq",
+              "text": "What transports sediment along a beach when waves approach at an angle?",
+              "correctAnswer": "1",
+              "explanation": "Angled swash and perpendicular backwash move sediment along the coast in a zigzag pattern.",
+              "linkedConcept": "Sediment Transport",
+              "options": [
+                "Convection",
+                "Longshore drift",
+                "Subduction",
+                "Mass tourism"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-coasts-q003",
+              "type": "mcq",
+              "text": "Which landform may develop when longshore drift deposits material across part of a bay?",
+              "correctAnswer": "0",
+              "explanation": "A spit is a ridge of deposited sediment attached to land at one end.",
+              "linkedConcept": "Coastal Deposition",
+              "options": [
+                "Spit",
+                "Wave-cut platform",
+                "Cliff",
+                "Cave"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-coasts-q004",
+              "type": "fill-blank",
+              "text": "When waves lose energy and drop their sediment, coastal _____ occurs.",
+              "correctAnswer": "deposition",
+              "explanation": "Deposition occurs when wave energy becomes too low to carry the sediment load.",
+              "linkedConcept": "Deposition",
+              "options": null,
+              "blankWord": "deposition",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-coasts-q005",
+              "type": "structured",
+              "text": "Explain one disadvantage of using a sea wall to protect a coastline.",
+              "correctAnswer": "erosion",
+              "explanation": "Sea walls are expensive and reflected wave energy can increase erosion at the base or further along the coast.",
+              "linkedConcept": "Coastal Management",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "geography-rivers",
+          "name": "Rivers",
+          "position": 3,
+          "questions": [
+            {
+              "id": "geography-rivers-q001",
+              "type": "mcq",
+              "text": "What is the starting point of a river called?",
+              "correctAnswer": "1",
+              "explanation": "A river begins at its source and flows towards its mouth.",
+              "linkedConcept": "River System",
+              "options": [
+                "Mouth",
+                "Source",
+                "Confluence",
+                "Delta"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-rivers-q002",
+              "type": "mcq",
+              "text": "Which river transport process rolls large rocks along the river bed?",
+              "correctAnswer": "3",
+              "explanation": "Traction rolls large particles along the bed.",
+              "linkedConcept": "River Transport",
+              "options": [
+                "Solution",
+                "Suspension",
+                "Saltation",
+                "Traction"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-rivers-q003",
+              "type": "mcq",
+              "text": "Where is erosion usually greatest in a meander?",
+              "correctAnswer": "1",
+              "explanation": "Faster flow on the outside bend causes erosion, while slower flow on the inside promotes deposition.",
+              "linkedConcept": "Meanders",
+              "options": [
+                "Inside bend",
+                "Outside bend",
+                "At the source only",
+                "Across the floodplain equally"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-rivers-q004",
+              "type": "fill-blank",
+              "text": "The area of land drained by a river and its tributaries is a drainage _____.",
+              "correctAnswer": "basin",
+              "explanation": "A drainage basin is bounded by a watershed.",
+              "linkedConcept": "Drainage Basin",
+              "options": null,
+              "blankWord": "basin",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-rivers-q005",
+              "type": "structured",
+              "text": "Explain why urbanisation can increase flood risk in a drainage basin.",
+              "correctAnswer": "impermeable",
+              "explanation": "Impermeable surfaces and drains reduce infiltration and move surface runoff rapidly into rivers, increasing peak discharge.",
+              "linkedConcept": "Flooding",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 80,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "geography-tourism",
+          "name": "Tourism",
+          "position": 4,
+          "questions": [
+            {
+              "id": "geography-tourism-q001",
+              "type": "mcq",
+              "text": "Which factor is most likely to increase international tourist arrivals to a destination?",
+              "correctAnswer": "0",
+              "explanation": "Improved accessibility lowers the time or cost needed to reach a destination.",
+              "linkedConcept": "Tourism Trends",
+              "options": [
+                "Improved transport accessibility",
+                "Closure of all attractions",
+                "Higher travel barriers",
+                "Removal of accommodation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-tourism-q002",
+              "type": "mcq",
+              "text": "What is the tourism multiplier effect?",
+              "correctAnswer": "0",
+              "explanation": "Tourism spending supports businesses and workers, whose further spending creates additional economic activity.",
+              "linkedConcept": "Economic Impacts",
+              "options": [
+                "Tourism income circulates and creates further income and jobs",
+                "Every tourist visits twice",
+                "Prices always double",
+                "All tourism revenue leaves the country"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-tourism-q003",
+              "type": "mcq",
+              "text": "What is economic leakage in tourism?",
+              "correctAnswer": "1",
+              "explanation": "Leakage occurs when revenue goes to foreign-owned firms, imports or overseas workers instead of remaining locally.",
+              "linkedConcept": "Tourism Leakage",
+              "options": [
+                "Money retained entirely by local firms",
+                "Tourism revenue leaving the destination economy",
+                "A rise in local employment",
+                "Protection of local culture"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-tourism-q004",
+              "type": "fill-blank",
+              "text": "Responsible travel that supports conservation and local communities is called _____.",
+              "correctAnswer": "ecotourism",
+              "explanation": "Ecotourism aims to minimise environmental impact while supporting conservation and local people.",
+              "linkedConcept": "Sustainable Tourism",
+              "options": null,
+              "blankWord": "ecotourism",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-tourism-q005",
+              "type": "structured",
+              "text": "Explain one way community-based tourism can support sustainable development.",
+              "correctAnswer": "local communities",
+              "explanation": "When local communities manage tourism, more income and decision-making remain local, supporting livelihoods and encouraging protection of culture and environments.",
+              "linkedConcept": "Community-Based Tourism",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 90,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "geography-food-resources",
+          "name": "Food Resources",
+          "position": 5,
+          "questions": [
+            {
+              "id": "geography-food-resources-q001",
+              "type": "mcq",
+              "text": "What does food security mean?",
+              "correctAnswer": "0",
+              "explanation": "Food security exists when people consistently have physical and economic access to adequate nutritious food.",
+              "linkedConcept": "Food Security",
+              "options": [
+                "Having reliable access to sufficient safe and nutritious food",
+                "Producing only one crop",
+                "Importing every food item",
+                "Eating more than needed"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-food-resources-q002",
+              "type": "mcq",
+              "text": "Which is a characteristic of intensive farming?",
+              "correctAnswer": "1",
+              "explanation": "Intensive farming uses relatively high inputs of labour, capital or technology per unit of land.",
+              "linkedConcept": "Agricultural Systems",
+              "options": [
+                "Low inputs per unit of land",
+                "High inputs and high output per unit of land",
+                "No use of labour",
+                "Farming only for household consumption"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-food-resources-q003",
+              "type": "mcq",
+              "text": "Which development was associated with the Green Revolution?",
+              "correctAnswer": "0",
+              "explanation": "High-yield varieties, irrigation, fertilisers and pesticides increased production in many regions.",
+              "linkedConcept": "Increasing Food Supply",
+              "options": [
+                "High-yield crop varieties",
+                "Ending irrigation",
+                "Removing fertilisers",
+                "Reducing agricultural research"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-food-resources-q004",
+              "type": "fill-blank",
+              "text": "The artificial supply of water to crops is called _____.",
+              "correctAnswer": "irrigation",
+              "explanation": "Irrigation supplies water when rainfall is insufficient or unreliable.",
+              "linkedConcept": "Farming Technology",
+              "options": null,
+              "blankWord": "irrigation",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "geography-food-resources-q005",
+              "type": "structured",
+              "text": "Explain one way climate change can threaten food production.",
+              "correctAnswer": "drought",
+              "explanation": "More frequent drought, heat stress, floods or changing pests can reduce yields and disrupt food supply.",
+              "linkedConcept": "Food Supply Challenges",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 70,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "english",
+      "name": "English",
+      "icon": "📚",
+      "position": 5,
+      "topics": [
+        {
+          "id": "english-comprehension",
+          "name": "Comprehension",
+          "position": 0,
+          "questions": [
+            {
+              "id": "english-comprehension-q001",
+              "type": "mcq",
+              "text": "A writer describes a market as “a hive of activity”. What does this suggest?",
+              "correctAnswer": "1",
+              "explanation": "The metaphor compares the market to a busy hive, suggesting constant movement and activity.",
+              "linkedConcept": "Language for Effect",
+              "options": [
+                "It is empty and silent",
+                "It is busy and energetic",
+                "It contains only insects",
+                "It is dangerous to enter"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-comprehension-q002",
+              "type": "mcq",
+              "text": "Which answer best states an inference?",
+              "correctAnswer": "1",
+              "explanation": "An inference combines textual clues with reasoning to reach a supported conclusion.",
+              "linkedConcept": "Inference",
+              "options": [
+                "A fact copied word for word",
+                "A conclusion supported by clues in the text",
+                "A personal opinion unrelated to the text",
+                "A definition from a dictionary only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-comprehension-q003",
+              "type": "mcq",
+              "text": "Why might a writer use a rhetorical question?",
+              "correctAnswer": "1",
+              "explanation": "A rhetorical question encourages readers to consider the writer's point without expecting a direct answer.",
+              "linkedConcept": "Writer's Purpose",
+              "options": [
+                "To require the reader to send an answer",
+                "To engage the reader and emphasise a point",
+                "To remove all emotion",
+                "To list events chronologically"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-comprehension-q004",
+              "type": "fill-blank",
+              "text": "Evidence quoted from a passage should be used to _____ an answer.",
+              "correctAnswer": "support",
+              "explanation": "Relevant textual evidence supports and justifies a comprehension response.",
+              "linkedConcept": "Using Evidence",
+              "options": null,
+              "blankWord": "support",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-comprehension-q005",
+              "type": "structured",
+              "text": "The narrator says, “I checked the lock for the third time before walking away.” What does this reveal about the narrator?",
+              "correctAnswer": "anxious",
+              "explanation": "Repeatedly checking the lock suggests the narrator is anxious, worried or uncertain.",
+              "linkedConcept": "Character Inference",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "english-summary-writing",
+          "name": "Summary Writing",
+          "position": 1,
+          "questions": [
+            {
+              "id": "english-summary-writing-q001",
+              "type": "mcq",
+              "text": "What should a summary include?",
+              "correctAnswer": "1",
+              "explanation": "A summary selects relevant main ideas and omits repetition and unnecessary detail.",
+              "linkedConcept": "Selecting Content",
+              "options": [
+                "Every example and quotation",
+                "Only the relevant main points",
+                "New opinions from the writer",
+                "Repeated explanations"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-summary-writing-q002",
+              "type": "mcq",
+              "text": "Why should a student use their own words in a summary?",
+              "correctAnswer": "1",
+              "explanation": "Paraphrasing accurately demonstrates understanding and can express ideas more concisely.",
+              "linkedConcept": "Paraphrasing",
+              "options": [
+                "To change the original meaning",
+                "To show understanding and write concisely",
+                "To increase the word count",
+                "To add unrelated information"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-summary-writing-q003",
+              "type": "mcq",
+              "text": "What is the approximate word limit for the O-Level English summary task?",
+              "correctAnswer": "2",
+              "explanation": "The current comprehension paper requires a summary of about 80 words.",
+              "linkedConcept": "Summary Requirements",
+              "options": [
+                "20 words",
+                "50 words",
+                "80 words",
+                "250 words"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-summary-writing-q004",
+              "type": "fill-blank",
+              "text": "A good summary combines related _____ instead of listing every detail separately.",
+              "correctAnswer": "points",
+              "explanation": "Synthesising related points helps produce a concise and coherent summary.",
+              "linkedConcept": "Synthesis",
+              "options": null,
+              "blankWord": "points",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-summary-writing-q005",
+              "type": "structured",
+              "text": "Rewrite this idea more concisely: “Because the bus arrived late, Maya was not able to reach school at the expected time.”",
+              "correctAnswer": "late",
+              "explanation": "A concise version is: “The late bus made Maya late for school.” It preserves the cause and result without unnecessary wording.",
+              "linkedConcept": "Concise Expression",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 30,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "english-situational-writing",
+          "name": "Situational Writing",
+          "position": 2,
+          "questions": [
+            {
+              "id": "english-situational-writing-q001",
+              "type": "mcq",
+              "text": "Which three factors should determine the style of a situational writing response?",
+              "correctAnswer": "0",
+              "explanation": "Purpose, audience and context determine the appropriate format, tone and content.",
+              "linkedConcept": "Task Fulfilment",
+              "options": [
+                "Purpose, audience and context",
+                "Length, handwriting and colour",
+                "Title, rhyme and rhythm",
+                "Plot, climax and resolution only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-situational-writing-q002",
+              "type": "mcq",
+              "text": "Which opening is most appropriate for a formal email to a school principal whose name is unknown?",
+              "correctAnswer": "1",
+              "explanation": "“Dear Sir/Madam” is an appropriate formal salutation when the recipient's name is unknown.",
+              "linkedConcept": "Formal Register",
+              "options": [
+                "Hey there!",
+                "Dear Sir/Madam,",
+                "Hi buddy,",
+                "To my best friend,"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-situational-writing-q003",
+              "type": "mcq",
+              "text": "What is most important when using information from a visual stimulus?",
+              "correctAnswer": "1",
+              "explanation": "Relevant stimulus points should be selected, explained and adapted to the purpose and audience.",
+              "linkedConcept": "Using Stimulus Material",
+              "options": [
+                "Copy every word without selection",
+                "Select and develop points relevant to the task",
+                "Ignore the audience",
+                "Invent contradictory details"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-situational-writing-q004",
+              "type": "fill-blank",
+              "text": "The intended reader or listener of a text is its _____.",
+              "correctAnswer": "audience",
+              "explanation": "Awareness of audience guides tone, vocabulary and level of formality.",
+              "linkedConcept": "Audience Awareness",
+              "options": null,
+              "blankWord": "audience",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-situational-writing-q005",
+              "type": "structured",
+              "text": "Write a suitable formal salutation for a letter to the school principal, Ms Tan.",
+              "correctAnswer": "Dear Ms Tan",
+              "explanation": "“Dear Ms Tan,” directly and formally addresses the named recipient.",
+              "linkedConcept": "Letter Format",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 20,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "english-continuous-writing",
+          "name": "Continuous Writing",
+          "position": 3,
+          "questions": [
+            {
+              "id": "english-continuous-writing-q001",
+              "type": "mcq",
+              "text": "Which technique is most useful for making a narrative setting vivid?",
+              "correctAnswer": "0",
+              "explanation": "Sensory details help readers imagine the sights, sounds, smells, textures and atmosphere.",
+              "linkedConcept": "Descriptive Writing",
+              "options": [
+                "Specific sensory details",
+                "A list of unrelated facts",
+                "Repeating the prompt",
+                "Avoiding all description"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-continuous-writing-q002",
+              "type": "mcq",
+              "text": "What should an argumentative essay thesis do?",
+              "correctAnswer": "0",
+              "explanation": "A thesis gives the writer's clear position and guides the argument.",
+              "linkedConcept": "Argumentative Writing",
+              "options": [
+                "State a clear position",
+                "Introduce an unrelated character",
+                "List every dictionary definition",
+                "Avoid the question"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-continuous-writing-q003",
+              "type": "mcq",
+              "text": "Which sentence shows rather than simply tells that Amir was nervous?",
+              "correctAnswer": "1",
+              "explanation": "Physical details allow the reader to infer nervousness.",
+              "linkedConcept": "Narrative Technique",
+              "options": [
+                "Amir was nervous.",
+                "Amir tapped his foot and wiped his damp palms on his trousers.",
+                "Amir entered the room.",
+                "Nervous means worried."
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-continuous-writing-q004",
+              "type": "fill-blank",
+              "text": "A new main idea should usually begin in a new _____.",
+              "correctAnswer": "paragraph",
+              "explanation": "Paragraphing organises ideas and helps the reader follow the development of a text.",
+              "linkedConcept": "Organisation",
+              "options": null,
+              "blankWord": "paragraph",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-continuous-writing-q005",
+              "type": "structured",
+              "text": "Write a clear thesis statement supporting the view that technology improves education.",
+              "correctAnswer": "technology",
+              "explanation": "Example: “Technology improves education by widening access to information, supporting personalised practice and enabling collaboration.”",
+              "linkedConcept": "Thesis Statements",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "english-editing",
+          "name": "Editing",
+          "position": 4,
+          "questions": [
+            {
+              "id": "english-editing-q001",
+              "type": "mcq",
+              "text": "Choose the correct verb: “Each of the players _____ a water bottle.”",
+              "correctAnswer": "1",
+              "explanation": "“Each” is singular, so it takes the singular verb “has”.",
+              "linkedConcept": "Subject-Verb Agreement",
+              "options": [
+                "have",
+                "has",
+                "are having",
+                "were"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-editing-q002",
+              "type": "mcq",
+              "text": "Choose the correct form: “Yesterday, she _____ to the library.”",
+              "correctAnswer": "2",
+              "explanation": "The time marker “Yesterday” requires the simple past form “went”.",
+              "linkedConcept": "Verb Tense",
+              "options": [
+                "go",
+                "goes",
+                "went",
+                "going"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-editing-q003",
+              "type": "mcq",
+              "text": "Which sentence uses the pronoun correctly?",
+              "correctAnswer": "1",
+              "explanation": "“Ali and I” is the compound subject, and “completed” agrees correctly.",
+              "linkedConcept": "Pronouns",
+              "options": [
+                "Me and Ali completed the task.",
+                "Ali and I completed the task.",
+                "Ali and me completes the task.",
+                "I and Ali has completed the task."
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-editing-q004",
+              "type": "fill-blank",
+              "text": "Complete the sentence correctly: “Neither the teacher nor the student _____ late.”",
+              "correctAnswer": "was",
+              "explanation": "With two singular subjects joined by “neither…nor”, the singular verb “was” is appropriate.",
+              "linkedConcept": "Agreement",
+              "options": null,
+              "blankWord": "was",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-editing-q005",
+              "type": "structured",
+              "text": "Correct the grammatical error: “The group of students have completed the experiment.”",
+              "correctAnswer": "has",
+              "explanation": "The head noun “group” is singular, so the corrected sentence is: “The group of students has completed the experiment.”",
+              "linkedConcept": "Grammar Correction",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 25,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "english-visual-text",
+          "name": "Visual Text",
+          "position": 5,
+          "questions": [
+            {
+              "id": "english-visual-text-q001",
+              "type": "mcq",
+              "text": "A poster uses a large image of a reusable bottle beside the words “Refill, not landfill”. What is its main purpose?",
+              "correctAnswer": "1",
+              "explanation": "The slogan and image encourage the audience to reuse bottles and reduce waste.",
+              "linkedConcept": "Purpose",
+              "options": [
+                "To discourage drinking water",
+                "To persuade readers to reduce plastic waste",
+                "To explain how landfills are built",
+                "To advertise disposable cups"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-visual-text-q002",
+              "type": "mcq",
+              "text": "Which feature most directly helps establish the intended audience of a visual text?",
+              "correctAnswer": "0",
+              "explanation": "Images, vocabulary, tone and design are selected to appeal to a target audience.",
+              "linkedConcept": "Audience",
+              "options": [
+                "Choice of images and language",
+                "The paper size only",
+                "The number of commas",
+                "The printing date alone"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-visual-text-q003",
+              "type": "mcq",
+              "text": "What is the effect of a short, memorable slogan?",
+              "correctAnswer": "1",
+              "explanation": "A concise slogan makes the main message memorable and persuasive.",
+              "linkedConcept": "Visual Language",
+              "options": [
+                "It hides the message completely",
+                "It reinforces the key message and is easy to recall",
+                "It provides detailed evidence only",
+                "It removes the call to action"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-visual-text-q004",
+              "type": "fill-blank",
+              "text": "Words placed beneath an image to explain it form a _____.",
+              "correctAnswer": "caption",
+              "explanation": "A caption provides context or explanation for an accompanying visual.",
+              "linkedConcept": "Text Features",
+              "options": null,
+              "blankWord": "caption",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "english-visual-text-q005",
+              "type": "structured",
+              "text": "A school event poster ends with “Register by Friday at go.example.sg”. Identify the call to action.",
+              "correctAnswer": "Register",
+              "explanation": "“Register by Friday” tells the audience exactly what action to take and gives a deadline.",
+              "linkedConcept": "Call to Action",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 30,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "a-math",
+      "name": "A-Math",
+      "icon": "📐",
+      "position": 6,
+      "topics": [
+        {
+          "id": "a-math-quadratics",
+          "name": "Quadratics",
+          "position": 0,
+          "questions": [
+            {
+              "id": "a-math-quadratics-q001",
+              "type": "mcq",
+              "text": "What are the roots of x² − 5x + 6 = 0?",
+              "correctAnswer": "1",
+              "explanation": "Factorising gives (x − 2)(x − 3) = 0, so x = 2 or x = 3.",
+              "linkedConcept": "Solving Quadratics",
+              "options": [
+                "−2 and −3",
+                "2 and 3",
+                "1 and 6",
+                "−1 and −6"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-quadratics-q002",
+              "type": "mcq",
+              "text": "Which condition shows that ax² + bx + c = 0 has two distinct real roots?",
+              "correctAnswer": "2",
+              "explanation": "A positive discriminant gives two distinct real roots.",
+              "linkedConcept": "Discriminant",
+              "options": [
+                "b² − 4ac < 0",
+                "b² − 4ac = 0",
+                "b² − 4ac > 0",
+                "a = 0"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-quadratics-q003",
+              "type": "mcq",
+              "text": "What is the minimum point of y = x² − 4x + 3?",
+              "correctAnswer": "1",
+              "explanation": "Completing the square gives y = (x − 2)² − 1, so the minimum point is (2, −1).",
+              "linkedConcept": "Completing the Square",
+              "options": [
+                "(−2, 15)",
+                "(2, −1)",
+                "(4, 3)",
+                "(0, −1)"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-quadratics-q004",
+              "type": "fill-blank",
+              "text": "The expression b² − 4ac is called the _____.",
+              "correctAnswer": "discriminant",
+              "explanation": "The discriminant determines the number and nature of roots of a quadratic equation.",
+              "linkedConcept": "Nature of Roots",
+              "options": null,
+              "blankWord": "discriminant",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-quadratics-q005",
+              "type": "structured",
+              "text": "For 2x² − 7x + 3 = 0, find the larger root.",
+              "correctAnswer": "3",
+              "explanation": "Factorising gives (2x − 1)(x − 3) = 0, so the roots are 1/2 and 3; the larger root is 3.",
+              "linkedConcept": "Quadratic Equations",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "a-math-polynomials",
+          "name": "Polynomials",
+          "position": 1,
+          "questions": [
+            {
+              "id": "a-math-polynomials-q001",
+              "type": "mcq",
+              "text": "If P(2) = 0, which expression must be a factor of P(x)?",
+              "correctAnswer": "1",
+              "explanation": "By the factor theorem, P(a) = 0 means x − a is a factor.",
+              "linkedConcept": "Factor Theorem",
+              "options": [
+                "x + 2",
+                "x − 2",
+                "2x − 1",
+                "x² + 2"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-polynomials-q002",
+              "type": "mcq",
+              "text": "What is the remainder when P(x) = x² + 3x + 1 is divided by x − 2?",
+              "correctAnswer": "2",
+              "explanation": "By the remainder theorem, the remainder is P(2) = 4 + 6 + 1 = 11.",
+              "linkedConcept": "Remainder Theorem",
+              "options": [
+                "3",
+                "7",
+                "11",
+                "15"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-polynomials-q003",
+              "type": "mcq",
+              "text": "Expand (x + 2)(x − 3).",
+              "correctAnswer": "0",
+              "explanation": "Multiplying gives x² − 3x + 2x − 6 = x² − x − 6.",
+              "linkedConcept": "Polynomial Expansion",
+              "options": [
+                "x² − x − 6",
+                "x² + 5x − 6",
+                "x² − 5x + 6",
+                "x² − 6"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-polynomials-q004",
+              "type": "fill-blank",
+              "text": "The highest power of x in a polynomial is its _____.",
+              "correctAnswer": "degree",
+              "explanation": "The degree is the greatest exponent with a non-zero coefficient.",
+              "linkedConcept": "Polynomial Vocabulary",
+              "options": null,
+              "blankWord": "degree",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-polynomials-q005",
+              "type": "structured",
+              "text": "Given P(x) = x³ − 4x, calculate P(2) and state what this tells you about x − 2.",
+              "correctAnswer": "0",
+              "explanation": "P(2) = 8 − 8 = 0, so the factor theorem shows that x − 2 is a factor.",
+              "linkedConcept": "Factor Theorem",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "a-math-trigonometry",
+          "name": "Trigonometry",
+          "position": 2,
+          "questions": [
+            {
+              "id": "a-math-trigonometry-q001",
+              "type": "mcq",
+              "text": "In a right-angled triangle, the side opposite angle θ is 6 cm and the hypotenuse is 10 cm. What is sin θ?",
+              "correctAnswer": "1",
+              "explanation": "Using sin θ = opposite ÷ hypotenuse, sin θ = 6 ÷ 10 = 0.6.",
+              "linkedConcept": "Trigonometric Ratios",
+              "options": [
+                "0.4",
+                "0.6",
+                "0.8",
+                "1.67"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-trigonometry-q002",
+              "type": "fill-blank",
+              "text": "Complete the trigonometric ratio: tan θ = opposite ÷ _____.",
+              "correctAnswer": "adjacent",
+              "explanation": "The tangent ratio is tan θ = opposite ÷ adjacent.",
+              "linkedConcept": "Trigonometric Ratios",
+              "options": null,
+              "blankWord": "adjacent",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-trigonometry-q003",
+              "type": "mcq",
+              "text": "Given that x is an acute angle and sin x = 1/2, find x.",
+              "correctAnswer": "0",
+              "explanation": "Since sin 30° = 1/2 and x is acute, x = 30°.",
+              "linkedConcept": "Trigonometric Equations",
+              "options": [
+                "30°",
+                "45°",
+                "60°",
+                "90°"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-trigonometry-q004",
+              "type": "structured",
+              "text": "A point is 20 m from the base of a vertical tower. The angle of elevation to the top is 35°. Find the height of the tower, correct to 3 significant figures.",
+              "correctAnswer": "14.0",
+              "explanation": "Let h be the height of the tower. tan 35° = h ÷ 20, so h = 20 tan 35° = 14.0 m to 3 significant figures.",
+              "linkedConcept": "Angles of Elevation",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 30,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-trigonometry-q005",
+              "type": "mcq",
+              "text": "What is the exact value of cos 60°?",
+              "correctAnswer": "1",
+              "explanation": "From the exact trigonometric values, cos 60° = 1/2.",
+              "linkedConcept": "Exact Trigonometric Values",
+              "options": [
+                "0",
+                "1/2",
+                "√2/2",
+                "√3/2"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "a-math-differentiation",
+          "name": "Differentiation",
+          "position": 3,
+          "questions": [
+            {
+              "id": "a-math-differentiation-q001",
+              "type": "mcq",
+              "text": "What is the derivative of x³?",
+              "correctAnswer": "2",
+              "explanation": "Using the power rule, d(x³)/dx = 3x².",
+              "linkedConcept": "Power Rule",
+              "options": [
+                "x²",
+                "2x²",
+                "3x²",
+                "3x"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-differentiation-q002",
+              "type": "mcq",
+              "text": "What does dy/dx represent geometrically?",
+              "correctAnswer": "1",
+              "explanation": "The derivative gives the gradient of the tangent to a curve at a point.",
+              "linkedConcept": "Gradient Function",
+              "options": [
+                "Area under a curve",
+                "Gradient of the tangent",
+                "Length of the curve",
+                "y-intercept only"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-differentiation-q003",
+              "type": "mcq",
+              "text": "What condition holds at a stationary point of a differentiable curve?",
+              "correctAnswer": "0",
+              "explanation": "A stationary point has a horizontal tangent, so its first derivative is zero.",
+              "linkedConcept": "Stationary Points",
+              "options": [
+                "dy/dx = 0",
+                "y = 0 always",
+                "d²y/dx² = 0 always",
+                "x = 0 always"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-differentiation-q004",
+              "type": "fill-blank",
+              "text": "The derivative of a constant is _____.",
+              "correctAnswer": "zero",
+              "explanation": "A constant does not change as x changes, so its rate of change is zero.",
+              "linkedConcept": "Basic Differentiation",
+              "options": null,
+              "blankWord": "zero",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-differentiation-q005",
+              "type": "structured",
+              "text": "Find the x-coordinate of the stationary point of y = x² − 4x + 1.",
+              "correctAnswer": "2",
+              "explanation": "dy/dx = 2x − 4. Setting dy/dx = 0 gives 2x − 4 = 0, so x = 2.",
+              "linkedConcept": "Stationary Points",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "a-math-integration",
+          "name": "Integration",
+          "position": 4,
+          "questions": [
+            {
+              "id": "a-math-integration-q001",
+              "type": "mcq",
+              "text": "What is ∫3x² dx?",
+              "correctAnswer": "0",
+              "explanation": "Since d(x³)/dx = 3x², the integral is x³ + C.",
+              "linkedConcept": "Indefinite Integration",
+              "options": [
+                "x³ + C",
+                "3x³ + C",
+                "6x + C",
+                "x² + C"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-integration-q002",
+              "type": "mcq",
+              "text": "Integration is the reverse process of:",
+              "correctAnswer": "1",
+              "explanation": "Indefinite integration reverses differentiation.",
+              "linkedConcept": "Integration and Differentiation",
+              "options": [
+                "factorisation",
+                "differentiation",
+                "substitution",
+                "translation"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-integration-q003",
+              "type": "mcq",
+              "text": "What does a definite integral represent when a graph lies above the x-axis?",
+              "correctAnswer": "1",
+              "explanation": "A definite integral gives the signed area between the curve and the x-axis over the stated interval.",
+              "linkedConcept": "Definite Integrals",
+              "options": [
+                "Gradient at one point",
+                "Area under the curve between the limits",
+                "x-intercept",
+                "Period of the graph"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-integration-q004",
+              "type": "fill-blank",
+              "text": "The arbitrary _____ of integration is written as C.",
+              "correctAnswer": "constant",
+              "explanation": "Indefinite integrals include an arbitrary constant because differentiation removes constants.",
+              "linkedConcept": "Constant of Integration",
+              "options": null,
+              "blankWord": "constant",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-integration-q005",
+              "type": "structured",
+              "text": "Evaluate ∫ from 0 to 2 of 2x dx.",
+              "correctAnswer": "4",
+              "explanation": "An antiderivative is x². Evaluating gives 2² − 0² = 4.",
+              "linkedConcept": "Definite Integration",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "a-math-coordinate-geometry",
+          "name": "Coordinate Geometry",
+          "position": 5,
+          "questions": [
+            {
+              "id": "a-math-coordinate-geometry-q001",
+              "type": "mcq",
+              "text": "What is the gradient of the line through (1, 2) and (5, 10)?",
+              "correctAnswer": "1",
+              "explanation": "Gradient = (10 − 2) ÷ (5 − 1) = 8 ÷ 4 = 2.",
+              "linkedConcept": "Gradient",
+              "options": [
+                "1/2",
+                "2",
+                "4",
+                "8"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-coordinate-geometry-q002",
+              "type": "mcq",
+              "text": "What is the distance between (0, 0) and (3, 4)?",
+              "correctAnswer": "2",
+              "explanation": "Distance = √(3² + 4²) = 5.",
+              "linkedConcept": "Distance Formula",
+              "options": [
+                "3",
+                "4",
+                "5",
+                "7"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-coordinate-geometry-q003",
+              "type": "mcq",
+              "text": "What is the midpoint of the segment joining (2, 5) and (6, 1)?",
+              "correctAnswer": "0",
+              "explanation": "Midpoint = ((2 + 6)/2, (5 + 1)/2) = (4, 3).",
+              "linkedConcept": "Midpoint",
+              "options": [
+                "(4, 3)",
+                "(8, 6)",
+                "(2, 2)",
+                "(3, 4)"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-coordinate-geometry-q004",
+              "type": "fill-blank",
+              "text": "Two non-vertical lines with equal gradients are _____.",
+              "correctAnswer": "parallel",
+              "explanation": "Parallel lines have the same gradient.",
+              "linkedConcept": "Parallel Lines",
+              "options": null,
+              "blankWord": "parallel",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "a-math-coordinate-geometry-q005",
+              "type": "structured",
+              "text": "Find the equation of the line with gradient 3 passing through (1, 2).",
+              "correctAnswer": "y = 3x - 1",
+              "explanation": "Using y − 2 = 3(x − 1), expand to obtain y = 3x − 1.",
+              "linkedConcept": "Equation of a Line",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e-math",
+      "name": "E-Math",
+      "icon": "🔢",
+      "position": 7,
+      "topics": [
+        {
+          "id": "e-math-numbers",
+          "name": "Numbers",
+          "position": 0,
+          "questions": [
+            {
+              "id": "e-math-numbers-q001",
+              "type": "mcq",
+              "text": "Which number is prime?",
+              "correctAnswer": "1",
+              "explanation": "29 has exactly two positive factors: 1 and 29.",
+              "linkedConcept": "Prime Numbers",
+              "options": [
+                "21",
+                "29",
+                "39",
+                "51"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-numbers-q002",
+              "type": "mcq",
+              "text": "Write 0.00056 in standard form.",
+              "correctAnswer": "0",
+              "explanation": "Moving the decimal four places right gives 5.6, so the power is −4.",
+              "linkedConcept": "Standard Form",
+              "options": [
+                "5.6 × 10⁻⁴",
+                "5.6 × 10⁴",
+                "56 × 10⁻⁴",
+                "0.56 × 10⁻³"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-numbers-q003",
+              "type": "mcq",
+              "text": "A price of $80 is increased by 15%. What is the new price?",
+              "correctAnswer": "1",
+              "explanation": "15% of 80 is 12, so the new price is $92.",
+              "linkedConcept": "Percentages",
+              "options": [
+                "$88",
+                "$92",
+                "$95",
+                "$120"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-numbers-q004",
+              "type": "fill-blank",
+              "text": "The greatest number that divides two integers exactly is their highest common _____.",
+              "correctAnswer": "factor",
+              "explanation": "The highest common factor is the largest shared factor.",
+              "linkedConcept": "Factors and Multiples",
+              "options": null,
+              "blankWord": "factor",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-numbers-q005",
+              "type": "structured",
+              "text": "Calculate the value of $1000 invested for 2 years at 5% compound interest per year.",
+              "correctAnswer": "1102.50",
+              "explanation": "Amount = 1000(1.05)² = $1102.50.",
+              "linkedConcept": "Compound Interest",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "e-math-algebra",
+          "name": "Algebra",
+          "position": 1,
+          "questions": [
+            {
+              "id": "e-math-algebra-q001",
+              "type": "mcq",
+              "text": "Simplify 3x + 5x − 2.",
+              "correctAnswer": "0",
+              "explanation": "Combining like terms gives 8x − 2.",
+              "linkedConcept": "Algebraic Simplification",
+              "options": [
+                "8x − 2",
+                "8x + 2",
+                "15x − 2",
+                "3x + 3"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-algebra-q002",
+              "type": "mcq",
+              "text": "Solve 3x − 5 = 16.",
+              "correctAnswer": "1",
+              "explanation": "Add 5 to get 3x = 21, then divide by 3 to get x = 7.",
+              "linkedConcept": "Linear Equations",
+              "options": [
+                "x = 3",
+                "x = 7",
+                "x = 11",
+                "x = 21"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-algebra-q003",
+              "type": "mcq",
+              "text": "Expand (x + 4)(x − 2).",
+              "correctAnswer": "0",
+              "explanation": "Expansion gives x² − 2x + 4x − 8 = x² + 2x − 8.",
+              "linkedConcept": "Expansion",
+              "options": [
+                "x² + 2x − 8",
+                "x² − 6x − 8",
+                "x² + 6x + 8",
+                "x² + 2"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-algebra-q004",
+              "type": "fill-blank",
+              "text": "Complete the factorisation: x² − 9 = (x − 3)(x + _____).",
+              "correctAnswer": "3",
+              "explanation": "This is a difference of two squares: x² − 3² = (x − 3)(x + 3).",
+              "linkedConcept": "Factorisation",
+              "options": null,
+              "blankWord": "3",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-algebra-q005",
+              "type": "structured",
+              "text": "Solve simultaneously: x + y = 7 and x − y = 1. Find x.",
+              "correctAnswer": "4",
+              "explanation": "Adding the equations gives 2x = 8, so x = 4; then y = 3.",
+              "linkedConcept": "Simultaneous Equations",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "e-math-geometry",
+          "name": "Geometry",
+          "position": 2,
+          "questions": [
+            {
+              "id": "e-math-geometry-q001",
+              "type": "mcq",
+              "text": "Two angles in a triangle are 50° and 60°. What is the third angle?",
+              "correctAnswer": "1",
+              "explanation": "Angles in a triangle sum to 180°, so the third angle is 180° − 50° − 60° = 70°.",
+              "linkedConcept": "Angle Properties",
+              "options": [
+                "60°",
+                "70°",
+                "80°",
+                "110°"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-geometry-q002",
+              "type": "mcq",
+              "text": "What is each exterior angle of a regular hexagon?",
+              "correctAnswer": "2",
+              "explanation": "Exterior angles of a polygon sum to 360°, so each is 360° ÷ 6 = 60°.",
+              "linkedConcept": "Polygons",
+              "options": [
+                "30°",
+                "45°",
+                "60°",
+                "120°"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-geometry-q003",
+              "type": "mcq",
+              "text": "A right-angled triangle has shorter sides 6 cm and 8 cm. What is the hypotenuse?",
+              "correctAnswer": "1",
+              "explanation": "By Pythagoras, c = √(6² + 8²) = √100 = 10 cm.",
+              "linkedConcept": "Pythagoras' Theorem",
+              "options": [
+                "7 cm",
+                "10 cm",
+                "12 cm",
+                "14 cm"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-geometry-q004",
+              "type": "fill-blank",
+              "text": "Shapes with the same size and shape are _____.",
+              "correctAnswer": "congruent",
+              "explanation": "Congruent figures match exactly under a rigid transformation.",
+              "linkedConcept": "Congruence",
+              "options": null,
+              "blankWord": "congruent",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-geometry-q005",
+              "type": "structured",
+              "text": "Calculate the circumference of a circle of radius 7 cm using π = 22/7.",
+              "correctAnswer": "44",
+              "explanation": "Circumference = 2πr = 2 × 22/7 × 7 = 44 cm.",
+              "linkedConcept": "Circles",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "e-math-statistics",
+          "name": "Statistics",
+          "position": 3,
+          "questions": [
+            {
+              "id": "e-math-statistics-q001",
+              "type": "mcq",
+              "text": "Find the mean of 4, 6, 8 and 10.",
+              "correctAnswer": "1",
+              "explanation": "Mean = (4 + 6 + 8 + 10) ÷ 4 = 28 ÷ 4 = 7.",
+              "linkedConcept": "Mean",
+              "options": [
+                "6",
+                "7",
+                "8",
+                "28"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-statistics-q002",
+              "type": "mcq",
+              "text": "Find the median of 3, 5, 7, 9 and 12.",
+              "correctAnswer": "1",
+              "explanation": "The middle value in the ordered list is 7.",
+              "linkedConcept": "Median",
+              "options": [
+                "5",
+                "7",
+                "7.2",
+                "9"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-statistics-q003",
+              "type": "mcq",
+              "text": "What is the mode of 2, 3, 3, 4, 5, 5, 5?",
+              "correctAnswer": "3",
+              "explanation": "The value 5 occurs most frequently.",
+              "linkedConcept": "Mode",
+              "options": [
+                "2",
+                "3",
+                "4",
+                "5"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-statistics-q004",
+              "type": "fill-blank",
+              "text": "The difference between the largest and smallest values is the _____.",
+              "correctAnswer": "range",
+              "explanation": "Range = maximum value − minimum value.",
+              "linkedConcept": "Spread of Data",
+              "options": null,
+              "blankWord": "range",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-statistics-q005",
+              "type": "structured",
+              "text": "Values 1, 2 and 3 have frequencies 2, 3 and 1 respectively. Calculate the mean, correct to 3 significant figures.",
+              "correctAnswer": "1.83",
+              "explanation": "Mean = (1×2 + 2×3 + 3×1) ÷ (2 + 3 + 1) = 11/6 = 1.83 to 3 significant figures.",
+              "linkedConcept": "Frequency Tables",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 60,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "e-math-probability",
+          "name": "Probability",
+          "position": 4,
+          "questions": [
+            {
+              "id": "e-math-probability-q001",
+              "type": "mcq",
+              "text": "What is the probability of an impossible event?",
+              "correctAnswer": "0",
+              "explanation": "An impossible event has probability 0.",
+              "linkedConcept": "Probability Scale",
+              "options": [
+                "0",
+                "1/4",
+                "1/2",
+                "1"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-probability-q002",
+              "type": "mcq",
+              "text": "If P(A) = 0.35, what is P(not A)?",
+              "correctAnswer": "1",
+              "explanation": "Complementary probabilities sum to 1, so P(not A) = 1 − 0.35 = 0.65.",
+              "linkedConcept": "Complementary Events",
+              "options": [
+                "0.35",
+                "0.65",
+                "1.00",
+                "1.35"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-probability-q003",
+              "type": "mcq",
+              "text": "Two fair coins are tossed. What is the probability of two heads?",
+              "correctAnswer": "0",
+              "explanation": "The equally likely outcomes are HH, HT, TH and TT, so P(HH) = 1/4.",
+              "linkedConcept": "Combined Events",
+              "options": [
+                "1/4",
+                "1/3",
+                "1/2",
+                "3/4"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-probability-q004",
+              "type": "fill-blank",
+              "text": "The set of all possible outcomes is called the sample _____.",
+              "correctAnswer": "space",
+              "explanation": "A sample space lists every possible outcome of an experiment.",
+              "linkedConcept": "Sample Space",
+              "options": null,
+              "blankWord": "space",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-probability-q005",
+              "type": "structured",
+              "text": "A bag contains 3 red and 2 blue counters. Two counters are drawn without replacement. Find the probability that both are red.",
+              "correctAnswer": "3/10",
+              "explanation": "P(both red) = 3/5 × 2/4 = 6/20 = 3/10.",
+              "linkedConcept": "Probability Without Replacement",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 50,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        },
+        {
+          "id": "e-math-mensuration",
+          "name": "Mensuration",
+          "position": 5,
+          "questions": [
+            {
+              "id": "e-math-mensuration-q001",
+              "type": "mcq",
+              "text": "What is the area of a rectangle 8 cm long and 5 cm wide?",
+              "correctAnswer": "2",
+              "explanation": "Area = length × width = 8 × 5 = 40 cm².",
+              "linkedConcept": "Area",
+              "options": [
+                "13 cm²",
+                "26 cm²",
+                "40 cm²",
+                "80 cm²"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-mensuration-q002",
+              "type": "mcq",
+              "text": "What is the volume of a cylinder of radius r and height h?",
+              "correctAnswer": "0",
+              "explanation": "Cylinder volume = area of circular base × height = πr²h.",
+              "linkedConcept": "Volume of a Cylinder",
+              "options": [
+                "πr²h",
+                "2πrh",
+                "πrh²",
+                "2πr²"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-mensuration-q003",
+              "type": "mcq",
+              "text": "What is the area of a circle of radius 3 cm?",
+              "correctAnswer": "2",
+              "explanation": "Area = πr² = π(3²) = 9π cm².",
+              "linkedConcept": "Area of a Circle",
+              "options": [
+                "3π cm²",
+                "6π cm²",
+                "9π cm²",
+                "18π cm²"
+              ],
+              "blankWord": null,
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-mensuration-q004",
+              "type": "fill-blank",
+              "text": "The total distance around a two-dimensional shape is its _____.",
+              "correctAnswer": "perimeter",
+              "explanation": "Perimeter is the length of a shape's boundary.",
+              "linkedConcept": "Perimeter",
+              "options": null,
+              "blankWord": "perimeter",
+              "wordLimit": null,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            },
+            {
+              "id": "e-math-mensuration-q005",
+              "type": "structured",
+              "text": "A prism has a constant cross-sectional area of 12 cm² and length 5 cm. Calculate its volume.",
+              "correctAnswer": "60",
+              "explanation": "Volume of a prism = cross-sectional area × length = 12 × 5 = 60 cm³.",
+              "linkedConcept": "Volume of a Prism",
+              "options": null,
+              "blankWord": null,
+              "wordLimit": 40,
+              "source": "EduNets practice bank",
+              "resourceNumber": null,
+              "diagramUrl": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

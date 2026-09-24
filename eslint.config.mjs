@@ -6,6 +6,11 @@ export default defineConfig([
   ...nextVitals,
   ...nextTypeScript,
   {
+    settings: {
+      next: {
+        rootDir: 'apps/web/',
+      },
+    },
     rules: {
       '@typescript-eslint/no-unused-vars': 'warn',
       'import/no-anonymous-default-export': 'off',
@@ -19,12 +24,14 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     'out/**',
+    'apps/web/out/**',
+    'apps/web/.next/**',
     'node_modules/**',
     'app-gen-sdk/**',
-    'src/generated/**',
+    'generated/**',
     '.internal/**',
     '.power/**',
-    'services/edunets-api/dist/**',
-    'database/migrations/**',
+    'apps/api/dist/**',
+    'packages/database/migrations/**',
   ]),
 ]);

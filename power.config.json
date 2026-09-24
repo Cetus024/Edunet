@@ -1,7 +1,7 @@
 {
   "appDisplayName": "EduNets",
   "description": "Used by students to access quizzes, concept webs, captured notes and personalised study tools.",
-  "buildPath": "./out",
+  "buildPath": "./apps/web/out",
   "buildEntryPoint": "index.html",
   "logoPath": "Default",
   "localAppUrl": "http://localhost:3000/",

@@ -3,7 +3,7 @@ import { access, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 
-const outputDirectory = resolve(process.cwd(), 'out');
+const outputDirectory = resolve(process.cwd(), 'apps/web/out');
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 const host = process.env.HOST ?? '127.0.0.1';
 

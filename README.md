@@ -1,20 +1,18 @@
 # EduNets
 
-EduNets is a Next.js application for Singapore O-Level revision. It keeps the existing Power Apps-compatible static frontend while using a separate Node API for real accounts, onboarding, per-user learning progress, server-graded quiz history, and student-to-teacher enquiries.
+EduNets is a Next.js + Hono learning platform for Singapore O-Level revision. The static frontend stays Power Apps-compatible; the API owns accounts, onboarding, progress, quizzes, and enquiries.
 
-Contributors and coding agents should start from [`CLAUDE.md`](CLAUDE.md) for the repository map, conventions, and known environment traps. Every verified change is recorded at the top of [`docs/UPDATE_LOG.md`](docs/UPDATE_LOG.md).
+Start with [`CLAUDE.md`](CLAUDE.md). Verified changes go in [`docs/UPDATE_LOG.md`](docs/UPDATE_LOG.md).
 
 ## Technology
 
-- Next.js 16 App Router and React 19
-- TypeScript 5 with strict type checking
-- Tailwind CSS 4 and Radix UI
-- TanStack Query and Jotai
-- Hono, Better Auth, Drizzle ORM, and Supabase PostgreSQL
+- Next.js 16 App Router and React 19 (`apps/web`)
+- Hono, Better Auth, Drizzle ORM, Supabase PostgreSQL (`apps/api` + `packages/database`)
+- TanStack Query, Jotai, Tailwind 4, Radix UI
 - Gemini 3.5 Flash for handwritten-note OCR, Capture Hub summaries/scoring, and textbook embeddings
 - Gemini 3.1 Flash-Lite for Capture Hub Generate Notes and the Spidey help chatbot
-- Microsoft Power Apps code app SDK and generated Dataverse client
-- Static export to `out/` for Power Apps deployment
+- Azure AI Vision OCR + Microsoft Foundry (ModelArts fallback when Gemini is unset)
+- Static export to `apps/web/out/` for Power Apps
 
 ## Commands
 
@@ -27,62 +25,47 @@ npm run build
 npm run api:start
 ```
 
-`npm run dev` starts the web frontend at `http://localhost:3000` and the API at `http://localhost:8787`. `npm run build` creates the deployable static frontend in `out/` and the API bundle in `services/edunets-api/dist/`. Use `npm start` to preview the static frontend and `npm run api:start` for its API.
+`npm run dev` starts web on `:3000` and API on `:8787`. Build outputs: `apps/web/out/` and `apps/api/dist/`.
 
-Copy `.env.example` to the ignored `.env.local` and replace every placeholder. PostgreSQL, Better Auth, Google, and Resend credentials are server-only; only `NEXT_PUBLIC_EDUNETS_API_URL` is exposed to the browser. Database setup is idempotent and uses separate Supabase runtime and administrative connections. See [`database/README.md`](database/README.md) and [`services/edunets-api/README.md`](services/edunets-api/README.md).
+Copy `.env.example` to `.env.local` at the **repo root**. See [`packages/database/README.md`](packages/database/README.md) and [`apps/api/README.md`](apps/api/README.md).
 
-Capture Hub 2.0 is phone-first and does not use voice transcription. Students photograph handwritten notes for Gemini 3.5 Flash OCR, type/paste notes, or generate textbook-grounded notes with Gemini 3.1 Flash-Lite. Combined notes can be summarised and evaluated against retrieved staff textbook passages. The Spidey mascot on logged-in pages opens a general help chatbot (Gemini 3.1 Flash-Lite) for EduNets features, study tips, and saved materials. The provider boundary prefers `GEMINI_*` and can fall back to `AZURE_FOUNDRY_*` or `MODELARTS_*` without changing the Capture Hub scoring flow. All keys remain server-side.
+Capture Hub is phone-first: photograph handwritten notes for OCR, type/paste notes, or generate textbook-grounded notes. Combined notes can be summarised and evaluated against retrieved staff textbook passages. The Spidey mascot on logged-in pages opens a help chatbot for EduNets features, study tips, and saved materials. Provider preference is `GEMINI_*`, with fallback to `AZURE_FOUNDRY_*` or `MODELARTS_*`. All keys stay server-side.
 
 ## Structure
 
 ```text
 edunets/
-├─ src/
-│  ├─ app/            Next.js routes, layouts, and providers
-│  ├─ features/       Existing business screens
-│  ├─ components/     Shared application and UI components
-│  ├─ hooks/          Application hooks
-│  ├─ lib/            Business data, state, and compatibility helpers
-│  └─ generated/      Generated data contracts
-├─ app-gen-sdk/       Generated Power Apps/Dataverse client
-├─ data-model/        Dataverse model metadata
-├─ database/          Drizzle schema, migrations, catalog seed, and guarded lifecycle scripts
-├─ docs/              Product documentation
-├─ public/            Static assets
-├─ scripts/           Local static-export preview tooling
+├─ apps/
+│  ├─ web/                 Next.js frontend (features, components, lib/api)
+│  └─ api/                 Hono + Better Auth API
+├─ packages/
+│  └─ database/            Drizzle schema, migrations, seed
+├─ api/                    Vercel serverless adapter (mounts apps/api)
+├─ docs/                   overview + UPDATE_LOG
+├─ scripts/                run-web, preview, env checks
+├─ app-gen-sdk/            Power Apps / Dataverse generated client
+├─ generated/              Generated data contracts
 ├─ services/
-│  ├─ edunets-api/    Hono + Better Auth API
-│  └─ huawei-sis-gateway/ Optional Huawei speech gateway
-├─ next.config.ts     Next.js static-export configuration
-├─ power.config.json  Power Apps code app configuration
-└─ package.json       Node.js scripts and dependencies
+│  └─ huawei-sis-gateway/  Optional speech gateway
+├─ power.config.json       Power Apps → apps/web/out
+└─ package.json            Root scripts + shared dependencies
 ```
-
-The routing adapter in `src/lib/navigation.tsx` preserves the screens' existing navigation API while delegating routing to the Next.js App Router. Power Apps is initialized lazily in the browser so static generation does not execute browser-only SDK code.
 
 ## Routes
 
-| Route | Existing feature |
+| Route | Feature |
 | --- | --- |
-| `/` | Public EduNets presentation and product introduction |
-| `/dashboard` | Student dashboard or Teacher class overview |
-| `/quiz` | Student quiz or Teacher demonstration review |
-| `/concept-web` | Student concept web or Teacher demonstration class view |
-| `/capture-hub` | Note and question capture |
-| `/profile` | Student profile |
-| `/study-squad` | Collaborative study squad |
-| `/ask-teacher` | Student question flow or Teacher Students' Enquiries workspace |
-| `/rescue-room` | Rescue room |
-| `/rescue-join` | Rescue room join flow |
-| `/login` | Email/password or Google login |
-| `/signup` | Email/password or Google account creation with an optional referral code |
-| `/forgot-password` | Password-reset email request |
-| `/reset-password` | One-time password reset |
-| `/onboarding` | Required first-account setup |
-| `/placement-result` | Student starting-point quiz result and answer review |
+| `/` | Public presentation |
+| `/dashboard` | Student dashboard or Teacher overview |
+| `/quiz` | Smart Quiz / Teacher review |
+| `/concept-web` | Concept web |
+| `/capture-hub` | Note capture (OCR → summarize → evaluate) |
+| `/profile` | Profile |
+| `/study-squad` | Study squad |
+| `/ask-teacher` | Enquiries |
+| `/login` `/signup` `/onboarding` | Auth + setup |
+| `/placement-result` | Placement quiz result |
 
-EduNets supports Student and Teacher accounts. New Students complete a database-backed, ten-question topic placement quiz during onboarding; Teachers configure one or more teaching subjects and classrooms without taking the quiz. Enquiries are persisted in Supabase PostgreSQL and scoped to the authenticated Student and assigned Teacher.
+## Power Apps
 
-## Power Apps deployment
-
-`power.config.json` points Power Apps to `out/index.html`. Keep the generated contents of `app-gen-sdk/`, `src/generated/`, `.power/`, and the Dataverse identifiers in `power.config.json` aligned with the target Power Platform environment. Browser/localhost authentication is the current validated target; embedded Power Apps cookie behaviour requires a later production-domain acceptance pass.
+`power.config.json` points to `apps/web/out/index.html`. Keep `app-gen-sdk/` and `generated/` aligned with the target environment.

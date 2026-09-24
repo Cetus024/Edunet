@@ -115,13 +115,13 @@ All on `main` and deployed. None of it needs a model or a database table.
 
 | Piece | Where | State |
 |---|---|---|
-| Room UI — topic, 3-minute clock, live transcript, review | `features/discussion-room.tsx` | Live |
-| Four entry points — weak-topic card, Study Squad header, rescue dialog, topic picker | `features/study-squad.tsx` | Live |
-| Coverage rubric — keyword match against three subconcepts per topic | `lib/discussion-rubric.ts` | Live |
-| Mediator — one subconcept at a time; silence, repetition, stage-clock triggers | `lib/discussion-mediator.ts` | Live, 17 tests |
-| Microphone level meter | `hooks/use-mic-level.ts` | Live |
-| Marking engine — grounded prompt, parsing, fallback | `services/edunets-api/src/services/explanation-analysis.ts` | Deployed, inert |
-| ModelArts client | `services/edunets-api/src/services/modelarts.ts` | Deployed, inert |
+| Room UI — topic, 3-minute clock, live transcript, review | `apps/web/features/discussion-room.tsx` | Live |
+| Four entry points — weak-topic card, Study Squad header, rescue dialog, topic picker | `apps/web/features/study-squad.tsx` | Live |
+| Coverage rubric — keyword match against three subconcepts per topic | `apps/web/lib/discussion-rubric.ts` | Live |
+| Mediator — one subconcept at a time; silence, repetition, stage-clock triggers | `apps/web/lib/discussion-mediator.ts` | Live, 17 tests |
+| Microphone level meter | `apps/web/hooks/use-mic-level.ts` | Live |
+| Marking engine — grounded prompt, parsing, fallback | `apps/api/src/services/explanation-analysis.ts` | Deployed, inert |
+| ModelArts client | `apps/api/src/services/modelarts.ts` | Deployed, inert |
 | Prompt preview tool | `scripts/preview-analysis.ts` | Usable now |
 
 ### Trying it without any credentials

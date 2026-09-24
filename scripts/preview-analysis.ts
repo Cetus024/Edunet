@@ -21,8 +21,8 @@ import {
   analyzeExplanation,
   buildAnalysisPrompt,
   buildTopicGrounding,
-} from '../services/edunets-api/src/services/explanation-analysis.js';
-import { getAnalysisModel } from '../services/edunets-api/src/services/modelarts.js';
+} from '../apps/api/src/services/explanation-analysis.js';
+import { getAnalysisModel } from '../apps/api/src/services/modelarts.js';
 
 const [topicId, source] = process.argv.slice(2);
 
