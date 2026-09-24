@@ -167,6 +167,9 @@ function SidebarContent({
   onLogout: () => Promise<boolean>;
 }) {
   const { t, locale } = useTranslation();
+  const isProfileActive = location.pathname.startsWith('/profile');
+  // The account card above already links to /profile on desktop.
+  const desktopNavItems = navItems.filter((item) => item.path !== '/profile');
   const initials = user?.name
     .split(/\s+/)
     .filter(Boolean)
@@ -193,13 +196,26 @@ function SidebarContent({
         </motion.div>
       </div>
 
-      {/* Account Info */}
-      <motion.div 
+      {/* Account Info - doubles as the My Profile trigger, which is why the
+          nav list below drops its own /profile entry. The mobile bottom bar
+          keeps that entry, because this card renders only in the desktop
+          sidebar and removing it there would strand profile access. */}
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="mx-4 rounded-[1.35rem] border border-sidebar-border bg-card text-card-foreground px-4 py-4 shadow-[0_14px_34px_rgba(29,58,98,0.12)]"
+        className="mx-4"
       >
+        <NavLink
+          to="/profile"
+          aria-label={t('nav.myProfile')}
+          className={cn(
+            'block rounded-[1.35rem] border bg-card text-card-foreground px-4 py-4 shadow-[0_14px_34px_rgba(29,58,98,0.12)] transition-all',
+            'hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(29,58,98,0.18)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+            isProfileActive ? 'border-primary' : 'border-sidebar-border hover:border-primary/40',
+          )}
+        >
         <div className="flex items-center gap-3">
           <Avatar className="w-11 h-11 border-2 border-white shadow-sm">
             <AvatarImage src={user?.image ?? undefined} />
@@ -223,6 +239,7 @@ function SidebarContent({
             </p>
           </div>
         </div>
+        </NavLink>
       </motion.div>
 
       {isTeachingRole(role) && teachingScopes.length > 0 && (
@@ -235,7 +252,7 @@ function SidebarContent({
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item: NavItem, index: number) => {
+        {desktopNavItems.map((item: NavItem, index: number) => {
           const isActive = item.path === '/' 
             ? location.pathname === '/'
             : location.pathname.startsWith(item.path);
