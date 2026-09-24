@@ -25,4 +25,4 @@ full-tsc-output.txt
 content/textbooks/**/*.pdf
 content/textbooks/.extract-cache/
 /Chem_Text.pdf
-
+.questionbank-test-venv/
