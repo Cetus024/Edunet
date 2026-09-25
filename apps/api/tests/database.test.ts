@@ -302,8 +302,8 @@ describe('curriculum v2 migration', () => {
   });
 
   it('installs exactly the canonical 15 Topic parents and remaps legacy enquiry links', () => {
-    expect(migration).toContain("('e-math', 'Mathematics', '4052', '≡ƒôÉ', 0)");
-    expect(migration).toContain("('chemistry', 'Chemistry', '6092', 'ΓÜù∩╕Å', 1)");
+    expect(migration).toContain("('e-math', 'Mathematics', '4052', '📐', 0)");
+    expect(migration).toContain("('chemistry', 'Chemistry', '6092', '⚗️', 1)");
     expect(migration).toContain("('math-number-algebra', 'e-math', 'N', 'NUMBER AND ALGEBRA'");
     expect(migration).toContain("('chemistry-maintaining-air-quality', 'chemistry', '12', 'Maintaining Air Quality'");
     expect(migration).toContain("WHEN 'chemistry-stoichiometry' THEN 'chemistry-chemical-calculations'");

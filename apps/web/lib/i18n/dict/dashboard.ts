@@ -8,11 +8,14 @@ export const dashboardDict = {
   'dashboard.pulse': { en: 'EduNets study pulse', zh: 'EduNets 学习脉搏' },
   'dashboard.subtitle': { en: 'Let’s make revision feel lighter.', zh: '让复习变得轻松一些。' },
   'dashboard.captureCta': { en: 'Snap or paste your notes', zh: '拍照或粘贴笔记' },
-  'dashboard.memoryHealth': { en: 'Memory Health by Subject', zh: '各科记忆健康度' },
+  'dashboard.memoryHealth': { en: 'Memory Health: By Subject & Topics', zh: '记忆健康度：各科与各课题' },
   'dashboard.priorityQueue': { en: 'Today’s Priority Queue', zh: '今日优先复习' },
+  'dashboard.conceptWebAnalysis': { en: 'Concept Web & Analysis', zh: '概念网络与分析' },
+  'dashboard.top5AtRisk': { en: 'Top 5 At Risk', zh: '前 5 个高风险' },
+  'dashboard.priorityQueue.top5': { en: 'Top 5 Most At-Risk Topics', zh: '最亟待复习的前 5 个课题' },
   'dashboard.priorityQueue.sorted': {
-    en: 'Sorted by urgency — most forgotten first',
-    zh: '按紧急程度排序 — 遗忘最多的排在前面',
+    en: 'Top 5 most urgent topics needing review to prevent memory drop',
+    zh: '最需要复习的前 5 个课题，防止记忆衰减',
   },
   'dashboard.priorityQueue.empty': {
     en: 'No reviews are due yet. Start any Not Started topic to build your queue.',

@@ -163,6 +163,13 @@ export const captureEvaluateSchema = z.strictObject({
   text: z.string().trim().min(1).max(20_000),
 });
 
+export const captureFocusGuidanceSchema = z.strictObject({
+  text: z.string().trim().min(1).max(25_000),
+  topicId: z.string().trim().max(128).optional(),
+  topicName: z.string().trim().max(160).optional(),
+  subjectId: z.string().trim().max(128).optional(),
+});
+
 export const captureGenerateNotesSchema = z.strictObject({
   topicId: z.string().trim().min(1).max(128),
 });

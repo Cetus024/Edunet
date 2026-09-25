@@ -1,9 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAtomValue } from 'jotai';
-import { ChevronRight, CheckCircle2, TrendingUp, Clock, Inbox } from 'lucide-react';
-import Image from 'next/image';
+import {
+  ChevronRight,
+  Clock,
+  Inbox,
+  Calendar,
+  Share2,
+  ArrowRight,
+} from 'lucide-react';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,13 +25,48 @@ import {
   priorityQueueAtom,
   estimateReviewTime,
   getEffectiveScore,
-  isAtRisk as isReviewDue,
+  getDaysUntilReview,
   atRiskTopicsAtom,
   subjectsAtom,
   type SubjectSummary,
   type PriorityQueueItem,
   type TopicData,
 } from '@/lib/study-data';
+import {
+  SpideyWelcomeStoryboardModal,
+  SpideyHomepageGuideBanner,
+  STORYBOARD_STORAGE_KEY,
+} from '@/features/dashboard/spidey-welcome-storyboard';
+
+// Format numbers strictly to 2 significant figures (e.g. 2.089...% -> 2.1%, 6.06...% -> 6.1%, 17.4% -> 17%)
+export function formatTo2SF(val: number | null | undefined): string {
+  if (val === null || val === undefined) return '—';
+  if (val <= 0) return '0%';
+  if (val >= 100) return '100%';
+  const num = Number(val.toPrecision(2));
+  return `${num}%`;
+}
+
+// Compute friendly reminder for when the next review is due
+export function getNextReviewReminder(topic: TopicData, effectiveScore: number | null) {
+  const days = getDaysUntilReview(topic.nextReviewAt);
+  if (effectiveScore === null) {
+    return { label: 'Not started', isUrgent: false, days: null };
+  }
+  if (days === null) {
+    if (effectiveScore < 40) {
+      return { label: 'Review Due: Today ⚠️', isUrgent: true, days: 0 };
+    }
+    return { label: 'Review Due: in 2 days', isUrgent: false, days: 2 };
+  }
+  if (days <= 0) {
+    return { label: 'Review Due: Today ⚠️', isUrgent: true, days: 0 };
+  }
+  if (days === 1) {
+    return { label: 'Review Due: Tomorrow', isUrgent: false, days: 1 };
+  }
+  return { label: `Review Due: in ${days} days`, isUrgent: false, days };
+}
 
 // Get greeting based on time of day
 function getGreetingKey(): TranslationKey {
@@ -35,111 +76,37 @@ function getGreetingKey(): TranslationKey {
   return 'dashboard.greeting.evening';
 }
 
-// At-risk topic info for the alert cards
-interface AtRiskTopicInfo {
+// At-risk topic info for priority queue
+export interface AtRiskTopicInfo {
   topic: TopicData;
   subjectName: string;
   subjectIcon: string;
   effectiveScore: number;
 }
 
-// Topic Alert Card component
-function TopicAlertCard({ info, index }: { info: AtRiskTopicInfo; index: number }) {
+/**
+ * Circular gauge uses continuous score scale and renders score in 2 s.f.
+ */
+export function CircularGauge({ score, size = 80 }: { score: number | null; size?: number }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const reviewTime = estimateReviewTime(info.effectiveScore);
-  const scoreColor = getKnowledgeScoreColor(info.effectiveScore);
-
-  const handleReviewNow = () => {
-    // Navigate to quiz with subject, topic, and the exact displayed memory score pre-filled
-    navigate(`/quiz?subject=${encodeURIComponent(info.subjectName)}&topic=${encodeURIComponent(info.topic.name)}&score=${info.effectiveScore}&mode=${info.topic.recommendedMode ?? 'mcq'}`);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15 + index * 0.08, duration: 0.4 }}
-      className="flex-shrink-0 w-[280px]"
-    >
-      <Card className="border-0 rounded-[1.35rem] overflow-hidden floaty-card bg-card text-card-foreground border-l-4 border-l-destructive">
-        <CardContent className="p-4">
-          {/* Top: Subject indicator */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-destructive" />
-            <span className="text-xs text-muted-foreground font-medium">
-              {info.subjectIcon} {info.subjectName}
-            </span>
-          </div>
-
-          {/* Middle: Topic name */}
-          <h4 className="font-black text-foreground text-base mb-3">
-            {info.topic.name}
-          </h4>
-
-          {/* Progress bar with score */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">{t('dashboard.memoryScore')}</span>
-              <span className="text-xs font-black text-foreground">{info.effectiveScore}%</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${info.effectiveScore}%` }}
-                transition={{ duration: 0.8, delay: 0.3 + index * 0.1 }}
-                className="h-full rounded-full"
-                style={{ backgroundColor: scoreColor.fill }}
-              />
-            </div>
-          </div>
-
-          {/* Bottom: Spider message and button */}
-          <div className="bg-secondary text-secondary-foreground rounded-2xl p-3 flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-card text-card-foreground shadow-sm">
-              <Image src="/branding/spidey-icon.png" alt="" width={380} height={380} className="h-6 w-6 select-none" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs italic font-bold leading-snug">
-                {t('dashboard.couldRecover', { minutes: reviewTime })}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={handleReviewNow}
-              className="flex-shrink-0 bg-primary hover:bg-accent text-primary-foreground font-bold rounded-full h-8 text-xs px-3 transition-all hover:-translate-y-0.5"
-            >
-              {t('dashboard.reviewNowArrow')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-// Circular gauge uses the same continuous score scale as every other view.
-function CircularGauge({ score, size = 100 }: { score: number | null; size?: number }) {
-  const { t } = useTranslation();
-  const radius = (size - 14) / 2;
+  const radius = (size - 12) / 2;
   const circumference = 2 * Math.PI * radius;
   const displayScore = score ?? 0;
   const strokeDashoffset = circumference - (displayScore / 100) * circumference;
   const color = getKnowledgeScoreColor(score);
+  const formattedScore = formatTo2SF(score);
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="rotate-[-90deg]">
-        {/* Background circle - changes color based on score severity */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
           stroke={color.background}
-          strokeWidth={10}
+          strokeWidth={8}
         />
-        {/* Progress circle - what the student has retained */}
         {score !== null && (
           <motion.circle
             cx={size / 2}
@@ -147,7 +114,7 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
             r={radius}
             fill="none"
             stroke={color.fill}
-            strokeWidth={10}
+            strokeWidth={8}
             strokeLinecap="round"
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
@@ -156,24 +123,23 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
           />
         )}
       </svg>
-      {/* Score text */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {score !== null ? (
           <motion.span
-            className="text-2xl font-bold"
+            className="text-lg lg:text-xl font-black"
             style={{ color: color.fill }}
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.3 }}
           >
-            {score}%
+            {formattedScore}
           </motion.span>
         ) : (
           <motion.span
-            className="text-[10px] font-semibold text-muted-foreground text-center px-1 leading-tight"
+            className="text-[9px] font-bold text-muted-foreground text-center px-1 leading-tight"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.2 }}
           >
             {t('dashboard.notStarted')}
           </motion.span>
@@ -183,197 +149,320 @@ function CircularGauge({ score, size = 100 }: { score: number | null; size?: num
   );
 }
 
-// Subject card with visual indicators based on memory score
-function SubjectCard({ subject, index }: {
-  subject: SubjectSummary; 
+/**
+ * Concise Subject Memory Health Card (Stacked Layout):
+ * - Header: subject name, status badge, Concept Web button
+ * - Body: LEFT center hub with bigger gauge → SVG bezier branches → RIGHT compact topic rows
+ * - Sorted stacked: most at-risk first (ascending avgScore)
+ */
+export function MemoryHealthSubjectBranchCard({
+  subject,
+  index,
+}: {
+  subject: SubjectSummary;
   index: number;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const score = subject.avgScore;
-  const reviewDue = subject.atRiskCount > 0;
-  const isAtRisk = reviewDue && score !== null && score < 30;
-  const needsReview = reviewDue && !isAtRisk;
-  const isOnTrack = score !== null && !reviewDue;
+  const avgScore = subject.avgScore;
+  const isAtRisk = avgScore !== null && avgScore < 30;
+  const needsReview = avgScore !== null && avgScore >= 30 && avgScore < 60;
+  const isOnTrack = avgScore !== null && avgScore >= 60;
 
-  // Handle review button click
-  const handleReviewClick = () => {
-    const reviewCandidates = subject.atRiskCount > 0 ? subject.topics.filter(isReviewDue) : subject.topics;
-    const topicsWithScores = reviewCandidates
-      .filter((topic: TopicData) => topic.memoryScore !== null)
-      .map((entry: TopicData) => ({
-        name: entry.name,
-        score: getEffectiveScore(entry) ?? 0,
-        mode: entry.recommendedMode ?? 'mcq',
-      }));
-    topicsWithScores.sort((a, b) => a.score - b.score);
-    const topicToReview = topicsWithScores[0] ?? {
-      name: subject.topics[0]?.name ?? '',
-      score: null,
-      mode: subject.topics[0]?.recommendedMode ?? 'mcq',
-    };
-    if (!topicToReview.name) return;
-    const scoreParameter = topicToReview.score === null ? '' : `&score=${topicToReview.score}`;
-    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topicToReview.name)}${scoreParameter}&mode=${topicToReview.mode}`);
+  const weakestTopic = useMemo(() => {
+    if (!subject.topics || subject.topics.length === 0) return null;
+    const scored = [...subject.topics].filter((tp) => tp.memoryScore !== null);
+    if (scored.length === 0) return subject.topics[0];
+    scored.sort((a, b) => (getEffectiveScore(a) ?? 0) - (getEffectiveScore(b) ?? 0));
+    return scored[0];
+  }, [subject.topics]);
+
+  const handleReviewWeakest = () => {
+    if (!weakestTopic) return;
+    const score = getEffectiveScore(weakestTopic);
+    const scoreParam = score === null ? '' : `&score=${score}`;
+    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(weakestTopic.name)}${scoreParam}&mode=${weakestTopic.recommendedMode ?? 'mcq'}`);
   };
 
-  // Format last reviewed text based on memory strength
+  const handleGoToConceptWeb = () => navigate(`/concept-web?subject=${encodeURIComponent(subject.name)}`);
+
   const getLastReviewedText = () => {
-    if (score === null) return t('dashboard.notStartedCount', { count: subject.notStartedCount });
+    if (avgScore === null) return t('dashboard.notStartedCount', { count: subject.notStartedCount });
     if (subject.lastReviewed === null) return t('dashboard.lastReviewed.none');
     if (subject.lastReviewed <= 0) return t('dashboard.lastReviewed.today');
     if (subject.lastReviewed === 1) return t('dashboard.lastReviewed.yesterday');
     return t('dashboard.lastReviewed.days', { days: subject.lastReviewed });
   };
 
-  // Get card glow class based on score
-  const getCardGlowClass = () => {
-    if (isAtRisk) return 'at-risk-pulse';
-    if (needsReview) return 'needs-review-glow';
-    return '';
-  };
-
-  // Get button styles based on score
-  const getButtonClass = () => {
-    if (isAtRisk) {
-      return 'bg-destructive hover:bg-destructive text-destructive-foreground';
-    }
-    if (needsReview) {
-      return 'bg-accent hover:bg-primary text-accent-foreground hover:text-primary-foreground';
-    }
-    return 'bg-primary hover:bg-accent text-primary-foreground';
-  };
+  const topicCount = subject.topics.length;
+  // Each topic row is ~44px tall + 6px gap; min height ensures SVG has room to spread
+  const rowHeight = 44;
+  const rowGap = 6;
+  const bodyHeight = Math.max(144, topicCount * rowHeight + (topicCount - 1) * rowGap);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.08 + index * 0.06, duration: 0.4 }}
-      className="flex-shrink-0"
+      transition={{ delay: 0.1 + index * 0.08, duration: 0.38 }}
     >
-      <Card
-        className={`relative w-[190px] border-0 rounded-[1.5rem] overflow-hidden floaty-card transition-all duration-300 bg-card text-card-foreground ${getCardGlowClass()}`}
-      >
-        {/* Status Badge - positioned top right */}
-        {isAtRisk && (
-          <div className="absolute top-2 right-2 z-10">
-            <span className="bg-destructive text-destructive-foreground text-[9px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-              {t('dashboard.atRisk')}
-            </span>
-          </div>
-        )}
-        {needsReview && (
-          <div className="absolute top-2 right-2 z-10">
-            <span className="bg-accent text-accent-foreground text-[9px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-              {t('dashboard.needsReview')}
-            </span>
-          </div>
-        )}
-        {isOnTrack && (
-          <div className="absolute top-2 right-2 z-10">
-            <span className="bg-primary text-primary-foreground text-[9px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-              ✓ On Track
-            </span>
-          </div>
-        )}
+      <Card className="rounded-[1.75rem] border border-border/80 bg-card text-card-foreground shadow-[0_10px_28px_rgba(29,58,98,0.06)] hover:shadow-[0_16px_40px_rgba(29,58,98,0.10)] transition-all duration-300">
+        <CardContent className="p-5 lg:p-6">
 
-        <CardContent className="p-4 pt-8 flex flex-col items-center">
-          {/* Subject name */}
-          <div className="flex items-center gap-2 mb-3 w-full">
-            <span className="text-lg">{subject.icon}</span>
-            <span className="font-black text-foreground text-sm truncate">{subject.name}</span>
+          {/* ── Header ─────────────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-3 pb-4 mb-5 border-b border-border/60">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl p-2 rounded-xl bg-secondary/30 shrink-0">{subject.icon}</span>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-base lg:text-lg font-black text-foreground tracking-tight">{subject.name}</h3>
+                  {subject.syllabusCode && (
+                    <Badge variant="outline" className="text-[10px] font-semibold text-muted-foreground border-border/60 px-1.5 py-0">
+                      {subject.syllabusCode}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {isAtRisk    && <span className="text-[10px] font-bold text-destructive flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-destructive animate-ping inline-block" />At Risk</span>}
+                  {needsReview && <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />Needs Review</span>}
+                  {isOnTrack   && <span className="text-[10px] font-bold text-primary flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />Memory Healthy</span>}
+                  {avgScore === null && <span className="text-[10px] text-muted-foreground">Not started yet</span>}
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline" size="sm"
+              onClick={handleGoToConceptWeb}
+              className="rounded-full font-bold border-primary/30 hover:border-primary text-primary hover:bg-primary/10 text-[11px] px-3 h-7 flex items-center gap-1 shrink-0"
+            >
+              <Share2 className="w-3 h-3" />
+              Concept Web
+              <ArrowRight className="w-3 h-3" />
+            </Button>
           </div>
-          
-          {/* Circular gauge - use display score for specific subjects */}
-          <CircularGauge score={score} size={88} />
-          
-          {/* Last reviewed */}
-          <p className="text-[11px] text-muted-foreground mt-3 text-center h-8 flex items-center">
-            {getLastReviewedText()}
-          </p>
-          
-          {/* Review button */}
-          <Button
-            size="sm"
-            onClick={handleReviewClick}
-            className={`mt-2 w-full font-semibold rounded-xl h-9 text-xs ${getButtonClass()}`}
-          >
-            {score === null ? t('dashboard.startTopic') : t('dashboard.reviewNow')} <ChevronRight className="w-3.5 h-3.5 ml-1" />
-          </Button>
+
+          {/* ── Body: Hub (left) → SVG branches → Topic rows (right) ── */}
+          <div className="flex items-stretch gap-0" style={{ height: `${bodyHeight}px` }}>
+
+            {/* LEFT: Center Average Score Hub (bigger, vertically centered) */}
+            <div className="flex flex-col items-center justify-center gap-2 shrink-0" style={{ width: '152px' }}>
+              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                Subject Average
+              </span>
+              {/* Bigger gauge — 112px */}
+              <CircularGauge score={avgScore} size={112} />
+              <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2 px-2">
+                {getLastReviewedText()}
+              </p>
+              <Button
+                size="sm"
+                onClick={handleReviewWeakest}
+                className="w-full bg-primary hover:bg-accent text-primary-foreground font-black rounded-lg h-7 text-[11px] flex items-center justify-center gap-1"
+              >
+                Review <ChevronRight className="w-3 h-3" />
+              </Button>
+            </div>
+
+            {/* MIDDLE: SVG branching lines
+                The SVG fills the exact body height. viewBox is always 0 0 100 100.
+                The hub dot sits at (2, 50) which maps to the vertical center.
+                Each branch bezier fans from (2,50) to (98, targetY) where targetY
+                is evenly spaced between 8% and 92% so the end dots align with topic rows. */}
+            <div className="relative shrink-0" style={{ width: '60px', height: '100%' }}>
+              <svg
+                className="absolute inset-0 w-full h-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <linearGradient id={`bg-${subject.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.75" />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.2" />
+                  </linearGradient>
+                </defs>
+
+                {/* Central hub dot at left-center */}
+                <circle cx="2" cy="50" r="5.5" className="fill-primary" />
+
+                {subject.topics.map((tp, idx) => {
+                  const tScore = getEffectiveScore(tp);
+                  const tColor = getKnowledgeScoreColor(tScore);
+                  // Spread branches evenly: margin 8% from edges so dots align with row centres
+                  const margin = topicCount === 1 ? 0 : 8;
+                  const span = 100 - margin * 2;
+                  const targetY = topicCount === 1
+                    ? 50
+                    : margin + (idx / (topicCount - 1)) * span;
+
+                  return (
+                    <g key={tp.id}>
+                      {/* Bezier: hub center-left → topic row right-side */}
+                      <path
+                        d={`M 2 50 C 38 50, 62 ${targetY}, 98 ${targetY}`}
+                        fill="none"
+                        stroke={`url(#bg-${subject.id})`}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray={tScore === null ? '4 3' : undefined}
+                      />
+                      {/* Terminal dot coloured by topic health */}
+                      <circle cx="98" cy={targetY} r="4.5" style={{ fill: tColor.fill }} />
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* RIGHT: Topic rows, distributed evenly across the body height */}
+            <div className="flex-1 flex flex-col justify-around gap-1.5 min-w-0 py-0.5">
+              {subject.topics.map((topic, topicIdx) => {
+                const topicScore = getEffectiveScore(topic);
+                const topicScoreColor = getKnowledgeScoreColor(topicScore);
+                const topicReminder = getNextReviewReminder(topic, topicScore);
+
+                const handleTopicReview = () => {
+                  const scoreParam = topicScore === null ? '' : `&score=${topicScore}`;
+                  navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topic.name)}${scoreParam}&mode=${topic.recommendedMode ?? 'mcq'}`);
+                };
+
+                return (
+                  <motion.div
+                    key={topic.id}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + topicIdx * 0.04 }}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-all cursor-default"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: topicScoreColor.fill }} />
+                        <h4 className="font-bold text-foreground text-[12px] lg:text-[13px] leading-tight truncate">
+                          {topic.name}
+                        </h4>
+                      </div>
+                      {topicReminder.isUrgent && (
+                        <span className="mt-0.5 ml-3.5 text-[9px] font-bold text-destructive flex items-center gap-0.5">
+                          <Calendar className="w-2.5 h-2.5" />{topicReminder.label}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className="text-[11px] font-black px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: `${topicScoreColor.fill}18`, color: topicScoreColor.fill }}
+                      >
+                        {formatTo2SF(topicScore)}
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={handleTopicReview}
+                        className="font-bold rounded-lg h-7 px-2.5 text-[11px] bg-primary hover:bg-accent text-primary-foreground transition-all hover:-translate-y-0.5"
+                      >
+                        {topicScore === null ? t('dashboard.startArrow') : t('dashboard.reviewNowArrow')}
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+
         </CardContent>
       </Card>
     </motion.div>
   );
 }
-
-interface PriorityDisplayItem {
-  id: string;
-  topicName: string;
-  subjectName: string;
-  subjectIcon: string;
-  memoryScore: number;
-  reviewTime: number;
-  recommendedMode: 'mcq' | 'essay';
-}
-
-function PriorityItemRow({
+/**
+ * Priority Item Row component:
+ * - Implements the row list format shown in user screenshot
+ * - Number circle on left (1, 2, 3...)
+ * - Topic name + Subject pill badge
+ * - Memory score in 2 s.f.
+ * - Recovery duration (~12 mins)
+ * - Next review date reminder
+ * - "Start →" button pre-filling Smart Quiz
+ */
+export function PriorityItemRow({
   item,
+  rank,
   index,
-  rank
 }: {
-  item: PriorityDisplayItem;
-  index: number;
+  item: AtRiskTopicInfo;
   rank: number;
+  index: number;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const scoreColor = getKnowledgeScoreColor(item.memoryScore);
+  const reviewTime = estimateReviewTime(item.effectiveScore);
+  const scoreColor = getKnowledgeScoreColor(item.effectiveScore);
+  const reminder = getNextReviewReminder(item.topic, item.effectiveScore);
+  const formattedScore = formatTo2SF(item.effectiveScore);
 
   const handleStart = () => {
-    navigate(`/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topicName)}&score=${item.memoryScore}&mode=${item.recommendedMode}`);
+    navigate(
+      `/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topic.name)}&score=${item.effectiveScore}&mode=${item.topic.recommendedMode ?? 'mcq'}`
+    );
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
+      initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.3 + index * 0.08 }}
-      className="flex items-center gap-4 p-4 rounded-[1.35rem] bg-card text-card-foreground floaty-card"
+      transition={{ delay: 0.15 + index * 0.05 }}
+      className="flex items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-[1.35rem] bg-card text-card-foreground border border-border/70 floaty-card shadow-[0_8px_24px_rgba(29,58,98,0.06)] hover:shadow-[0_12px_32px_rgba(29,58,98,0.12)] transition-all hover:-translate-y-0.5"
     >
       {/* Rank circle */}
-      <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 shadow-lg">
-        <span className="font-black text-lg">{rank}</span>
+      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 shadow-md">
+        <span className="font-black text-base sm:text-lg">{rank}</span>
       </div>
 
-      {/* Topic info */}
+      {/* Middle: Topic details & score */}
       <div className="flex-1 min-w-0">
+        {/* Top line: status dot + topic name + subject badge */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: scoreColor.fill }} />
-          <span className="font-bold text-foreground">{item.topicName}</span>
-          <Badge className="bg-secondary text-secondary-foreground border-0 text-xs font-bold shrink-0">
+          <span
+            className="h-2 w-2 flex-shrink-0 rounded-full"
+            style={{ backgroundColor: scoreColor.fill }}
+          />
+          <span className="font-black text-foreground text-xs sm:text-sm lg:text-base uppercase tracking-tight truncate max-w-[280px] sm:max-w-none">
+            {item.topic.name}
+          </span>
+          <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border-0 text-[11px] font-bold shrink-0">
             {item.subjectIcon} {item.subjectName}
           </Badge>
         </div>
-        <div className="flex items-center gap-3 mt-1.5 ml-4">
-          <span className="text-xs text-muted-foreground">{t('dashboard.memoryScoreColon')}</span>
-          <Badge 
-            className="border-0 text-xs font-bold"
+
+        {/* Bottom line: Memory score pill + duration + review reminder */}
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
+          <span className="text-muted-foreground font-medium">
+            {t('dashboard.memoryScoreColon')}
+          </span>
+          <Badge
+            className="border-0 text-xs font-black px-2.5 py-0.5 rounded-full"
             style={{ backgroundColor: scoreColor.fill, color: scoreColor.text }}
           >
-            {item.memoryScore}%
+            {formattedScore}
           </Badge>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            ~{item.reviewTime} mins
+          <span className="text-muted-foreground flex items-center gap-1 font-medium">
+            <Clock className="w-3.5 h-3.5" />
+            ~{reviewTime} mins
+          </span>
+          <span
+            className={`font-bold flex items-center gap-1 ${
+              reminder.isUrgent ? 'text-destructive font-black' : 'text-muted-foreground'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            {reminder.label}
           </span>
         </div>
       </div>
 
-      {/* Start button */}
+      {/* Right: Start button */}
       <Button
         size="sm"
         onClick={handleStart}
-        className="font-bold rounded-full shrink-0 bg-primary hover:bg-accent text-primary-foreground transition-all hover:-translate-y-0.5"
+        className="font-bold rounded-full shrink-0 bg-primary hover:bg-accent text-primary-foreground px-4 sm:px-5 h-8 sm:h-9 text-xs shadow-sm transition-all hover:-translate-y-0.5"
       >
         {t('dashboard.startArrow')}
       </Button>
@@ -381,26 +470,21 @@ function PriorityItemRow({
   );
 }
 
-// Generate dynamic insight message.
-//
-// Takes the translator rather than returning a key, because each branch below
-// builds one sentence out of live numbers. Assembling these from fragments
-// would not survive translation — Chinese orders the subject, the figure and
-// the recommendation differently from English — so the whole sentence is the
-// translation unit and the values are interpolated into it.
+// Generate dynamic insight message
 function getDynamicInsight(
   priorityQueue: PriorityQueueItem[],
   subjectSummaries: SubjectSummary[],
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
   subjectName: (name: string) => string,
 ): string {
-  // Find subject with biggest drop or lowest score
-  const atRiskSubjects = subjectSummaries.filter(s => s.avgScore !== null && s.avgScore < 40);
-  const warningSubjects = subjectSummaries.filter(s => s.avgScore !== null && s.avgScore >= 40 && s.avgScore < 70);
-  
+  const atRiskSubjects = subjectSummaries.filter((s) => s.avgScore !== null && s.avgScore < 40);
+  const warningSubjects = subjectSummaries.filter(
+    (s) => s.avgScore !== null && s.avgScore >= 40 && s.avgScore < 70,
+  );
+
   if (atRiskSubjects.length > 0) {
-    const worstSubject = atRiskSubjects.reduce((a, b) => 
-      (a.avgScore ?? 0) < (b.avgScore ?? 0) ? a : b
+    const worstSubject = atRiskSubjects.reduce((a, b) =>
+      (a.avgScore ?? 0) < (b.avgScore ?? 0) ? a : b,
     );
     const recoveryTime = estimateReviewTime(worstSubject.avgScore ?? 0);
     return t('dashboard.insight.dropped', {
@@ -459,6 +543,44 @@ function StudentDashboard() {
   const priorityQueue = useAtomValue(priorityQueueAtom);
   const atRiskTopics = useAtomValue(atRiskTopicsAtom);
   const subjects = useAtomValue(subjectsAtom);
+
+  // Determine if student is a new user (no existing topic memory scores, quiz attempts, or reviews)
+  const hasStudyActivity = useMemo(() => {
+    return subjects
+      .flatMap((subject) => subject.topics)
+      .some(
+        (topic) =>
+          topic.memoryScore !== null ||
+          (topic.quizAttempts && topic.quizAttempts > 0) ||
+          topic.lastReviewedAt !== null,
+      );
+  }, [subjects]);
+
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [showStoryboard, setShowStoryboard] = useState(false);
+
+  useEffect(() => {
+    if (hasStudyActivity) {
+      setIsNewUser(false);
+      setShowStoryboard(false);
+      return;
+    }
+
+    try {
+      const seen = localStorage.getItem(STORYBOARD_STORAGE_KEY);
+      if (!seen) {
+        setIsNewUser(true);
+        setShowStoryboard(true);
+      } else {
+        setIsNewUser(false);
+        setShowStoryboard(false);
+      }
+    } catch {
+      setIsNewUser(false);
+      setShowStoryboard(false);
+    }
+  }, [hasStudyActivity]);
+
   const visibleSubjectSummaries = useMemo(() => {
     return [...subjectSummaries].sort(
       (firstSubject, secondSubject) =>
@@ -467,69 +589,33 @@ function StudentDashboard() {
     );
   }, [subjectSummaries]);
 
-  const visiblePriorityItems = useMemo<PriorityDisplayItem[]>(() => {
-    return priorityQueue.map((item) => ({
-      id: item.topic.id,
-      topicName: item.topic.name,
-      subjectName: item.subjectName,
-      subjectIcon: item.subjectIcon,
-      memoryScore: item.effectiveScore,
-      reviewTime: estimateReviewTime(item.effectiveScore),
-      recommendedMode: item.topic.recommendedMode ?? 'mcq',
-    }));
-  }, [priorityQueue]);
+  // At-risk topic info with subject details
+  const atRiskTopicsWithInfo: AtRiskTopicInfo[] = useMemo(() => {
+    return atRiskTopics
+      .map((topic: TopicData) => {
+        const subject = subjects.find((s: { id: string }) => s.id === topic.subjectId);
+        return {
+          topic,
+          subjectName: subject?.name ?? '',
+          subjectIcon: subject?.icon ?? '',
+          effectiveScore: getEffectiveScore(topic) ?? 0,
+        };
+      })
+      .sort((a: AtRiskTopicInfo, b: AtRiskTopicInfo) => a.effectiveScore - b.effectiveScore);
+  }, [atRiskTopics, subjects]);
 
-  // Get at-risk topic info with subject details
-  const atRiskTopicsWithInfo: AtRiskTopicInfo[] = atRiskTopics.map((topic: TopicData) => {
-    const subject = subjects.find((s: { id: string }) => s.id === topic.subjectId);
-    return {
-      topic,
-      subjectName: subject?.name ?? '',
-      subjectIcon: subject?.icon ?? '',
-      effectiveScore: getEffectiveScore(topic) ?? 0,
-    };
-  }).sort((a: AtRiskTopicInfo, b: AtRiskTopicInfo) => a.effectiveScore - b.effectiveScore);
-
-  const streakStats = useMemo(() => {
-    const startedTopics = subjects.flatMap((subject) => subject.topics).filter((topic) => topic.memoryScore !== null);
-    const scores = startedTopics
-      .map((topic) => getEffectiveScore(topic))
-      .filter((score): score is number => score !== null);
-    return {
-      topicsReviewed: startedTopics.length,
-      avgScore: scores.length
-        ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
-        : 0,
-    };
-  }, [subjects]);
+  // Strictly take top 5 most at-risk topics to avoid overwhelming students
+  const top5PriorityTopics = useMemo(() => {
+    return atRiskTopicsWithInfo.slice(0, 5);
+  }, [atRiskTopicsWithInfo]);
 
   // Dynamic insight
   const insightMessage = getDynamicInsight(priorityQueue, subjectSummaries, t, localizeSubjectName);
 
-  // CSS for glow animations based on score thresholds
-  const glowStyles = `
-    @keyframes pulse-glow-red {
-      0%, 100% { 
-        box-shadow: 0 0 18px rgba(217, 95, 89, 0.32), 0 18px 45px rgba(29, 58, 98, 0.12); 
-      }
-      50% { 
-        box-shadow: 0 0 28px rgba(217, 95, 89, 0.45), 0 28px 70px rgba(29, 58, 98, 0.16); 
-      }
-    }
-    .at-risk-pulse {
-      animation: pulse-glow-red 1.5s ease-in-out infinite;
-    }
-    .needs-review-glow {
-      box-shadow: 0 0 24px rgba(100, 134, 181, 0.24), 0 18px 45px rgba(29, 58, 98, 0.12);
-    }
-  `;
-
   return (
     <div className="p-5 lg:p-10 pattern-overlay">
-      <style>{glowStyles}</style>
-      
-      {/* TOP SECTION — Greeting */}
-      <motion.div 
+      {/* TOP SECTION — Greeting Banner */}
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative mb-8 overflow-hidden rounded-[2rem] edunets-gradient px-6 py-8 lg:px-10 lg:py-12 shadow-[0_28px_80px_rgba(29,58,98,0.14)]"
@@ -538,7 +624,9 @@ function StudentDashboard() {
         <div className="absolute -bottom-14 left-1/3 h-40 w-40 rounded-full bg-secondary blob-soft" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="min-w-0 max-w-4xl">
-            <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">{t('dashboard.pulse')}</Badge>
+            <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">
+              {t('dashboard.pulse')}
+            </Badge>
             <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
               {t(getGreetingKey())}, {firstName}.<br />{t('dashboard.subtitle')}
             </h1>
@@ -552,9 +640,7 @@ function StudentDashboard() {
             </motion.p>
           </div>
 
-          {/* Capture Hub shortcut — the hero's top-right corner is the only
-              always-visible spot on this page, so the phone-first capture flow
-              gets an entry point that does not depend on the sidebar. */}
+          {/* Capture Hub shortcut */}
           <motion.button
             type="button"
             onClick={() => navigate('/capture-hub')}
@@ -575,127 +661,106 @@ function StudentDashboard() {
         </div>
       </motion.div>
 
-      {/* AT-RISK TOPIC CARDS */}
-      {atRiskTopicsWithInfo.length > 0 && (
-        <motion.section
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.12 }}
-          className="mb-10"
-        >
-          {/* Horizontal scrollable container */}
-          <div className="relative -mx-6 lg:-mx-8 px-6 lg:px-8">
-            <div 
-              className="flex gap-4 overflow-x-auto pb-4" 
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              {atRiskTopicsWithInfo.slice(0, 3).map((info, index) => (
-                <TopicAlertCard key={info.topic.id} info={info} index={index} />
-              ))}
-            </div>
-            {/* Gradient fade on right edge */}
-            {atRiskTopicsWithInfo.length > 2 && (
-              <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none lg:hidden" />
-            )}
-          </div>
-        </motion.section>
+      {/* SPIDEY HOMEPAGE GUIDE BANNER (ONLY FOR NEW USERS) */}
+      {isNewUser && (
+        <SpideyHomepageGuideBanner
+          onDismiss={() => {
+            setIsNewUser(false);
+            try {
+              localStorage.setItem(STORYBOARD_STORAGE_KEY, 'true');
+            } catch {}
+          }}
+        />
       )}
 
-      {/* SECTION 1 — Memory Health by Subject */}
+      {/* SECTION 1: MEMORY HEALTH — By Subject & By Topics */}
       <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="mb-10"
       >
-        <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
-          <span className="w-3 h-8 bg-secondary rounded-full rotate-6" />
-          {t('dashboard.memoryHealth')}
-        </h2>
-        
-        {/* Horizontal scrollable container */}
-        <div className="relative -mx-6 lg:-mx-8 px-6 lg:px-8">
-          <div 
-            className="flex gap-4 overflow-x-auto pb-4" 
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {visibleSubjectSummaries.map((subject: SubjectSummary, index: number) => (
-              <SubjectCard
-                key={subject.id}
-                subject={subject}
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-8 bg-secondary rounded-full -rotate-6" />
+            <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary">
+              {t('dashboard.memoryHealth')}
+            </h2>
+          </div>
+          <span className="text-xs text-muted-foreground font-semibold">
+            Average memory score → topic breakdown • Concept Web for full analysis
+          </span>
+        </div>
+
+        {/* Stacked layout: chemistry first, then mathematics (sorted by avgScore asc = most at risk first) */}
+        <div className="space-y-5">
+          {visibleSubjectSummaries.map((subject: SubjectSummary, index: number) => (
+            <MemoryHealthSubjectBranchCard
+              key={subject.id}
+              subject={subject}
+              index={index}
+            />
+          ))}
+        </div>
+      </motion.section>
+
+      {/* SECTION 2: TODAY'S PRIORITY QUEUE (Row Format, Moved Below Memory Health) */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mb-10"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-8 bg-destructive rounded-full rotate-6" />
+            <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary">
+              {t('dashboard.priorityQueue')}
+            </h2>
+            <Badge className="bg-destructive/15 text-destructive border-0 text-xs font-black px-2.5 py-0.5 rounded-full">
+              {t('dashboard.top5AtRisk')}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground font-semibold">
+            {t('dashboard.priorityQueue.sorted')}
+          </p>
+        </div>
+
+        {top5PriorityTopics.length > 0 ? (
+          <div className="space-y-3">
+            {top5PriorityTopics.map((item, index) => (
+              <PriorityItemRow
+                key={item.topic.id}
+                item={item}
+                rank={index + 1}
                 index={index}
               />
             ))}
           </div>
-          {/* Gradient fade on right edge */}
-          <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none lg:hidden" />
-        </div>
+        ) : (
+          <div className="rounded-[1.5rem] border border-border/80 bg-card p-6 text-sm font-semibold text-muted-foreground shadow-xs text-center flex flex-col items-center justify-center gap-2">
+            <span className="text-2xl">🎉</span>
+            <p className="font-bold text-foreground">All caught up!</p>
+            <p className="text-xs max-w-md">{t('dashboard.priorityQueue.empty')}</p>
+          </div>
+        )}
       </motion.section>
 
-      {/* SECTION 2 — Today's Priority Queue */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.25 }}
-        className="mb-10"
-      >
-        <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
-          <span className="w-3 h-8 bg-accent rounded-full -rotate-6" />
-          {t('dashboard.priorityQueue')}
-        </h2>
-        
-        {/* Urgency label */}
-        <p className="text-xs text-muted-foreground italic mb-3">
-          {t('dashboard.priorityQueue.sorted')}
-        </p>
-        
-        <div className="space-y-3">
-          {visiblePriorityItems.map((item: PriorityDisplayItem, index: number) => (
-            <PriorityItemRow key={item.id} item={item} index={index} rank={index + 1} />
-          ))}
-          {visiblePriorityItems.length === 0 && (
-            <div className="rounded-[1.35rem] border border-border bg-card p-5 text-sm font-semibold text-muted-foreground shadow-sm">
-              {t('dashboard.priorityQueue.empty')}
-            </div>
-          )}
-        </div>
-      </motion.section>
-
-      {/* SECTION 3 — Your Streak */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary mb-4 flex items-center gap-2">
-          <span className="w-3 h-8 bg-secondary rounded-full rotate-6" />
-          {t('dashboard.streak')}
-        </h2>
-        
-        <div className="flex flex-wrap gap-3">
-          {/* Topics reviewed — day streak lives in AppTopBar */}
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.55 }}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-accent text-accent-foreground shadow-lg"
-          >
-            <CheckCircle2 className="w-5 h-5" />
-            <span className="font-bold">{streakStats.topicsReviewed} topics reviewed</span>
-          </motion.div>
-
-          {/* Average score */}
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-secondary text-secondary-foreground shadow-lg"
-          >
-            <TrendingUp className="w-5 h-5" />
-            <span className="font-bold">Avg score: {streakStats.avgScore}%</span>
-          </motion.div>
-        </div>
-      </motion.section>
+      {/* SPIDEY WELCOME STORYBOARD MODAL (1X ONBOARDING TOUR ONLY FOR NEW USERS) */}
+      {isNewUser && (
+        <SpideyWelcomeStoryboardModal
+          open={showStoryboard}
+          onOpenChange={(open) => {
+            setShowStoryboard(open);
+            if (!open) {
+              setIsNewUser(false);
+              try {
+                localStorage.setItem(STORYBOARD_STORAGE_KEY, 'true');
+              } catch {}
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

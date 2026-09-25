@@ -21,10 +21,10 @@ const TITLE_RULES: TitleRule[] = [
   { prefix: '/dashboard', labelKey: 'nav.dashboard' },
   { prefix: '/quiz', labelKey: 'nav.smartQuiz' },
   { prefix: '/concept-web', labelKey: 'nav.conceptWeb' },
-  { prefix: '/ask-teacher', labelKey: 'nav.askTeacher' },
-  { prefix: '/notifications', labelKey: 'nav.notifications' },
   { prefix: '/capture-hub', labelKey: 'nav.captureHub' },
   { prefix: '/study-squad', labelKey: 'nav.studySquad' },
+  { prefix: '/ask-teacher', labelKey: 'nav.askTeacher' },
+  { prefix: '/notifications', labelKey: 'nav.notifications' },
   { prefix: '/profile', labelKey: 'nav.myProfile' },
 ];
 

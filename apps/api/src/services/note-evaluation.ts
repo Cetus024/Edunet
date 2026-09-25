@@ -253,11 +253,11 @@ export function buildNoteEvaluationPrompt(
     'Do not return a percentage or a mark total. The app calculates that.',
     'verdict must be one of: accurate, partial, incorrect, missing.',
     '- accurate: the notes discuss this point AND the science is complete and correct. Full credit.',
-    '- For accurate, set point to one short plain sentence of what the notes got right. Keep it brief and positive. No markdown.',
-    '- partial: mentioned but incomplete or imprecise. Half credit.',
+    '- For accurate, set quote to the phrase or sentence from the student notes where this is discussed, and set point to one short plain sentence of what the notes got right. Keep it brief and positive. No markdown.',
+    '- partial: mentioned in student notes but incomplete or imprecise. Half credit. Crucially, set quote to the exact phrase/sentence from the student notes where this appears, and set correction to the specific missing explanation or clarification needed.',
     '- For partial or missing, set point to one short plain sentence naming the gap, like "Definition of oxidation and reduction in terms of the gain and loss of oxygen." Start with a noun phrase such as "Definition of", "Examples of", or "The rules for". One idea. No markdown, figures, pages, or LaTeX.',
-    '- incorrect: discussed but CONTRADICTS the mark scheme. No credit. Put the textbook wording in correction.',
-    '- missing: not discussed. Does not score.',
+    '- incorrect: discussed in student notes but CONTRADICTS the mark scheme. No credit. Crucially, set quote to the exact phrase/sentence from the student notes that contains the error, and set correction to what it should say based on the mark scheme.',
+    '- missing: not discussed in student notes at all. Does not score. Leave quote empty.',
     '- improvements: 2-4 short, motivating next steps the student can try. Start with Try, Add, or Keep. Friendly coach tone, not stern. One idea each. No page numbers, figure numbers, textbook titles, or markdown.',
     '- summary: one short encouraging sentence addressed to the student as "you". Celebrate what they attempted.',
     'If the notes are too short or off-topic, mark every point missing and say kindly in summary that a bit more detail will help you guide them.',
@@ -341,7 +341,17 @@ function parseVerdictFields(
         quote: match?.quote ?? '',
         correction: plainPoint(match?.correction || point.statement),
       });
-    } else if (verdict === 'partial' || verdict === 'missing') {
+    } else if (verdict === 'partial') {
+      if (match?.quote) {
+        incorrect.push({
+          point: plainPoint(point.statement),
+          quote: match.quote,
+          correction: plainPoint(match?.correction || `Needs more detail: ${match?.point || point.statement}`),
+        });
+      }
+      const statement = StudyNotes.asMissingBullet(match?.point || point.statement);
+      if (statement) missing.push(statement);
+    } else if (verdict === 'missing') {
       const statement = StudyNotes.asMissingBullet(match?.point || point.statement);
       if (statement) missing.push(statement);
     }

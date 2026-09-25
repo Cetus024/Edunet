@@ -1,36 +1,33 @@
 'use client';
 
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Camera,
   Upload,
   Pencil,
   Sparkles,
+  Lightbulb,
   Network,
   ClipboardList,
   ChevronRight,
   ChevronDown,
   Check,
   X,
-  Calendar,
-  Tag,
-  Folder,
-  MoreHorizontal,
-  Eye,
-  Trash2,
   RefreshCw,
-  FileType,
   File,
   BookOpen,
-  Library,
   ArrowLeft,
+  ArrowRight,
   Layers,
+  Tag,
+  Folder,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import DisplayCards from '@/components/ui/display-cards';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -41,12 +38,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -56,15 +47,16 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { useAtom } from 'jotai';
 import {
   evaluateNotes as evaluateNotesApi,
   generateFlashcards as generateFlashcardsApi,
   generateTopicNotes as generateTopicNotesApi,
+  getFocusGuidance,
   ocrImage,
   summarizeNotes as summarizeNotesApi,
   type CaptureFailure,
   type Flashcard,
+  type FocusGuidanceResult,
   type NoteEvaluation,
 } from '@/lib/api/capture';
 import { ApiConnectionError, isApiError } from '@/lib/api/client';
@@ -77,14 +69,11 @@ import {
 } from '@/lib/capture-image';
 import { CURRICULUM } from '@/lib/curriculum';
 import { resolveRubricTopicId } from '@/lib/discussion-rubric';
-import {
-  createLibraryMaterial,
-  materialsLibraryAtom,
-  type LibraryMaterial,
-} from '@/features/materials/library-store';
 import { EvaluationNextSteps } from '@/features/capture/evaluation-next-steps';
+import { QuizRevisionGuidance } from '@/features/capture/quiz-revision-guidance';
 import { TopicFlashcardDeck } from '@/features/capture/topic-flashcard-deck';
 import { StudyNotesView } from '@/features/notes/study-notes-view';
+import type { QuizRecap } from '@/lib/api/quiz';
 
 // Subject data
 const subjects = [
@@ -233,77 +222,7 @@ function UploadTile({
   );
 }
 
-// Feature icon badge
-function FeatureIcon({ feature }: { feature: string }) {
-  const icons: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-    quiz: { icon: Sparkles, color: 'text-[#EAA93C]', bg: 'bg-[#EAA93C]/20' },
-    web: { icon: Network, color: 'text-[#6486B5]', bg: 'bg-[#6486B5]/20' },
-    summary: { icon: ClipboardList, color: 'text-blue-600', bg: 'bg-blue-100' },
-  };
-  const { icon: Icon, color, bg } = icons[feature] || icons.quiz;
-  return (
-    <div className={`w-6 h-6 rounded-md ${bg} flex items-center justify-center`}>
-      <Icon className={`w-3.5 h-3.5 ${color}`} />
-    </div>
-  );
-}
-
-// Pulls up to `max` representative sentences out of real captured text,
-// spread across the whole passage rather than just its opening, so a long
-// transcript still reads as an overview instead of only its first minute.
-function extractKeyPoints(content: string, max = 5): string[] {
-  const sentences = content
-    .replace(/\s+/g, ' ')
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 12);
-  if (sentences.length <= max) return sentences;
-  const step = sentences.length / max;
-  return Array.from({ length: max }, (_, index) => sentences[Math.floor(index * step)]);
-}
-
-// Legacy metadata overview for sample-library entries without captured text.
-// Real notes use the server summary and show failures explicitly.
-function buildMaterialSummary(material: LibraryMaterial): string[] {
-  const subject = subjects.find((candidate) => candidate.id === material.subject);
-  const subjectLabel = subject ? `${subject.icon} ${subject.name}` : 'this subject';
-  const intro = `${material.topic} is the focus topic captured in "${material.name}" (${subjectLabel}).`;
-
-  const keyPoints = material.content ? extractKeyPoints(material.content) : [];
-  if (keyPoints.length > 0) return [intro, ...keyPoints];
-
-  return [
-    intro,
-    `Covers ${subjectLabel} content uploaded on ${format(new Date(material.dateUploaded), 'dd MMM yyyy')}.`,
-    material.features.includes('quiz')
-      ? 'A Smart Quiz set was generated from this material to test recall.'
-      : 'Generate a Smart Quiz from this material to test recall.',
-    material.features.includes('web')
-      ? 'Key terms from this material were linked into your Concept Web.'
-      : 'Add this material to your Concept Web to connect its key terms.',
-    'Revisit this summary before your next revision session to refresh the key ideas quickly.',
-  ];
-}
-
-// Get type icon
-function getTypeIcon(type: string) {
-  switch (type) {
-    case 'scan':
-      return Camera;
-    case 'document':
-      return FileType;
-    case 'paste':
-      return Pencil;
-    case 'generate':
-      return Sparkles;
-    default:
-      return File;
-  }
-}
-
 function NotesLibraryLayer({
-  notesLibraryTab,
-  setNotesLibraryTab,
   notesGenSubject,
   setNotesGenSubject,
   notesGenTopic,
@@ -316,18 +235,7 @@ function NotesLibraryLayer({
   isEditingGeneratedNotes,
   setIsEditingGeneratedNotes,
   setLibraryNotes,
-  libraryFilter,
-  setLibraryFilter,
-  libraryCards,
-  filteredMaterials,
-  materials,
-  setMaterials,
-  openEvaluationSummary,
-  setNoteMaterial,
-  setSummaryMaterial,
 }: {
-  notesLibraryTab: 'generated' | 'materials';
-  setNotesLibraryTab: (tab: 'generated' | 'materials') => void;
   notesGenSubject: string;
   setNotesGenSubject: (value: string) => void;
   notesGenTopic: string;
@@ -340,306 +248,159 @@ function NotesLibraryLayer({
   isEditingGeneratedNotes: boolean;
   setIsEditingGeneratedNotes: (value: boolean | ((current: boolean) => boolean)) => void;
   setLibraryNotes: (value: string) => void;
-  libraryFilter: string;
-  setLibraryFilter: (value: string) => void;
-  libraryCards: Parameters<typeof DisplayCards>[0]['cards'];
-  filteredMaterials: LibraryMaterial[];
-  materials: LibraryMaterial[];
-  setMaterials: (updater: LibraryMaterial[] | ((prev: LibraryMaterial[]) => LibraryMaterial[])) => void;
-  openEvaluationSummary: (material: LibraryMaterial) => void;
-  setNoteMaterial: (material: LibraryMaterial | null) => void;
-  setSummaryMaterial: (material: LibraryMaterial | null) => void;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={notesLibraryTab === 'generated' ? 'default' : 'outline'}
-          onClick={() => setNotesLibraryTab('generated')}
-          className={`rounded-xl ${notesLibraryTab === 'generated' ? 'bg-[#6486B5] hover:bg-[#6486B5]/90' : ''}`}
-        >
-          <Sparkles className="mr-2 h-4 w-4" />
-          Generated Notes
-        </Button>
-        <Button
-          type="button"
-          variant={notesLibraryTab === 'materials' ? 'default' : 'outline'}
-          onClick={() => setNotesLibraryTab('materials')}
-          className={`rounded-xl ${notesLibraryTab === 'materials' ? 'bg-[#6486B5] hover:bg-[#6486B5]/90' : ''}`}
-        >
-          <Folder className="mr-2 h-4 w-4" />
-          Materials Library
-        </Button>
-      </div>
-
-      {notesLibraryTab === 'generated' ? (
-        <Card className="rounded-2xl border-0 card-shadow">
-          <CardContent className="space-y-4 p-6">
-            <div>
-              <h2 className="text-lg font-bold text-studynow-dark">Generated Notes (Provided by EduNets)</h2>
-              <p className="text-sm text-muted-foreground">
-                Textbook-grounded revision notes by subject and topic.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Select
-                value={notesGenSubject}
-                onValueChange={(value) => {
-                  setNotesGenSubject(value);
-                  setNotesGenTopic('');
-                }}
-              >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Select subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      <span className="flex items-center gap-2">
-                        <span>{subject.icon}</span>
-                        <span>{subject.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={notesGenTopic}
-                onValueChange={setNotesGenTopic}
-                disabled={!notesGenSubject}
-              >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder={!notesGenSubject ? 'Select subject first' : 'Select topic'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {notesGenTopics.map((topic) => (
-                    <SelectItem key={topic} value={topic}>
-                      {topic}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {notesGenTopic && !resolvedNotesGenTopicId && (
-              <p className="text-xs text-amber-800">
-                This topic is not connected to syllabus data, so notes cannot be generated.
-              </p>
-            )}
-            <Button
-              onClick={onGenerateNotes}
-              disabled={!resolvedNotesGenTopicId || isGeneratingNotes}
-              className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
-            >
-              {isGeneratingNotes ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Writing from the textbook…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate notes
-                </>
-              )}
-            </Button>
-
-            {libraryNotes ? (
-              <div className="space-y-3 border-t border-border/60 pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label className="text-sm font-semibold text-studynow-dark">Revision notes</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingGeneratedNotes((current) => !current)}
-                    className="h-8 rounded-lg text-xs"
-                  >
-                    <Pencil className="mr-1 h-3.5 w-3.5" />
-                    {isEditingGeneratedNotes ? 'Show formatted notes' : 'Edit notes'}
-                  </Button>
-                </div>
-                {isEditingGeneratedNotes ? (
-                  <Textarea
-                    value={libraryNotes}
-                    onChange={(event) => setLibraryNotes(event.target.value)}
-                    className="min-h-48 resize-y rounded-xl"
-                  />
-                ) : (
-                  <div className="rounded-xl border border-[#6486B5]/20 bg-white p-4">
-                    <StudyNotesView text={libraryNotes} />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="rounded-xl bg-muted/40 px-3 py-4 text-sm text-muted-foreground">
-                Pick a subject and topic, then generate notes to study here.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <div className="mb-6 space-y-6 text-center">
-            <div className="mx-auto max-w-2xl space-y-3">
-              <h2 className="flex items-center justify-center gap-2 text-lg font-bold text-studynow-dark">
-                <span className="h-6 w-1.5 rounded-full bg-[#6486B5]" />
-                Materials Library
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Saved uploads and evaluation summaries from Revision Hub.
-              </p>
-              <div className="flex justify-center">
-                <Select value={libraryFilter} onValueChange={setLibraryFilter}>
-                  <SelectTrigger className="w-full max-w-[220px] rounded-xl">
-                    <SelectValue placeholder="Filter by subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Subjects</SelectItem>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        <span className="flex items-center gap-2">
-                          <span>{s.icon}</span>
-                          <span>{s.name}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DisplayCards cards={libraryCards} layout="stack" />
+      <Card className="rounded-2xl border-0 card-shadow">
+        <CardContent className="space-y-4 p-6">
+          <div>
+            <h2 className="text-lg font-bold text-studynow-dark">Textbook Notes (Provided by EduNets)</h2>
+            <p className="text-sm text-muted-foreground">
+              Textbook-grounded revision notes by subject and topic.
+            </p>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select
+              value={notesGenSubject}
+              onValueChange={(value) => {
+                setNotesGenSubject(value);
+                setNotesGenTopic('');
+              }}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{subject.icon}</span>
+                      <span>{subject.name}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={notesGenTopic}
+              onValueChange={setNotesGenTopic}
+              disabled={!notesGenSubject}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder={!notesGenSubject ? 'Select subject first' : 'Select topic'} />
+              </SelectTrigger>
+              <SelectContent>
+                {notesGenTopics.map((topic) => (
+                  <SelectItem key={topic} value={topic}>
+                    {topic}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {notesGenTopic && !resolvedNotesGenTopicId && (
+            <p className="text-xs text-amber-800">
+              This topic is not connected to syllabus data, so notes cannot be generated.
+            </p>
+          )}
+          <Button
+            onClick={onGenerateNotes}
+            disabled={!resolvedNotesGenTopicId || isGeneratingNotes}
+            className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
+          >
+            {isGeneratingNotes ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Writing from the textbook…
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate notes
+              </>
+            )}
+          </Button>
 
-          {filteredMaterials.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <AnimatePresence mode="popLayout">
-                {filteredMaterials.map((material, index) => {
-                  const subject = subjects.find((s) => s.id === material.subject);
-                  const TypeIcon = getTypeIcon(material.type);
-                  return (
-                    <motion.div
-                      key={material.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <Card className="group rounded-2xl border-0 card-shadow transition-shadow hover:shadow-lg">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6486B5]/10">
-                              <TypeIcon className="h-5 w-5 text-[#6486B5]" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="truncate font-semibold text-studynow-dark transition-colors group-hover:text-[#6486B5]">
-                                {material.name}
-                              </h3>
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <Badge variant="secondary" className="border-0 bg-[#EAA93C]/20 text-xs text-[#EAA93C]">
-                                  {subject?.icon} {subject?.name}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">{material.topic}</span>
-                              </div>
-                              <div className="mt-3 flex items-center justify-between">
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(material.dateUploaded), 'dd MMM yyyy')}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {material.features.map((f) => (
-                                    <FeatureIcon key={f} feature={f} />
-                                  ))}
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setNoteMaterial(material)}
-                                className="mt-4 w-full rounded-xl border-[#6486B5]/40 text-[#6486B5] hover:bg-[#6486B5]/10"
-                              >
-                                <BookOpen className="mr-2 h-4 w-4" />
-                                Read note
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openEvaluationSummary(material)}
-                                className="mt-2 w-full rounded-xl border-[#EAA93C]/40 text-studynow-dark hover:bg-[#EAA93C]/10"
-                              >
-                                <ClipboardList className="mr-2 h-4 w-4" />
-                                Evaluation summary
-                              </Button>
-                            </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="rounded-xl">
-                                <DropdownMenuItem onClick={() => setNoteMaterial(material)}>
-                                  <BookOpen className="mr-2 h-4 w-4" />
-                                  Read note
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setSummaryMaterial(material)}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Summary
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEvaluationSummary(material)}>
-                                  <ClipboardList className="mr-2 h-4 w-4" />
-                                  Evaluation summary
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => {
-                                    setMaterials((prev) => prev.filter((item) => item.id !== material.id));
-                                    toast.success(`Removed "${material.name}"`);
-                                  }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+          {libraryNotes ? (
+            <div className="space-y-3 border-t border-border/60 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="text-sm font-semibold text-studynow-dark">Revision notes</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingGeneratedNotes((current) => !current)}
+                  className="h-8 rounded-lg text-xs"
+                >
+                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                  {isEditingGeneratedNotes ? 'Show formatted notes' : 'Edit notes'}
+                </Button>
+              </div>
+              {isEditingGeneratedNotes ? (
+                <Textarea
+                  value={libraryNotes}
+                  onChange={(event) => setLibraryNotes(event.target.value)}
+                  className="min-h-48 resize-y rounded-xl"
+                />
+              ) : (
+                <div className="rounded-xl border border-[#6486B5]/20 bg-white p-4">
+                  <StudyNotesView text={libraryNotes} />
+                </div>
+              )}
             </div>
           ) : (
-            <div className="py-12 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAA93C]/10">
-                <Folder className="h-8 w-8 text-[#EAA93C]/50" />
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-studynow-dark">No materials yet</h3>
-              <p className="text-sm text-muted-foreground">
-                {materials.length === 0
-                  ? 'Upload and save notes from Revision Hub to see them here.'
-                  : 'No materials match this subject filter.'}
-              </p>
-            </div>
+            <p className="rounded-xl bg-muted/40 px-3 py-4 text-sm text-muted-foreground">
+              Pick a subject and topic, then generate notes to study here.
+            </p>
           )}
-        </motion.section>
-      )}
+        </CardContent>
+      </Card>
     </motion.div>
   );
+}
+
+const CAPTURE_HUB_PROGRESS_STORAGE_KEY = 'edunets_capture_hub_progress';
+
+type StoredCaptureProgress = {
+  pastedText: string;
+  extractedContent: string;
+  selectedSubject: string;
+  selectedTopic: string;
+  activeMethod: string | null;
+  quizRecapData: QuizRecap | null;
+  focusGuidanceData: FocusGuidanceResult | null;
+  evaluation: NoteEvaluation | null;
+  evaluationSummaryPoints: string[];
+  isTextReviewExpanded: boolean;
+  hubView: 'home' | 'notes-library';
+  flashcardSubject: string;
+  flashcardTopic: string;
+  flashcardSubtopicId: string;
+  flashcards: Flashcard[];
+};
+
+function getStoredCaptureProgress(): StoredCaptureProgress | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CAPTURE_HUB_PROGRESS_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredCaptureProgress;
+  } catch {
+    return null;
+  }
 }
 
 export default function CaptureHubPage() {
   const { data: catalog } = useCatalog();
 
+  // Lazy initialize from sessionStorage so switching between features retains notes and feedback
+  const [initialCaptureProgress] = useState(() => getStoredCaptureProgress());
+
   // Note capture states. OCR and typed text are deliberately additive so a
   // student can photograph a handwritten page, correct it, and add details
   // from a phone or laptop without using voice transcription.
-  const [activeMethod, setActiveMethod] = useState<string | null>(null);
-  const [pastedText, setPastedText] = useState('');
+  const [activeMethod, setActiveMethod] = useState<string | null>(() => initialCaptureProgress?.activeMethod ?? null);
+  const [pastedText, setPastedText] = useState(() => initialCaptureProgress?.pastedText ?? '');
   const [uploads, setUploads] = useState<Array<{
     id: string;
     name: string;
@@ -649,16 +410,13 @@ export default function CaptureHubPage() {
   const [isDragging, setIsDragging] = useState(false);
   const uploadBusyRef = useRef(false);
   const [ocrTranscript, setOcrTranscript] = useState('');
-  const [isTextReviewExpanded, setIsTextReviewExpanded] = useState(false);
+  const [isTextReviewExpanded, setIsTextReviewExpanded] = useState(() => initialCaptureProgress?.isTextReviewExpanded ?? false);
   const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
   // Processing state
-  const [extractedContent, setExtractedContent] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [generateQuiz, setGenerateQuiz] = useState(true);
-  const [generateSummary, setGenerateSummary] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [extractedContent, setExtractedContent] = useState(() => initialCaptureProgress?.extractedContent ?? '');
+  const [selectedSubject, setSelectedSubject] = useState(() => initialCaptureProgress?.selectedSubject ?? '');
+  const [selectedTopic, setSelectedTopic] = useState(() => initialCaptureProgress?.selectedTopic ?? '');
   const [isOcrRunning, setIsOcrRunning] = useState(false);
 
   // Evaluate: how well the captured notes cover the selected topic's syllabus
@@ -668,10 +426,11 @@ export default function CaptureHubPage() {
   // line up with the real catalog, and a room that cannot score anything
   // should stay hidden rather than open to a blank result.
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const isProcessing = isEvaluating;
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
   const [isEditingGeneratedNotes, setIsEditingGeneratedNotes] = useState(false);
-  const [evaluation, setEvaluation] = useState<NoteEvaluation | null>(null);
-  const [evaluationSummaryPoints, setEvaluationSummaryPoints] = useState<string[]>([]);
+  const [evaluation, setEvaluation] = useState<NoteEvaluation | null>(() => initialCaptureProgress?.evaluation ?? null);
+  const [evaluationSummaryPoints, setEvaluationSummaryPoints] = useState<string[]>(() => initialCaptureProgress?.evaluationSummaryPoints ?? []);
   const [evaluationUnavailable, setEvaluationUnavailable] = useState(false);
   const [evaluationOpen, setEvaluationOpen] = useState(false);
   const [latestEvaluation, setLatestEvaluation] = useState<{
@@ -680,27 +439,114 @@ export default function CaptureHubPage() {
   } | null>(null);
 
   // Landing vs Notes Library layer; flashcards and library-generated notes.
-  const [hubView, setHubView] = useState<'home' | 'notes-library'>('home');
-  const [notesLibraryTab, setNotesLibraryTab] = useState<'generated' | 'materials'>('generated');
-  const [flashcardSubject, setFlashcardSubject] = useState('');
-  const [flashcardTopic, setFlashcardTopic] = useState('');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [quizRecapData, setQuizRecapData] = useState<QuizRecap | null>(() => initialCaptureProgress?.quizRecapData ?? null);
+  const [focusGuidanceData, setFocusGuidanceData] = useState<FocusGuidanceResult | null>(() => initialCaptureProgress?.focusGuidanceData ?? null);
+  const [isGettingGuidance, setIsGettingGuidance] = useState(false);
+  const [hubView, setHubView] = useState<'home' | 'notes-library'>(() => initialCaptureProgress?.hubView ?? 'home');
+  const [flashcardSubject, setFlashcardSubject] = useState(() => initialCaptureProgress?.flashcardSubject ?? '');
+  const [flashcardTopic, setFlashcardTopic] = useState(() => initialCaptureProgress?.flashcardTopic ?? '');
   /** Empty string = whole topic; otherwise a curriculum subtopic id. */
-  const [flashcardSubtopicId, setFlashcardSubtopicId] = useState('');
+  const [flashcardSubtopicId, setFlashcardSubtopicId] = useState(() => initialCaptureProgress?.flashcardSubtopicId ?? '');
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>(() => initialCaptureProgress?.flashcards ?? []);
   const [notesGenSubject, setNotesGenSubject] = useState('');
   const [notesGenTopic, setNotesGenTopic] = useState('');
   const [libraryNotes, setLibraryNotes] = useState('');
 
-  // Keep generated summaries separate from loading/error states and demo metadata.
-  const [realSummaryPoints, setRealSummaryPoints] = useState<string[] | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
+  // Persist Revision Hub progress so switching tabs or features keeps user work
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasAnyContent = Boolean(
+      pastedText.trim() ||
+      extractedContent.trim() ||
+      focusGuidanceData ||
+      quizRecapData ||
+      evaluation ||
+      flashcards.length > 0
+    );
 
-  // Materials library
-  const [materials, setMaterials] = useAtom(materialsLibraryAtom);
-  const [libraryFilter, setLibraryFilter] = useState('all');
-  const [noteMaterial, setNoteMaterial] = useState<LibraryMaterial | null>(null);
-  const [summaryMaterial, setSummaryMaterial] = useState<LibraryMaterial | null>(null);
+    if (hasAnyContent) {
+      const data: StoredCaptureProgress = {
+        pastedText,
+        extractedContent,
+        selectedSubject,
+        selectedTopic,
+        activeMethod,
+        quizRecapData,
+        focusGuidanceData,
+        evaluation,
+        evaluationSummaryPoints,
+        isTextReviewExpanded,
+        hubView,
+        flashcardSubject,
+        flashcardTopic,
+        flashcardSubtopicId,
+        flashcards,
+      };
+      sessionStorage.setItem(CAPTURE_HUB_PROGRESS_STORAGE_KEY, JSON.stringify(data));
+    } else {
+      sessionStorage.removeItem(CAPTURE_HUB_PROGRESS_STORAGE_KEY);
+    }
+  }, [
+    pastedText,
+    extractedContent,
+    selectedSubject,
+    selectedTopic,
+    activeMethod,
+    quizRecapData,
+    focusGuidanceData,
+    evaluation,
+    evaluationSummaryPoints,
+    isTextReviewExpanded,
+    hubView,
+    flashcardSubject,
+    flashcardTopic,
+    flashcardSubtopicId,
+    flashcards,
+  ]);
+
+  // Load Quiz Recap into Typed Notes if navigated from quiz
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isRecap = searchParams.get('recap') === 'true';
+    const querySubject = searchParams.get('subject');
+    const queryTopic = searchParams.get('topic');
+
+    let loadedRecap: QuizRecap | null = null;
+    const raw = sessionStorage.getItem('edunets_quiz_recap_revision');
+    if (raw) {
+      try {
+        loadedRecap = JSON.parse(raw);
+      } catch {
+        loadedRecap = null;
+      }
+    }
+
+    if (isRecap || loadedRecap) {
+      if (loadedRecap) {
+        setQuizRecapData(loadedRecap);
+        if (loadedRecap.typedNotesText) {
+          setPastedText(loadedRecap.typedNotesText);
+          setExtractedContent(loadedRecap.typedNotesText);
+        }
+      }
+      if (querySubject || loadedRecap?.subjectId) {
+        const targetSub = querySubject || loadedRecap?.subjectId || '';
+        const match = subjects.find(
+          (s) => s.id === targetSub || s.name.toLowerCase() === targetSub.toLowerCase()
+        );
+        if (match) setSelectedSubject(match.id);
+      }
+      if (queryTopic || loadedRecap?.topicName) {
+        setSelectedTopic(queryTopic || loadedRecap?.topicName || '');
+      }
+      setActiveMethod('paste');
+      setIsTextReviewExpanded(true);
+      toast.success('Quiz recap loaded into typed notes for revision.');
+    }
+  }, [searchParams]);
 
   const appendDebugLog = useCallback(
     (stage: string, status: DebugLogStatus, message: string) => {
@@ -718,63 +564,6 @@ export default function CaptureHubPage() {
     },
     [],
   );
-
-  const summaryRequests = useRef(new Map<string, ReturnType<typeof summarizeNotesApi>>());
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [summaryAttempt, setSummaryAttempt] = useState(0);
-
-  useEffect(() => {
-    if (!summaryMaterial?.content) {
-      setRealSummaryPoints(null);
-      setSummaryError(null);
-      setIsSummarizing(false);
-      return;
-    }
-    let cancelled = false;
-    setIsSummarizing(true);
-    setRealSummaryPoints(null);
-    setSummaryError(null);
-    appendDebugLog('Summary', 'running', 'Sending the captured notes to the configured analysis provider.');
-    const content = summaryMaterial.content;
-    // Reuse completed/in-flight requests, including React's development effect
-    // replay. Opening the same note again should not spend another quota slot.
-    let request = summaryRequests.current.get(content);
-    if (!request) {
-      request = summarizeNotesApi(content);
-      summaryRequests.current.set(content, request);
-      void request.then((result) => {
-        if (!result.points?.length) summaryRequests.current.delete(content);
-      }, () => summaryRequests.current.delete(content));
-    }
-    request
-      .then((result) => {
-        if (cancelled) return;
-        if (result.available && result.points && result.points.length > 0) {
-          setRealSummaryPoints(result.points);
-          appendDebugLog('Summary', 'success', `Generated ${result.points.length} summary points.`);
-          return;
-        }
-        const message = result.failure
-          ? describeCaptureFailure(result.failure)
-          : 'The summary endpoint returned no usable points and no diagnostic reason.';
-        appendDebugLog('Summary', result.available ? 'warning' : 'error', message);
-        setSummaryError(message);
-        toast.error(message);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = describeRequestError(error, 'Summary');
-        setSummaryError(message);
-        appendDebugLog('Connection', 'error', message);
-        toast.error(message);
-      })
-      .finally(() => {
-        if (!cancelled) setIsSummarizing(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [appendDebugLog, summaryMaterial, summaryAttempt]);
 
   // File input refs
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -948,9 +737,8 @@ export default function CaptureHubPage() {
       }
       setLibraryNotes(result.text.trim());
       setIsEditingGeneratedNotes(false);
-      setNotesLibraryTab('generated');
       appendDebugLog('Generate', 'success', `Generated ${result.text.trim().length} characters of textbook notes.`);
-      toast.success('Textbook notes ready in Notes Library.');
+      toast.success('Textbook notes ready.');
     } catch (error: unknown) {
       const message = describeRequestError(error, 'Generate notes');
       appendDebugLog('Connection', 'error', message);
@@ -1007,7 +795,43 @@ export default function CaptureHubPage() {
     }
   };
 
+  const handleGetFocusGuidance = async () => {
+    const textToAnalyze = pastedText.trim() || extractedContent.trim();
+    if (!textToAnalyze) {
+      toast.error('Paste or type your notes first to get focus guidance.');
+      return;
+    }
+
+    setIsGettingGuidance(true);
+    appendDebugLog('Focus Guidance', 'running', 'Spidey is analyzing your notes to find which concepts you should focus on first.');
+    try {
+      const result = await getFocusGuidance({
+        text: textToAnalyze,
+        topicId: resolvedTopicId || undefined,
+        topicName: selectedTopic || undefined,
+        subjectId: selectedSubject || undefined,
+      });
+
+      if (result.guidance) {
+        setFocusGuidanceData(result.guidance);
+        setEvaluationOpen(true);
+        appendDebugLog('Focus Guidance', 'success', `Targeted focus guidance ready with ${result.guidance.focusAreas.length} focus points.`);
+      } else {
+        setEvaluationOpen(true);
+      }
+    } catch (err) {
+      console.warn('Focus guidance API error, opening revision guidance view:', err);
+      setEvaluationOpen(true);
+    } finally {
+      setIsGettingGuidance(false);
+    }
+  };
+
   const handleEvaluate = async () => {
+    if (quizRecapData || (!uploads.length && (pastedText.trim() || extractedContent.trim()))) {
+      void handleGetFocusGuidance();
+      return;
+    }
     if (!resolvedTopicId || !extractedContent) return;
     setIsEvaluating(true);
     setEvaluationUnavailable(false);
@@ -1047,13 +871,13 @@ export default function CaptureHubPage() {
         summaryPoints: result.summaryPoints ?? [],
       });
       appendDebugLog(
-        'Evaluation',
+        'Feedback',
         'success',
         result.evaluation.improvements?.length
-          ? `Evaluation ${result.evaluation.percentage}% with ${result.evaluation.improvements.length} improvement step(s).`
-          : `Compared the summary with topic grounding: ${result.evaluation.percentage}% coverage.`,
+          ? `Feedback with ${result.evaluation.improvements.length} improvement step(s).`
+          : `Feedback ready.`,
       );
-      toast.success('Nice work — your summary and evaluation are ready.');
+      toast.success('Nice work — your summary and feedback are ready.');
     } catch (error: unknown) {
       const message = describeRequestError(error, 'Analysis');
       appendDebugLog('Connection', 'error', message);
@@ -1061,52 +885,6 @@ export default function CaptureHubPage() {
     } finally {
       setIsEvaluating(false);
     }
-  };
-
-  const handleProcess = async () => {
-    if (!extractedContent || !selectedSubject) {
-      toast.error('Please add content and select a subject');
-      return;
-    }
-
-    setIsProcessing(true);
-
-    const newMaterial: LibraryMaterial = {
-      ...createLibraryMaterial({
-        name: selectedTopic ? `${selectedTopic} Notes` : 'New Notes',
-        subject: selectedSubject,
-        topic: selectedTopic || 'General',
-        type: activeMethod || 'paste',
-        features: [
-          ...(generateQuiz ? ['quiz'] : []),
-          ...(generateSummary ? ['summary'] : []),
-        ],
-        content: extractedContent,
-      }),
-      evaluation: latestEvaluation?.evaluation ?? null,
-      evaluationSummaryPoints: latestEvaluation?.summaryPoints ?? [],
-    };
-
-    setMaterials((prev) => [newMaterial, ...prev]);
-    setIsProcessing(false);
-
-    toast.success(generateSummary ? 'Saved to Materials Library. Generating summary…' : 'Saved to Materials Library!');
-    // Open the summary immediately so the result of "Summarise into Key
-    // Points" is actually visible, not just a toast claiming it happened.
-    if (generateSummary) setSummaryMaterial(newMaterial);
-    setHubView('notes-library');
-    setNotesLibraryTab('materials');
-
-    // Reset
-    setExtractedContent('');
-    setActiveMethod(null);
-    setUploads([]);
-    setOcrTranscript('');
-    setIsTextReviewExpanded(false);
-    setPastedText('');
-    setSelectedSubject('');
-    setSelectedTopic('');
-    setLatestEvaluation(null);
   };
 
   const clearContent = () => {
@@ -1118,38 +896,15 @@ export default function CaptureHubPage() {
     setIsEditingGeneratedNotes(false);
     setPastedText('');
     setLatestEvaluation(null);
+    setQuizRecapData(null);
+    setFocusGuidanceData(null);
+    setEvaluation(null);
+    setEvaluationSummaryPoints([]);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('edunets_quiz_recap_revision');
+      sessionStorage.removeItem(CAPTURE_HUB_PROGRESS_STORAGE_KEY);
+    }
   };
-
-  const openEvaluationSummary = (material: LibraryMaterial) => {
-    setEvaluation(material.evaluation);
-    setEvaluationSummaryPoints(material.evaluationSummaryPoints);
-    setEvaluationUnavailable(false);
-    setEvaluationOpen(true);
-  };
-
-  const filteredMaterials =
-    libraryFilter === 'all' ? materials : materials.filter((m) => m.subject === libraryFilter);
-
-  const libraryCards = [
-    {
-      icon: <span className="text-lg leading-none">🔢</span>,
-      title: 'Mathematics',
-      description: `${materials.filter((material) => material.subject === 'e-math').length} saved items`,
-      date: 'Syllabus 4052',
-      onClick: () => setLibraryFilter('e-math'),
-      isActive: libraryFilter === 'e-math',
-      className: "[grid-area:stack] hover:-translate-y-10 before:absolute before:left-0 before:top-0 before:h-full before:w-full before:rounded-2xl before:outline before:outline-1 before:outline-border before:bg-background/50 before:content-[''] before:transition-opacity before:duration-700 hover:before:opacity-0",
-    },
-    {
-      icon: <span className="text-lg leading-none">⚗️</span>,
-      title: 'Chemistry',
-      description: `${materials.filter((material) => material.subject === 'chemistry').length} saved items`,
-      date: 'Syllabus 6092',
-      onClick: () => setLibraryFilter('chemistry'),
-      isActive: libraryFilter === 'chemistry',
-      className: '[grid-area:stack] translate-x-14 translate-y-12 hover:translate-y-2',
-    },
-  ];
 
   // Prefer the API catalog, while keeping the local canonical curriculum as
   // the loading/error fallback so every option resolves to backend grounding.
@@ -1194,15 +949,15 @@ export default function CaptureHubPage() {
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex flex-wrap items-center gap-3 mb-2">
           <div className="w-12 h-12 rounded-2xl bg-[#6486B5] flex items-center justify-center">
-            {hubView === 'notes-library' ? <Library className="w-6 h-6 text-white" /> : <Upload className="w-6 h-6 text-white" />}
+            {hubView === 'notes-library' ? <BookOpen className="w-6 h-6 text-white" /> : <Upload className="w-6 h-6 text-white" />}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">
-              {hubView === 'notes-library' ? 'Notes Library' : 'Revision Hub'}
+              {hubView === 'notes-library' ? 'Textbook Notes' : 'Revision Hub'}
             </h1>
             <p className="text-muted-foreground text-sm">
               {hubView === 'notes-library'
-                ? 'Textbook notes from EduNets, plus your saved uploads and evaluation summaries'
+                ? 'Textbook notes from EduNets grounded in the Singapore Cambridge O-Level syllabus'
                 : 'Upload handwritten notes to evaluate them, or generate flashcards from the textbook'}
             </p>
           </div>
@@ -1212,8 +967,8 @@ export default function CaptureHubPage() {
               onClick={() => setHubView('notes-library')}
               className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
             >
-              <Library className="mr-2 h-4 w-4" />
-              Notes Library
+              <BookOpen className="mr-2 h-4 w-4" />
+              Textbook Notes
             </Button>
           ) : (
             <Button
@@ -1231,8 +986,6 @@ export default function CaptureHubPage() {
 
       {hubView === 'notes-library' ? (
         <NotesLibraryLayer
-          notesLibraryTab={notesLibraryTab}
-          setNotesLibraryTab={setNotesLibraryTab}
           notesGenSubject={notesGenSubject}
           setNotesGenSubject={setNotesGenSubject}
           notesGenTopic={notesGenTopic}
@@ -1245,15 +998,6 @@ export default function CaptureHubPage() {
           isEditingGeneratedNotes={isEditingGeneratedNotes}
           setIsEditingGeneratedNotes={setIsEditingGeneratedNotes}
           setLibraryNotes={setLibraryNotes}
-          libraryFilter={libraryFilter}
-          setLibraryFilter={setLibraryFilter}
-          libraryCards={libraryCards}
-          filteredMaterials={filteredMaterials}
-          materials={materials}
-          setMaterials={setMaterials}
-          openEvaluationSummary={openEvaluationSummary}
-          setNoteMaterial={setNoteMaterial}
-          setSummaryMaterial={setSummaryMaterial}
         />
       ) : (
         <>
@@ -1360,21 +1104,69 @@ export default function CaptureHubPage() {
               </Button>
             )}
             <div className="space-y-2 border-t border-border/60 pt-3">
-              <Label className="text-xs font-semibold text-muted-foreground">Or type / paste notes</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground">
+                  {quizRecapData ? 'Typed Notes · Quiz Recap' : 'Or type / paste notes'}
+                </Label>
+                {quizRecapData && (
+                  <Badge variant="outline" className="border-amber-400/80 bg-amber-50 text-[10px] font-bold text-amber-900">
+                    <Sparkles className="mr-1 h-3 w-3 text-amber-600" />
+                    Quiz Recap Loaded
+                  </Badge>
+                )}
+              </div>
               <Textarea
                 value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
+                onChange={(e) => {
+                  setPastedText(e.target.value);
+                  setExtractedContent(e.target.value);
+                }}
                 placeholder="Type or paste extra notes. They combine with any OCR text…"
-                className="min-h-[100px] rounded-xl resize-none"
+                className="min-h-[110px] rounded-xl resize-none text-xs sm:text-sm font-mono leading-relaxed"
               />
-              <Button
-                onClick={handlePasteSubmit}
-                disabled={!pastedText.trim()}
-                className="w-full bg-[#6486B5] hover:bg-[#6486B5]/90 rounded-xl"
-              >
-                <Check className="w-4 h-4 mr-2" />
-                Add to Notes
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void handleGetFocusGuidance()}
+                  disabled={isGettingGuidance || (!pastedText.trim() && !extractedContent.trim())}
+                  className="flex-1 bg-[#EAA93C] hover:bg-[#EAA93C]/90 text-studynow-dark font-bold rounded-xl shadow-xs"
+                >
+                  {isGettingGuidance ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Analyzing focus points...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2 text-amber-900" />
+                      Get focus guidance
+                    </>
+                  )}
+                </Button>
+                {(quizRecapData || pastedText.trim()) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setQuizRecapData(null);
+                      setPastedText('');
+                      setExtractedContent('');
+                      setFocusGuidanceData(null);
+                      setEvaluation(null);
+                      setEvaluationSummaryPoints([]);
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.removeItem('edunets_quiz_recap_revision');
+                        sessionStorage.removeItem(CAPTURE_HUB_PROGRESS_STORAGE_KEY);
+                      }
+                      toast.info('Cleared notes.');
+                    }}
+                    className="rounded-xl text-xs text-muted-foreground"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </UploadTile>
@@ -1696,126 +1488,97 @@ export default function CaptureHubPage() {
                 {selectedTopic && !resolvedTopicId && (
                   <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     This topic is not connected to backend syllabus data. You can still save and summarize the notes,
-                    but syllabus evaluation will be skipped.
+                    but syllabus feedback will be skipped.
                   </div>
                 )}
 
-                {/* Action buttons - checkboxes */}
-                <div className="mb-6">
-                  <Label className="text-sm font-semibold text-studynow-dark mb-3 block">
-                    What would you like to do with this material?
-                  </Label>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {/* Generate Quiz */}
-                    <motion.label
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        generateQuiz
-                          ? 'border-[#EAA93C] bg-[#EAA93C]/10'
-                          : 'border-border hover:border-[#EAA93C]/50'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={generateQuiz}
-                        onCheckedChange={(c) => setGenerateQuiz(!!c)}
-                        className="data-[state=checked]:bg-[#EAA93C] data-[state=checked]:border-[#EAA93C]"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">📝</span>
-                          <span className="font-semibold text-sm text-studynow-dark">
-                            Generate Quiz
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Sends to Smart Quiz with content loaded
-                        </p>
-                      </div>
-                    </motion.label>
-
-                    {/* Summarise */}
-                    <motion.label
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        generateSummary
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-border hover:border-blue-500/50'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={generateSummary}
-                        onCheckedChange={(c) => setGenerateSummary(!!c)}
-                        className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">📋</span>
-                          <span className="font-semibold text-sm text-studynow-dark">
-                            Summarise into Key Points
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          O-level style summary with <strong>key terms</strong>
-                        </p>
-                      </div>
-                    </motion.label>
-                  </div>
-                </div>
-
-                {/* Evaluation always summarizes first, then compares that exact
-                    summary with the selected topic's database grounding. */}
-                {resolvedTopicId && extractedContent && (
+                {/* Primary Action: Get feedback */}
+                <div className="space-y-4 pt-2">
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       type="button"
-                      variant="outline"
                       onClick={() => void handleEvaluate()}
-                      disabled={isEvaluating || isOcrRunning}
-                      className="w-full h-12 rounded-xl border-2 border-[#6486B5] font-bold text-[#6486B5] hover:bg-[#6486B5]/10"
+                      disabled={isEvaluating || isGettingGuidance || isOcrRunning || !selectedSubject || !extractedContent}
+                      className="w-full h-14 bg-[#6486B5] hover:bg-[#6486B5]/90 text-white font-bold text-lg rounded-xl shadow-lg flex items-center justify-center transition-all disabled:opacity-50"
                     >
-                      {isEvaluating ? (
+                      {isEvaluating || isGettingGuidance ? (
                         <>
                           <motion.div
                             animate={{ rotate: 360 }}
                             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                            className="mr-2 h-4 w-4 rounded-full border-2 border-[#6486B5] border-t-transparent"
+                            className="mr-2 h-5 w-5 rounded-full border-2 border-white border-t-transparent"
                           />
-                          Summarizing and checking the database...
+                          {quizRecapData || !uploads.length ? 'Analyzing focus points…' : 'Evaluating notes against syllabus…'}
+                        </>
+                      ) : quizRecapData || (!uploads.length && extractedContent) ? (
+                        <>
+                          <Sparkles className="mr-2 h-5 w-5 text-amber-300" />
+                          Get feedback on what to focus on
                         </>
                       ) : (
-                        <>📊 Evaluate summary against the syllabus</>
+                        <>
+                          <Sparkles className="mr-2 h-5 w-5" />
+                          Get feedback
+                        </>
                       )}
                     </Button>
                   </motion.div>
-                )}
 
-                {/* Process button */}
-                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                  <Button
-                    onClick={handleProcess}
-                    disabled={isProcessing || isOcrRunning || !selectedSubject}
-                    className="w-full h-14 bg-[#EAA93C] hover:bg-[#EAA93C]/90 text-studynow-dark font-bold text-lg rounded-xl shadow-lg"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  {!extractedContent && (
+                    <p className="text-center text-xs text-muted-foreground">
+                      Upload photos or type your notes above to get syllabus feedback.
+                    </p>
+                  )}
+                  {extractedContent && !selectedSubject && (
+                    <p className="text-center text-xs text-amber-700 font-medium">
+                      Select a subject and topic to evaluate your notes against the syllabus.
+                    </p>
+                  )}
+
+                  {/* After feedback: Spidey suggestion on page with button to Smart Quiz */}
+                  {latestEvaluation && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl border-2 border-[#EAA93C]/40 bg-gradient-to-br from-[#EAA93C]/10 via-[#6486B5]/10 to-amber-500/5 p-4 shadow-sm"
+                    >
+                      <div className="flex flex-col sm:flex-row items-center gap-3.5">
+                        <div className="relative shrink-0">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-xs border border-[#EAA93C]/30 p-1">
+                            <Image
+                              src="/branding/spidey-chat-avatar.png"
+                              alt="Spidey"
+                              width={40}
+                              height={40}
+                              className="h-10 w-10 object-contain"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex-1 text-center sm:text-left space-y-1">
+                          <p className="text-xs font-black uppercase tracking-wider text-[#6486B5]">Spidey's Recommendation</p>
+                          <p className="text-xs font-semibold text-studynow-dark">
+                            Notes evaluated! Ready to test your knowledge again and reinforce your memory?
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const query = new URLSearchParams();
+                            if (selectedSubject) query.set('subject', selectedSubject);
+                            if (selectedTopic) query.set('topic', selectedTopic);
+                            const queryStr = query.toString();
+                            router.push(queryStr ? `/quiz?${queryStr}` : '/quiz');
+                          }}
+                          className="shrink-0 h-10 rounded-xl bg-[#EAA93C] hover:bg-[#EAA93C]/90 text-studynow-dark font-bold text-xs px-4 shadow-sm"
                         >
-                          <RefreshCw className="w-5 h-5 mr-2" />
-                        </motion.div>
-                        Saving…
-                      </>
-                    ) : (
-                      <>
-                        Save to Materials Library
-                        <ChevronRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          Back to Smart Quiz
+                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.section>
@@ -1823,68 +1586,6 @@ export default function CaptureHubPage() {
       </AnimatePresence>
         </>
       )}
-
-      <Dialog open={noteMaterial !== null} onOpenChange={(open) => !open && setNoteMaterial(null)}>
-        <DialogContent className="max-w-2xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-[#6486B5]" />
-              {noteMaterial?.name}
-            </DialogTitle>
-            <DialogDescription>
-              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.icon}{' '}
-              {subjects.find((subject) => subject.id === noteMaterial?.subject)?.name}
-              {noteMaterial ? ` · ${noteMaterial.topic}` : ''}
-              {noteMaterial ? ` · ${format(new Date(noteMaterial.dateUploaded), 'dd MMM yyyy')}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-
-          {noteMaterial?.content ? (
-            <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-[#6486B5]/20 bg-[#6486B5]/5 p-4">
-              <StudyNotesView text={noteMaterial.content} />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed p-6 text-center">
-              <p className="font-semibold text-studynow-dark">Original note text is unavailable</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This is a demo library item. Notes you capture and process will show their full OCR or typed text here.
-              </p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={summaryMaterial !== null} onOpenChange={(open) => !open && setSummaryMaterial(null)}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>{summaryMaterial?.name}</DialogTitle>
-            <DialogDescription>
-              {subjects.find((subject) => subject.id === summaryMaterial?.subject)?.icon}{' '}
-              {subjects.find((subject) => subject.id === summaryMaterial?.subject)?.name}
-              {summaryMaterial ? ` · ${summaryMaterial.topic}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-          {isSummarizing && (
-            <p className="text-xs font-semibold text-muted-foreground">Summarizing with AI...</p>
-          )}
-          {summaryError && !isSummarizing && (
-            <div className="space-y-3" role="alert">
-              <p className="text-sm text-destructive">{summaryError}</p>
-              <Button variant="outline" onClick={() => setSummaryAttempt((attempt) => attempt + 1)}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Retry summary
-              </Button>
-            </div>
-          )}
-          <ul className="space-y-2.5 text-sm leading-relaxed text-studynow-dark">
-            {summaryMaterial && (realSummaryPoints ?? (summaryMaterial.content ? [] : buildMaterialSummary(summaryMaterial))).map((point) => (
-              <li key={point} className="flex gap-2.5">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6486B5]" />
-                <span>{point}</span>
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
 
       {/* Short motivational next-steps checklist; scoring still runs in the backend. */}
       <Dialog
@@ -1899,26 +1600,53 @@ export default function CaptureHubPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Your next steps</DialogTitle>
+            <DialogTitle>
+              {focusGuidanceData || quizRecapData ? "Spidey's Focus Guidance" : 'Get feedback'}
+            </DialogTitle>
             <DialogDescription>
-              A short score and a few tips you can tick off as you improve your notes.
+              {focusGuidanceData || quizRecapData
+                ? 'Overall feedback on what concepts you need to focus on, combined with a quick tip and encouragement from Spidey.'
+                : 'Helpful tips and next steps you can tick off as you improve your notes.'}
             </DialogDescription>
           </DialogHeader>
-          {evaluation && (
+          {focusGuidanceData || quizRecapData ? (
+            <QuizRevisionGuidance
+              focusGuidance={focusGuidanceData}
+              recap={quizRecapData}
+              onGoToSmartQuiz={() => {
+                setEvaluationOpen(false);
+                const query = new URLSearchParams();
+                if (selectedSubject) query.set('subject', selectedSubject);
+                if (selectedTopic) query.set('topic', selectedTopic);
+                const queryStr = query.toString();
+                router.push(queryStr ? `/quiz?${queryStr}` : '/quiz');
+              }}
+            />
+          ) : evaluation ? (
             <EvaluationNextSteps
-              percentage={evaluation.percentage}
               summary={evaluation.summary}
               improvements={evaluation.improvements ?? []}
+              incorrect={evaluation.incorrect ?? []}
+              correct={evaluation.correct ?? []}
+              missing={evaluation.missing ?? []}
+              topicName={selectedTopic}
+              subjectName={subjects.find((s) => s.id === selectedSubject)?.name}
+              onGoToSmartQuiz={() => {
+                setEvaluationOpen(false);
+                const query = new URLSearchParams();
+                if (selectedSubject) query.set('subject', selectedSubject);
+                if (selectedTopic) query.set('topic', selectedTopic);
+                const queryStr = query.toString();
+                router.push(queryStr ? `/quiz?${queryStr}` : '/quiz');
+              }}
             />
-          )}
-          {evaluationUnavailable && (
+          ) : evaluationUnavailable ? (
             <p className="text-sm text-muted-foreground">
-              Evaluation is not configured for this deployment yet.
+              Feedback is not configured for this deployment yet.
             </p>
-          )}
-          {!evaluation && !evaluationUnavailable && (
+          ) : (
             <p className="text-sm text-muted-foreground">
-              No evaluation summary is saved for this material. Evaluate the notes against the syllabus before saving them to the library.
+              No feedback is available for these notes yet. Click &quot;Get feedback&quot; to evaluate your notes against the syllabus.
             </p>
           )}
         </DialogContent>

@@ -111,7 +111,7 @@ export function createServerlessHandler(options: ServerlessHandlerOptions): {
             errorType: error instanceof Error ? error.name : 'UnknownError',
             message: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined,
-            cause: error instanceof Error && 'cause' in error ? String((error as any).cause) : undefined,
+            cause: error instanceof Error && 'cause' in error && error.cause !== undefined ? String(error.cause) : undefined,
           }));
           console.error('FULL ERROR DUMP:', error);
         }))();

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, or } from 'drizzle-orm';
 
 import { db } from '../../../../packages/database/index.js';
+import { subjects, topics } from '../../../../packages/database/schema/catalog.js';
 import {
   quizAttemptAnswers,
   quizAttemptQuestions,
@@ -11,6 +12,7 @@ import {
   userTopicProgress,
 } from '../../../../packages/database/schema/learning.js';
 import { ApiError } from '../errors.js';
+import { generateQuizRecap, type QuizRecap } from './quiz-recap.js';
 import {
   KNOWLEDGE_MODEL_VERSION,
   PHASE1_PARAMETERS,
@@ -266,6 +268,7 @@ async function loadAssessmentSession(userId: string, submissionId: string, resum
     },
     answers,
     concept,
+    recap: ((attempt.calculationTrace as Record<string, unknown> | null)?.recap as QuizRecap | null) ?? null,
   };
 }
 
@@ -636,7 +639,76 @@ export async function finishAssessmentSession(userId: string, submissionId: stri
     }).where(eq(quizAttempts.id, attempt.id));
     return { idempotentReplay: false };
   });
-  return { ...(await loadAssessmentSession(userId, submissionId, true)), idempotentReplay: result.idempotentReplay };
+
+  let recap: QuizRecap | null = null;
+  try {
+    recap = await generateAndSaveAttemptRecap(userId, submissionId);
+  } catch (err) {
+    console.warn('Failed to generate attempt recap:', err);
+  }
+
+  const loaded = await loadAssessmentSession(userId, submissionId, true);
+  return { ...loaded, recap: recap ?? loaded.recap, idempotentReplay: result.idempotentReplay };
+}
+
+export async function generateAndSaveAttemptRecap(userId: string, submissionId: string): Promise<QuizRecap> {
+  const [attempt] = await db.select(attemptSelection)
+    .from(quizAttempts)
+    .where(and(
+      or(eq(quizAttempts.submissionId, submissionId), eq(quizAttempts.id, submissionId)),
+      eq(quizAttempts.userId, userId),
+    ))
+    .limit(1);
+  if (!attempt) throw new ApiError(404, 'ASSESSMENT_NOT_FOUND', 'This assessment session was not found.');
+
+  const existingRecap = (attempt.calculationTrace as Record<string, unknown> | null)?.recap as QuizRecap | undefined;
+  if (existingRecap) return existingRecap;
+
+  const [questionRows, answerRows, subjectRows, topicRows] = await Promise.all([
+    db.select({
+      questionIndex: quizAttemptQuestions.questionIndex,
+      questionKey: quizAttemptQuestions.questionKey,
+      type: quizAttemptQuestions.type,
+      topic: quizAttemptQuestions.topic,
+      text: quizAttemptQuestions.text,
+      options: quizAttemptQuestions.options,
+      correctAnswer: quizAttemptQuestions.correctAnswer,
+      explanation: quizAttemptQuestions.explanation,
+      linkedConcept: quizAttemptQuestions.linkedConcept,
+      maxMarks: quizAttemptQuestions.maxMarks,
+    }).from(quizAttemptQuestions).where(eq(quizAttemptQuestions.attemptId, attempt.id)).orderBy(asc(quizAttemptQuestions.questionIndex)),
+    db.select({
+      questionKey: quizAttemptAnswers.questionKey,
+      questionIndex: quizAttemptAnswers.questionIndex,
+      submittedAnswer: quizAttemptAnswers.submittedAnswer,
+      isCorrect: quizAttemptAnswers.isCorrect,
+      marksObtained: quizAttemptAnswers.marksObtained,
+      maximumMarks: quizAttemptAnswers.maximumMarks,
+      gradingFeedback: quizAttemptAnswers.gradingFeedback,
+    }).from(quizAttemptAnswers).where(eq(quizAttemptAnswers.attemptId, attempt.id)).orderBy(asc(quizAttemptAnswers.questionIndex)),
+    db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, attempt.subjectId)).limit(1),
+    db.select({ name: topics.name }).from(topics).where(eq(topics.id, attempt.topicId)).limit(1),
+  ]);
+
+  const recap = await generateQuizRecap({
+    mode: attempt.mode === 'essay' ? 'essay' : 'mcq',
+    subjectId: attempt.subjectId,
+    subjectName: subjectRows[0]?.name,
+    topicId: attempt.topicId,
+    topicName: topicRows[0]?.name || questionRows[0]?.topic || 'Topic',
+    questions: questionRows,
+    answers: answerRows,
+  });
+
+  const updatedTrace = {
+    ...((attempt.calculationTrace as Record<string, unknown> | null) || {}),
+    recap,
+  };
+  await db.update(quizAttempts)
+    .set({ calculationTrace: updatedTrace })
+    .where(eq(quizAttempts.id, attempt.id));
+
+  return recap;
 }
 
 export async function completeAssessmentFeedback(userId: string, submissionId: string) {

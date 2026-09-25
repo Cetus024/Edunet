@@ -28,11 +28,13 @@ import { summarizeNotes } from '../services/summarize-notes.js';
 import { analysisFailure } from '../services/analysis-error.js';
 import { getGeminiChatModel } from '../services/gemini.js';
 import { generateTopicNotes } from '../services/generate-topic-notes.js';
-import { generateFlashcards } from '../services/generate-flashcards.js';
+import { generateFlashcards, type FlashcardFocus } from '../services/generate-flashcards.js';
 import { answerSpideyChat } from '../services/spidey-chat.js';
 import { checkSpideyRateLimit } from '../services/spidey-security.js';
+import { generateFocusGuidance } from '../services/quiz-recap.js';
 import {
   captureEvaluateSchema,
+  captureFocusGuidanceSchema,
   captureGenerateFlashcardsSchema,
   captureGenerateNotesSchema,
   captureOcrSchema,
@@ -62,6 +64,7 @@ import {
   completeAssessmentFeedback,
   createOrResumeAssessmentSession,
   finishAssessmentSession,
+  generateAndSaveAttemptRecap,
   submitAssessmentAnswer,
 } from '../services/assessment-quiz.js';
 import { commitModeProgress, lockTopic } from '../services/phase1-progress.js';
@@ -722,6 +725,18 @@ api.post('/me/quiz-attempts/:submissionId/finish', loadSession, requireSession, 
   return context.json(localizeSessionQuestions(result, context));
 });
 
+api.get('/me/quiz-attempts/:submissionId/recap', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const recap = await generateAndSaveAttemptRecap(userId, context.req.param('submissionId'));
+  return context.json(recap);
+});
+
+api.post('/me/quiz-attempts/:submissionId/recap', loadSession, requireSession, async (context) => {
+  const userId = requireUserId(context);
+  const recap = await generateAndSaveAttemptRecap(userId, context.req.param('submissionId'));
+  return context.json(recap);
+});
+
 api.post('/me/quiz-attempts/:submissionId/feedback-complete', loadSession, requireSession, async (context) => {
   const userId = requireUserId(context);
   const result = await completeAssessmentFeedback(userId, context.req.param('submissionId'));
@@ -958,6 +973,33 @@ api.post('/me/capture/evaluate', loadSession, requireSession, async (context) =>
   }
 });
 
+// Capture Hub: get targeted focus guidance on typed notes / pasted quiz recap.
+// Tells the student which concept they need to focus on first, in Spidey's encouraging positive voice.
+api.post('/me/capture/focus-guidance', loadSession, requireSession, async (context) => {
+  requireUserId(context);
+  const input = captureFocusGuidanceSchema.parse(await readJson(context));
+
+  try {
+    const guidance = await generateFocusGuidance({
+      text: input.text,
+      topicId: input.topicId,
+      topicName: input.topicName,
+      subjectId: input.subjectId,
+    });
+    return context.json({
+      available: true,
+      guidance,
+      failure: null,
+    });
+  } catch {
+    return context.json({
+      available: true,
+      guidance: null,
+      failure: { stage: 'evaluation', reason: 'provider_error' },
+    });
+  }
+});
+
 // Capture Hub: write study notes from retrieved staff textbook passages.
 // Uses Gemini 3.1 Flash-Lite, not the 3.5 Flash OCR/scoring model.
 api.post('/me/capture/generate-notes', loadSession, requireSession, async (context) => {
@@ -1011,7 +1053,7 @@ api.post('/me/capture/generate-flashcards', loadSession, requireSession, async (
   }
 
   try {
-    const result = await generateFlashcards(input.topicId, model, undefined, input.focus as any);
+    const result = await generateFlashcards(input.topicId, model, undefined, input.focus as FlashcardFocus | undefined);
     if (!result.grounded) {
       return context.json({
         available: true,

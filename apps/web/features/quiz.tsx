@@ -5,7 +5,7 @@ import { useAtom } from 'jotai';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Brain, CalendarClock, CheckCircle2, ChevronDown, Eye, EyeOff, FileText, ImageIcon, Inbox, LoaderCircle, RotateCcw, Sparkles, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brain, CalendarClock, CheckCircle2, ChevronDown, Eye, EyeOff, FileText, ImageIcon, Inbox, LoaderCircle, RotateCcw, Sparkles, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { TeacherQuizReview } from '@/components/teacher-quiz-review';
@@ -27,18 +27,22 @@ import { RoughNotation } from 'react-rough-notation';
 
 import { useMascotFeedback } from '@/features/mascot';
 import { QuizIntro } from '@/features/quiz-intro';
+import { QuizRecapCard } from '@/components/quiz-recap-card';
 import {
   abandonAssessment,
   completeAssessmentFeedback,
+  extractRecapFromSession,
   finishAssessment,
   generateQuizSet,
   getQuizOptions,
+  getQuizRecap,
   submitAssessmentAnswer,
   type AssessmentMode,
   type AssessmentSessionResponse,
   type EssayMarkCode,
   type EssayMarkPoint,
   type EssayPartFeedback,
+  type QuizRecap,
 } from '@/lib/api/quiz';
 import { useCurrentAccount } from '@/lib/api/me';
 import { useNavigate, useSearchParams } from '@/lib/navigation';
@@ -92,7 +96,7 @@ function SetupPanel({ subjectName, topicId, subtopicId, mode, loading, onSubject
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex w-full flex-col">
       <div className="flex items-center gap-3 lg:gap-4">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#1D3A62]/10 lg:h-12 lg:w-12">
           <Brain className="h-5 w-5 text-[#1D3A62] lg:h-6 lg:w-6" />
@@ -103,7 +107,7 @@ function SetupPanel({ subjectName, topicId, subtopicId, mode, loading, onSubject
         </div>
       </div>
 
-      <div className="mt-5 flex min-h-0 flex-1 flex-col justify-between gap-4 lg:mt-6 lg:gap-5">
+      <div className="mt-5 flex flex-col gap-4 lg:mt-6 lg:gap-5">
         <div className="space-y-3.5 lg:space-y-4">
           <HoverSelect
             label="Subject"
@@ -218,7 +222,7 @@ function SetupPanel({ subjectName, topicId, subtopicId, mode, loading, onSubject
           </AnimatePresence>
         </div>
 
-        <motion.div whileHover={{ scale: available && subject && topicId ? 1.01 : 1 }} whileTap={{ scale: available && subject && topicId ? 0.98 : 1 }} className="shrink-0 pt-1">
+        <motion.div whileHover={{ scale: available && subject && topicId ? 1.01 : 1 }} whileTap={{ scale: available && subject && topicId ? 0.98 : 1 }} className="shrink-0 pt-3 sm:pt-4">
           <Button
             className="h-12 w-full rounded-2xl bg-[#1D3A62] text-base font-bold text-white hover:bg-[#1D3A62]/90 lg:h-14 lg:text-lg"
             disabled={!subject || !topicId || loading || !available}
@@ -387,7 +391,7 @@ function PulseBar({ className }: { className?: string }) {
 function QuestionSessionSkeleton({ mode, total = 10 }: { mode: AssessmentMode; total?: number }) {
   const gridCount = Math.min(Math.max(total, 5), 12);
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-1" aria-busy="true" aria-label="Loading quiz session">
+    <div className="relative flex min-h-0 w-full flex-1" aria-busy="true" aria-label="Loading quiz session">
       <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-[min(1200px,100%)] flex-1 flex-col px-2 sm:px-4 lg:pr-[7.75rem]">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1D3A62]/12 pb-3">
           <PulseBar className="h-7 w-52 sm:w-64 lg:h-8" />
@@ -398,7 +402,7 @@ function QuestionSessionSkeleton({ mode, total = 10 }: { mode: AssessmentMode; t
         </div>
         <PulseBar className="mt-2 h-1.5 w-full shrink-0 rounded-full" />
 
-        <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden sm:mt-4">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-4">
           {mode === 'mcq' ? (
             <div className="flex min-h-0 w-full flex-col justify-start gap-3 lg:gap-4">
               <div className="mx-auto w-full rounded-2xl border border-white/80 bg-[#FBF5F5] px-6 py-[calc(1rem+50px)] shadow-[0_18px_48px_rgba(29,58,98,0.14)] sm:px-8 sm:py-[calc(1.25rem+50px)] lg:px-10">
@@ -656,7 +660,7 @@ function QuestionPanel({
   const modeLabel = session.mode === 'mcq' ? 'Multiple Choice Question' : 'Essay Question';
 
   return (
-    <div className="relative flex min-h-full w-full flex-1">
+    <div className="relative flex w-full flex-1">
       <div className="mx-auto flex min-w-0 w-full max-w-[min(1200px,100%)] flex-1 flex-col px-2 sm:px-4 lg:pr-[7.75rem]">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1D3A62]/12 pb-3">
           <div className="min-w-0">
@@ -681,9 +685,9 @@ function QuestionPanel({
           <motion.div className="h-full rounded-full bg-[#1D3A62]" animate={{ width: `${((index + 1) / session.questions.length) * 100}%` }} transition={{ type: 'spring', stiffness: 200, damping: 26 }} />
         </div>
 
-        <div className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-4">
+        <div className="mt-3 flex flex-1 flex-col sm:mt-4">
           {session.mode === 'mcq' ? (
-            <div className="flex min-h-0 w-full flex-col justify-start gap-3 pb-4 lg:gap-4">
+            <div className="flex w-full flex-col justify-start gap-3 pb-6 lg:gap-4">
               <motion.div
                 key={`stem-${question.questionKey}`}
                 initial={{ opacity: 0, y: 8, scale: 0.985 }}
@@ -775,14 +779,14 @@ function QuestionPanel({
               />
             </div>
           ) : (
-            <div className="flex min-h-0 w-full flex-col justify-start gap-3">
+            <div className="flex w-full flex-col justify-start gap-3 pb-6">
               {hasStructuredParts ? (
                 <motion.div
                   key={`stem-${question.questionKey}`}
                   initial={{ opacity: 0, y: 8, scale: 0.985 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                  className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/80 bg-[#FBF5F5] px-6 py-5 shadow-[0_18px_48px_rgba(29,58,98,0.14)] lg:px-8 lg:py-6"
+                  className="w-full rounded-2xl border border-white/80 bg-[#FBF5F5] px-6 py-5 shadow-[0_18px_48px_rgba(29,58,98,0.14)] lg:px-8 lg:py-6"
                 >
                   <p className="mb-3 text-center text-xs font-black uppercase tracking-[0.12em] text-[#1D3A62]/55 sm:text-sm">
                     {modeLabel} · Question {index + 1} of {session.questions.length}
@@ -846,7 +850,7 @@ function QuestionPanel({
         </div>
       </div>
 
-      <aside className="sticky top-2 hidden h-fit shrink-0 pt-1 sm:block">
+      <aside className="sticky top-20 hidden h-fit shrink-0 pt-1 sm:block">
         <AvailableQuestionsNav
           total={session.questions.length}
           current={index}
@@ -1468,10 +1472,6 @@ function EssayPartReview({
                   ) : null}
                 </div>
 
-                {part.explanation ? (
-                  <p className="text-sm leading-relaxed text-muted-foreground">{part.explanation}</p>
-                ) : null}
-
                 <MarkSchemeInkPanel
                   questionKey={questionKey}
                   partKey={part.key}
@@ -1797,6 +1797,17 @@ function EssayResultsPanel({
 }) {
   const navigate = useNavigate();
   const [reviewIndex, setReviewIndex] = useState(0);
+  const { data: fetchedRecap, isLoading: recapLoading } = useQuery({
+    queryKey: ['quiz-recap', session.submissionId],
+    queryFn: () => getQuizRecap(session.submissionId),
+    enabled: Boolean(session.submissionId && !session.recap),
+    staleTime: Infinity,
+  });
+  const activeRecap = (session.recap && (session.recap.items?.length > 0 || session.recap.summary))
+    ? session.recap
+    : (fetchedRecap && (fetchedRecap.items?.length > 0 || fetchedRecap.summary))
+      ? fetchedRecap
+      : extractRecapFromSession(session);
   const total = session.questions.length;
   const safeIndex = Math.min(Math.max(0, reviewIndex), Math.max(0, total - 1));
   const question = session.questions[safeIndex];
@@ -1804,10 +1815,10 @@ function EssayResultsPanel({
   const remaining = Math.max(0, total - safeIndex - 1);
 
   return (
-    <div className="relative isolate grid w-full gap-6 overflow-x-hidden max-lg:auto-rows-auto lg:h-full lg:min-h-0 lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)] lg:gap-8 xl:gap-10">
-      {/* Frozen summary rail */}
-      <aside className="relative z-0 min-w-0 lg:min-h-0 lg:self-stretch">
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#1D3A62]/10 bg-gradient-to-b from-white via-[#FFFCF7] to-[var(--edunets-yellow)]/25 shadow-[0_18px_48px_rgba(29,58,98,0.08)]">
+    <div className="relative isolate grid w-full gap-6 max-lg:auto-rows-auto lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)] lg:gap-8 xl:gap-10">
+      {/* Summary rail */}
+      <aside className="relative z-0 min-w-0 lg:sticky lg:top-20 lg:h-fit">
+        <div className="relative flex flex-col overflow-hidden rounded-[2rem] border border-[#1D3A62]/10 bg-gradient-to-b from-white via-[#FFFCF7] to-[var(--edunets-yellow)]/25 shadow-[0_18px_48px_rgba(29,58,98,0.08)]">
           <div
             aria-hidden
             className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[#1D3A62]/[0.06] blur-2xl"
@@ -1871,23 +1882,29 @@ function EssayResultsPanel({
             </div>
 
             <div className="flex shrink-0 flex-col gap-2">
-              {session.feedbackStatus === 'pending' && (
-                <Button
-                  className="h-11 w-full rounded-full bg-[#1D3A62] text-white hover:bg-[#1D3A62]/90"
-                  disabled={busy}
-                  onClick={onCompleteFeedback}
-                >
-                  {busy && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                  Complete corrections
-                </Button>
-              )}
+              <p className="text-center text-xs font-semibold text-[#1D3A62]/75">
+                Copy and paste to revise on Revision Hub
+              </p>
               <Button
                 type="button"
-                className="h-11 w-full rounded-full bg-[#1D3A62] text-white hover:bg-[#1D3A62]/90"
-                onClick={() => navigate('/capture-hub')}
+                className="h-11 w-full rounded-full bg-[#1D3A62] text-white hover:bg-[#1D3A62]/90 font-bold shadow-sm"
+                onClick={() => {
+                  if (activeRecap) {
+                    try {
+                      sessionStorage.setItem('edunets_quiz_recap_revision', JSON.stringify(activeRecap));
+                    } catch {}
+                  }
+                  const query = new URLSearchParams();
+                  const targetSubject = activeRecap?.subjectId || session.subjectId;
+                  const targetTopic = activeRecap?.topicName || session.topicId;
+                  if (targetSubject) query.set('subject', targetSubject);
+                  if (targetTopic) query.set('topic', targetTopic);
+                  navigate(query.toString() ? `/capture-hub?${query.toString()}` : '/capture-hub');
+                }}
               >
-                <Inbox className="mr-2 h-4 w-4" />
-                Capture Hub
+                <BookOpen className="mr-2 h-4 w-4" />
+                Revision Hub
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <div className="flex gap-2">
                 <Button type="button" variant="ghost" className="h-10 flex-1 rounded-full text-[#1D3A62]" onClick={onRetake}>
@@ -1903,8 +1920,8 @@ function EssayResultsPanel({
         </div>
       </aside>
 
-      {/* Scrollable question review only */}
-      <section className="edunets-scrollbar relative z-10 min-w-0 space-y-5 max-lg:pb-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:pb-6">
+      {/* Question review */}
+      <section className="relative z-10 min-w-0 space-y-5 pb-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#1D3A62]/45">
@@ -1957,6 +1974,13 @@ function EssayResultsPanel({
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
+
+        <QuizRecapCard
+          recap={activeRecap}
+          session={session}
+          loading={recapLoading && !activeRecap}
+          onJumpToQuestion={setReviewIndex}
+        />
       </section>
     </div>
   );
@@ -1971,8 +1995,6 @@ function McqReviewCard({
   questionIndex: number;
   answer: NonNullable<AssessmentSessionResponse['answers'][number]>;
 }) {
-  const [schemeOpen, setSchemeOpen] = useState(false);
-
   return (
     <div
       className={cn(
@@ -2033,42 +2055,6 @@ function McqReviewCard({
           )}
         </div>
       </div>
-
-      <div className="ml-11 mt-1">
-        <button
-          type="button"
-          onClick={() => setSchemeOpen(!schemeOpen)}
-          className="flex items-center gap-1.5 text-xs font-bold text-[#1D3A62]/70 transition-colors hover:text-[#1D3A62]"
-        >
-          {schemeOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {schemeOpen ? 'Hide explanation' : 'Reveal explanation'}
-        </button>
-        <AnimatePresence>
-          {schemeOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-3 relative overflow-hidden rounded-xl border border-[#1D3A62]/10 bg-white/70 px-4 py-3 text-sm shadow-sm">
-                <div className="absolute right-0 top-0 p-2 opacity-5 pointer-events-none">
-                  <FileText className="h-12 w-12 text-[#1D3A62]" />
-                </div>
-                <div className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#1D3A62]">
-                  <FileText className="h-3.5 w-3.5" /> Explanation
-                </div>
-                <div className="relative z-10 text-sm leading-relaxed text-muted-foreground">
-                  <ExamKatexText
-                    text={(question as any).explanation || 'The correct answer follows directly from fundamental principles.'}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
     </div>
   );
 }
@@ -2080,7 +2066,19 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
   onRetake: () => void;
   onConceptWeb: () => void;
 }) {
+  const navigate = useNavigate();
   const [reviewIndex, setReviewIndex] = useState(0);
+  const { data: fetchedRecap, isLoading: recapLoading } = useQuery({
+    queryKey: ['quiz-recap', session.submissionId],
+    queryFn: () => getQuizRecap(session.submissionId),
+    enabled: Boolean(session.submissionId && !session.recap),
+    staleTime: Infinity,
+  });
+  const activeRecap = (session.recap && (session.recap.items?.length > 0 || session.recap.summary))
+    ? session.recap
+    : (fetchedRecap && (fetchedRecap.items?.length > 0 || fetchedRecap.summary))
+      ? fetchedRecap
+      : extractRecapFromSession(session);
   const calculation = session.model.calculation!;
   const conceptScore = session.concept.conceptMemoryScore;
   const modeMemory = session.concept.modes[session.mode];
@@ -2126,9 +2124,9 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
   const remaining = Math.max(0, total - safeIndex - 1);
 
   return (
-    <div className="relative isolate grid w-full gap-6 overflow-x-hidden max-lg:auto-rows-auto lg:h-full lg:min-h-0 lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)] lg:gap-8 xl:gap-10">
-      <aside className="relative z-0 min-w-0 lg:min-h-0 lg:self-stretch">
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#1D3A62]/10 bg-gradient-to-b from-white via-[#FFFCF7] to-[var(--edunets-yellow)]/25 shadow-[0_18px_48px_rgba(29,58,98,0.08)]">
+    <div className="relative isolate grid w-full gap-6 max-lg:auto-rows-auto lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)] lg:gap-8 xl:gap-10">
+      <aside className="relative z-0 min-w-0 lg:sticky lg:top-20 lg:h-fit">
+        <div className="relative flex flex-col overflow-hidden rounded-[2rem] border border-[#1D3A62]/10 bg-gradient-to-b from-white via-[#FFFCF7] to-[var(--edunets-yellow)]/25 shadow-[0_18px_48px_rgba(29,58,98,0.08)]">
           <div aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[#1D3A62]/[0.06] blur-2xl" />
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-[var(--edunets-yellow)]/40 blur-2xl" />
 
@@ -2180,12 +2178,30 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
             </div>
 
             <div className="flex shrink-0 flex-col gap-2">
-              {session.feedbackStatus === 'pending' && (
-                <Button className="h-11 w-full rounded-full bg-[#1D3A62] text-white hover:bg-[#1D3A62]/90" disabled={busy} onClick={onCompleteFeedback}>
-                  {busy && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                  Complete corrections
-                </Button>
-              )}
+              <p className="text-center text-xs font-semibold text-[#1D3A62]/75">
+                Copy and paste to revise on Revision Hub
+              </p>
+              <Button
+                type="button"
+                className="h-11 w-full rounded-full bg-[#1D3A62] text-white hover:bg-[#1D3A62]/90 font-bold shadow-sm"
+                onClick={() => {
+                  if (activeRecap) {
+                    try {
+                      sessionStorage.setItem('edunets_quiz_recap_revision', JSON.stringify(activeRecap));
+                    } catch {}
+                  }
+                  const query = new URLSearchParams();
+                  const targetSubject = activeRecap?.subjectId || session.subjectId;
+                  const targetTopic = activeRecap?.topicName || session.topicId;
+                  if (targetSubject) query.set('subject', targetSubject);
+                  if (targetTopic) query.set('topic', targetTopic);
+                  navigate(query.toString() ? `/capture-hub?${query.toString()}` : '/capture-hub');
+                }}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Revision Hub
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
               <div className="flex gap-2">
                 <Button type="button" variant="ghost" className="h-10 flex-1 rounded-full text-[#1D3A62]" onClick={onRetake}>
                   <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -2200,7 +2216,7 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
         </div>
       </aside>
 
-      <section className="edunets-scrollbar relative z-10 min-w-0 space-y-5 max-lg:pb-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:pb-6">
+      <section className="relative z-10 min-w-0 space-y-5 pb-6">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#1D3A62]/45">
             Review
@@ -2273,6 +2289,13 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
+
+        <QuizRecapCard
+          recap={activeRecap}
+          session={session}
+          loading={recapLoading && !activeRecap}
+          onJumpToQuestion={setReviewIndex}
+        />
       </section>
     </div>
   );
@@ -2284,6 +2307,38 @@ export default function QuizPage() {
   return isTeachingRole(account?.profile?.role) ? <TeacherQuizReview /> : <StudentQuizPage />;
 }
 
+const QUIZ_PROGRESS_STORAGE_KEY = 'edunets_smart_quiz_progress';
+
+type StoredQuizProgress = {
+  submissionId: string;
+  session: AssessmentSessionResponse | null;
+  state: QuizState;
+  index: number;
+  answerDrafts: Record<number, string>;
+  answerText: string;
+  subjectName: string;
+  topicId: string;
+  subtopicId: string;
+  mode: AssessmentMode;
+  introDone: boolean;
+  activeRescueId: string | null;
+};
+
+function getStoredQuizProgress(): StoredQuizProgress | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(QUIZ_PROGRESS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredQuizProgress;
+    if (parsed && parsed.session && parsed.session.status !== 'abandoned') {
+      return parsed;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null;
+}
+
 function StudentQuizPage() {
   const { notify } = useMascotFeedback();
   const queryClient = useQueryClient();
@@ -2292,26 +2347,54 @@ function StudentQuizPage() {
   const [subjects] = useAtom(subjectsAtom);
   const [, setRescueLogs] = useAtom(rescueNudgeLogsAtom);
   const autoStarted = useRef(false);
-  const [subjectName, setSubjectName] = useState('');
-  const [topicId, setTopicId] = useState('');
-  const [subtopicId, setSubtopicId] = useState('');
-  const [mode, setMode] = useState<AssessmentMode>('mcq');
-  const [state, setState] = useState<QuizState>('setup');
-  const [session, setSession] = useState<AssessmentSessionResponse | null>(null);
-  const [index, setIndex] = useState(0);
-  const [answerText, setAnswerText] = useState('');
-  const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>({});
+
+  // Lazy initialize from sessionStorage if an active quiz exists
+  const [initialProgress] = useState(() => getStoredQuizProgress());
+
+  const [subjectName, setSubjectName] = useState(() => initialProgress?.subjectName ?? '');
+  const [topicId, setTopicId] = useState(() => initialProgress?.topicId ?? '');
+  const [subtopicId, setSubtopicId] = useState(() => initialProgress?.subtopicId ?? '');
+  const [mode, setMode] = useState<AssessmentMode>(() => initialProgress?.mode ?? 'mcq');
+  const [state, setState] = useState<QuizState>(() => initialProgress?.state ?? 'setup');
+  const [session, setSession] = useState<AssessmentSessionResponse | null>(() => initialProgress?.session ?? null);
+  const [index, setIndex] = useState(() => initialProgress?.index ?? 0);
+  const [answerText, setAnswerText] = useState(() => initialProgress?.answerText ?? '');
+  const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>(() => initialProgress?.answerDrafts ?? {});
   const [busy, setBusy] = useState(false);
   const [marking, setMarking] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
-  const [activeRescueId, setActiveRescueId] = useState<string | null>(null);
+  const [activeRescueId, setActiveRescueId] = useState<string | null>(() => initialProgress?.activeRescueId ?? null);
   // Deep links (e.g. a rescue nudge) jump straight into an active session, so
   // the hype intro would only get in the way — skip it for those.
-  const [introDone, setIntroDone] = useState(() => Boolean(
+  const [introDone, setIntroDone] = useState(() => initialProgress?.introDone ?? Boolean(
     searchParams.get('subject') && searchParams.get('topic'),
   ));
 
   const subject = subjects.find((entry) => entry.name === subjectName);
+
+  // Keep active progress saved in sessionStorage so moving between features never loses work
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (session && state !== 'setup') {
+      const data: StoredQuizProgress = {
+        submissionId: session.submissionId,
+        session,
+        state,
+        index,
+        answerDrafts,
+        answerText,
+        subjectName,
+        topicId,
+        subtopicId,
+        mode,
+        introDone,
+        activeRescueId,
+      };
+      sessionStorage.setItem(QUIZ_PROGRESS_STORAGE_KEY, JSON.stringify(data));
+    } else if (state === 'setup' && !session) {
+      sessionStorage.removeItem(QUIZ_PROGRESS_STORAGE_KEY);
+    }
+  }, [session, state, index, answerDrafts, answerText, subjectName, topicId, subtopicId, mode, introDone, activeRescueId]);
 
   const activate = useCallback(async (selectedTopicId: string, selectedMode: AssessmentMode, selectedSubtopicId: string) => {
     setBusy(true);
@@ -2356,6 +2439,14 @@ function StudentQuizPage() {
     ));
     if (!matchedSubject || !matchedTopic) return;
     const requestedMode: AssessmentMode = searchParams.get('mode') === 'essay' ? 'essay' : (matchedTopic.recommendedMode ?? 'mcq');
+
+    // If we already have a restored active session for this topic and mode, keep it!
+    if (session && session.topicId === matchedTopic.id && session.mode === requestedMode && session.status !== 'abandoned') {
+      autoStarted.current = true;
+      setSearchParams(new URLSearchParams(), { replace: true });
+      return;
+    }
+
     autoStarted.current = true;
     // Flip busy immediately so "Quiz me on this" shows the session shimmer
     // before the network round-trip returns — YouTube-style handoff.
@@ -2364,7 +2455,7 @@ function StudentQuizPage() {
     setActiveRescueId(searchParams.get('rescueId'));
     setSearchParams(new URLSearchParams(), { replace: true });
     void activate(matchedTopic.id, requestedMode, '');
-  }, [activate, searchParams, setSearchParams, subjects]);
+  }, [activate, searchParams, setSearchParams, session, subjects]);
 
   const restoreAnswerForIndex = useCallback((targetIndex: number, drafts: Record<number, string>, nextSession: AssessmentSessionResponse | null) => {
     if (drafts[targetIndex] !== undefined) return drafts[targetIndex]!;
@@ -2507,7 +2598,11 @@ function StudentQuizPage() {
     if (!session) return;
     setBusy(true);
     try {
-      setSession(await completeAssessmentFeedback(session.submissionId));
+      const completed = await completeAssessmentFeedback(session.submissionId);
+      setSession(completed);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(QUIZ_PROGRESS_STORAGE_KEY);
+      }
       await queryClient.invalidateQueries({ queryKey: ['study-state'] });
       toast.success('Corrections completed. Your learning progress has been updated.');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Corrections could not be completed.'); }
@@ -2517,27 +2612,36 @@ function StudentQuizPage() {
   const abandon = async () => {
     if (!session) return;
     setAbandoning(true);
-    try { await abandonAssessment(session.submissionId); setSession(null); setAnswerDrafts({}); setAnswerText(''); setIndex(0); setState('setup'); }
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(QUIZ_PROGRESS_STORAGE_KEY);
+      }
+      await abandonAssessment(session.submissionId);
+      setSession(null); setAnswerDrafts({}); setAnswerText(''); setIndex(0); setState('setup');
+    }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Assessment could not be abandoned.'); }
     finally { setAbandoning(false); }
   };
 
-  const retake = () => { setSession(null); setAnswerDrafts({}); setAnswerText(''); setIndex(0); setState('setup'); };
+  const retake = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(QUIZ_PROGRESS_STORAGE_KEY);
+    }
+    setSession(null); setAnswerDrafts({}); setAnswerText(''); setIndex(0); setState('setup');
+  };
   const conceptWeb = () => navigate(`/concept-web?${new URLSearchParams({ subject: subject?.id ?? '', topic: topicId }).toString()}`);
 
-  // Wider card (horizontal expand) that still fits the viewport — no page scroll.
-  const whitecardFrame =
-    'w-[min(1180px,94vw)] h-[min(690px,calc(100dvh-4.5rem))] max-h-[calc(100dvh-4.5rem)]';
+  const whitecardFrame = 'w-[min(1180px,94vw)]';
   const whitecardSurface =
-    'relative flex h-full min-h-0 flex-col overflow-hidden border-0 bg-[#FBF5F5] shadow-[0_24px_60px_rgba(29,58,98,0.14)] rounded-[clamp(1.75rem,6vw,72px)]';
+    'relative flex min-h-[520px] flex-col overflow-hidden border-0 bg-[#FBF5F5] shadow-[0_24px_60px_rgba(29,58,98,0.14)] rounded-[clamp(1.75rem,6vw,72px)]';
   const inQuizStage = state === 'active' || state === 'results' || marking || (busy && (state === 'setup' || state === 'active'));
 
   if (!inQuizStage) {
     return (
-      <div className="pattern-overlay flex min-h-[calc(100dvh-4.25rem)] items-start justify-center overflow-hidden px-4 pb-6 pt-5 sm:px-5 sm:pt-6 lg:px-8 lg:pt-7">
+      <div className="pattern-overlay flex min-h-[calc(100dvh-4.25rem)] items-start justify-center px-4 pb-12 pt-5 sm:px-5 sm:pt-6 lg:px-8 lg:pt-7">
         <div className={whitecardFrame}>
           <Card className={`${whitecardSurface}`}>
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-6 sm:p-8 lg:px-12 lg:py-9">
+            <CardContent className="flex flex-col p-6 sm:p-8 lg:px-12 lg:py-9">
               <SetupPanel
                 subjectName={subjectName}
                 topicId={topicId}
@@ -2559,13 +2663,13 @@ function StudentQuizPage() {
   }
 
   return (
-    <div className="pattern-overlay min-h-[calc(100dvh-4.25rem)] max-lg:min-h-[calc(100dvh-4.25rem-5.5rem)]">
-      <div className={`mx-auto flex min-h-full w-full flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-4 ${state === 'results' ? 'max-w-[min(1560px,98vw)]' : 'max-w-[min(1480px,100vw)]'}`}>
+    <div className="pattern-overlay min-h-[calc(100dvh-4.25rem)] max-lg:min-h-[calc(100dvh-4.25rem-5.5rem)] pb-12">
+      <div className={`mx-auto flex w-full flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-4 ${state === 'results' ? 'max-w-[min(1560px,98vw)]' : 'max-w-[min(1480px,100vw)]'}`}>
         <AnimatePresence mode="wait">
           {marking && (
             <motion.div
               key="essay-marking"
-              className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-white"
+              className="relative flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-white"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -2578,7 +2682,7 @@ function StudentQuizPage() {
           {busy && !marking && (state === 'setup' || state === 'active') && (
             <motion.div
               key="session-loading"
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              className="flex min-h-0 flex-1 flex-col"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -2591,7 +2695,7 @@ function StudentQuizPage() {
           {state === 'active' && session && !busy && !marking && (
             <motion.div
               key={`question-${index}`}
-              className="flex min-h-0 flex-1 flex-col"
+              className="flex w-full flex-1 flex-col"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -2616,13 +2720,13 @@ function StudentQuizPage() {
           {state === 'results' && session && (
             <motion.div
               key="results"
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              className="flex w-full flex-1 flex-col pb-8"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.14 }}
             >
-              <div className="min-h-0 flex-1 overflow-y-auto max-lg:pb-4 lg:overflow-hidden">
+              <div className="w-full">
                 <ResultsPanel session={session} busy={busy} onCompleteFeedback={() => void completeFeedback()} onRetake={retake} onConceptWeb={conceptWeb} />
               </div>
             </motion.div>

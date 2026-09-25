@@ -4,7 +4,7 @@ import { NavLink, useLocation } from '@/lib/navigation';
 import { useAtom } from 'jotai';
 import Image from 'next/image';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { LayoutDashboard, Brain, Share2, Inbox, Users, MessageCircle, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Home, Brain, Share2, Inbox, Users, MessageCircle, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import { useCurrentAccount, type TeachingScope } from '@/lib/api/me';
 import { useEnquiryUnreadCount } from '@/lib/api/enquiries';
 
@@ -25,20 +25,20 @@ import { useTranslation, type TranslationKey } from '@/lib/i18n';
 type NavItem = { path: string; labelKey: TranslationKey; shortKey: TranslationKey; icon: LucideIcon };
 
 const learnerNavItems: NavItem[] = [
-  { path: '/dashboard', labelKey: 'nav.dashboard', shortKey: 'nav.dashboard.short', icon: LayoutDashboard },
+  { path: '/dashboard', labelKey: 'nav.dashboard', shortKey: 'nav.dashboard.short', icon: Home },
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
-  { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
   { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
   { path: '/study-squad', labelKey: 'nav.studySquad', shortKey: 'nav.studySquad.short', icon: Users },
+  { path: '/ask-teacher', labelKey: 'nav.askTeacher', shortKey: 'nav.askTeacher.short', icon: MessageCircle },
 ];
 
 const teachingNavItems: NavItem[] = [
-  { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: LayoutDashboard },
+  { path: '/dashboard', labelKey: 'nav.teacherHome', shortKey: 'nav.teacherHome.short', icon: Home },
   { path: '/quiz', labelKey: 'nav.smartQuiz', shortKey: 'nav.smartQuiz.short', icon: Brain },
   { path: '/concept-web', labelKey: 'nav.conceptWeb', shortKey: 'nav.conceptWeb.short', icon: Share2 },
-  { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
   { path: '/capture-hub', labelKey: 'nav.captureHub', shortKey: 'nav.captureHub.short', icon: Inbox },
+  { path: '/ask-teacher', labelKey: 'nav.messages', shortKey: 'nav.messages.short', icon: MessageCircle },
 ];
 
 /** One radius everywhere — rail, collapsed icon, mobile dock. */
@@ -206,18 +206,16 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Edge toggle — sits on the rail rim so it stays easy to reach when collapsed */}
-        <motion.button
+        {/* Edge toggle — small flat rectangle with arrow, centered in the middle of the sidebar rail */}
+        <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          whileHover={reduced ? undefined : { scale: 1.06 }}
-          whileTap={reduced ? undefined : { scale: 0.94 }}
-          transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={cn(
-            'absolute top-5 z-50 flex h-8 w-8 -translate-x-1/2 items-center justify-center',
-            'rounded-full border border-sidebar-border bg-card text-sidebar-foreground',
-            'shadow-[0_4px_14px_rgba(29,58,98,0.16)] hover:bg-secondary',
+            'absolute top-1/2 z-50 flex h-10 w-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center',
+            'rounded-md border border-sidebar-border bg-card text-sidebar-foreground',
+            'shadow-sm transition-all duration-150 hover:scale-105 hover:bg-secondary hover:text-sidebar-accent-foreground active:scale-95',
             NAV_FOCUS,
           )}
           style={{ left: '100%' }}
@@ -227,11 +225,15 @@ export function AppSidebar() {
             initial={reduced ? false : { rotate: collapsed ? -90 : 90, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
             transition={{ duration: 0.2, ease: SIDEBAR_MOTION_EASE }}
-            className="inline-flex"
+            className="inline-flex items-center justify-center"
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            {collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5 stroke-[2.5]" />
+            ) : (
+              <ChevronLeft className="h-3.5 w-3.5 stroke-[2.5]" />
+            )}
           </motion.span>
-        </motion.button>
+        </button>
       </motion.aside>
 
       {usesTeachingWorkspace && scopes.length > 0 && (

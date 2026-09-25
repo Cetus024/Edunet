@@ -133,7 +133,7 @@ function stripMathDelimiters(value: string): string {
 
 /** Convert bank chemistry / arrow equations into mhchem body (no delimiters). */
 export function toMhchemBody(raw: string): string {
-  let body = stripMathDelimiters(raw);
+  const body = stripMathDelimiters(raw);
   if (!body) return '';
   const ceMatch = /^\\ce\{([\s\S]*)\}$/.exec(body);
   if (ceMatch) return ceMatch[1]!.trim();

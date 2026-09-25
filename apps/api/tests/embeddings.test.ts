@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { REFERENCE_EMBEDDING_DIMENSIONS } from '../../../database/schema/reference.js';
+import { REFERENCE_EMBEDDING_DIMENSIONS } from '../../../packages/database/schema/reference.js';
 import {
   createAzureFoundryEmbeddings,
   createGeminiEmbeddings,

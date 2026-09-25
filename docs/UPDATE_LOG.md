@@ -26,6 +26,542 @@
 
 ---
 
+## 2026-09-26 · uncommitted · Auto
+
+**首页布局优化：学科记忆健康度精简为双栏并排卡片（Side-by-Side），Priority Queue 保持长条列表格式并下移至下方**
+
+- **做了什么**：
+  - **Memory Health（记忆健康度）精简并排显示**：
+    - 将学科卡片精简为左右并排的网格布局（`grid-cols-1 lg:grid-cols-2`），使用户在桌面端能一屏同时查看两门学科（Chemistry 与 Mathematics）；
+    - 紧凑微调字体尺寸与内边距（`text-xs` / `text-sm` / `rounded-xl`），左侧仪表盘缩小至 `76px`，分支线条与右侧课题行无缝贴合；
+    - 保留分支结构与「Concept Web & Analysis」直达跳转。
+  - **Priority Queue（优先级复习队列）排版与位置调整**：
+    - 根据用户截图指示，移回并保留条状行格式 [`PriorityItemRow`](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/features/dashboard.tsx)（左侧数字序号圆圈 `1`、`2`...，中段课题名称 + 学科黄色胶囊，下方 2 位有效数字记忆分数 + 耗时预估 + 下次复习到期提醒，右侧 `Start →` 快捷按钮）；
+    - 将该模块**调整至 Memory Health 下方**；
+    - 依然保持 Top 5 严格截取与 2 位有效数字精准显示。
+  - **验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错；
+    - 后端 `npm --prefix apps/api test` 46 个测试套件，333 个测试全量通过。
+- **为什么**：满足用户关于将 Priority Queue 保持长条行列表格式并下移至 Memory Health 之后，并将 Memory Health 调整为双栏并排、字体与排版适度紧凑的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**首页布局重构：实现记忆健康度分支树状图（Memory Health by Subject & Topics）与 Top 5 优先级队列（Priority Queue）**
+
+- **做了什么**：
+  - **Memory Health（各科与各课题记忆健康度）**：
+    - 根据用户手绘草图布局（Picture 1），实现组合分支卡片布局 [`MemoryHealthSubjectBranchCard`](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/features/dashboard.tsx)：
+      - **左侧**：环形记忆分数仪表盘（Circular Gauge）呈现该学科平均记忆分数（以 2 位有效数字显示）、最后复习时间记录、一键「Review Weakest Topic」智能测验跳转，以及「Concept Web & Analysis」直达按钮；
+      - **中间**：动态 SVG 分支连接曲线（Branching Bezier Curves），从左侧中心环平滑分支延伸至右侧每个具体课题节点；
+      - **右侧**：各课题的横条记忆健康度卡片，展示课题名称、细分微课题数量、2 位有效数字记忆分数、彩色进度条、下次复习到期提醒（如 `Review Due: Today ⚠️` / `in 2 days`），以及直达 Smart Quiz 的复习入口；
+    - 在学科头部提供「Concept Web & Analysis →」按钮，点击带参直达 `/concept-web?subject=...`，查看完整深度脑图分析与同学进度。
+  - **Priority Queue（今日优先复习队列）**：
+    - 采用草图 2 问候栏下方的卡片样式 [`PriorityQueueCard`](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/features/dashboard.tsx)；
+    - **移除底部 Spidey 图标**；
+    - **分数格式化为 2 位有效数字（2 s.f.）**（例如 `2.089275...%` -> `2.1%`，`6.06...%` -> `6.1%`，`17%` -> `17%`）；
+    - **严格限制仅展示 Top 5 最具遗忘风险的课题**，避免过多课题让学生感到不知所措；
+    - **增加下次复习时间提醒**（如 `📅 Review Due: Today ⚠️`，`📅 Review Due: Tomorrow` 等）；
+    - **「Review Now →」按钮**直接进入对应课题的 Smart Quiz。
+  - **移除底部连续学习模块（Your Streak）**：
+    - 彻底移除首页底部的「Your Streak」段落及内部统计卡片（连续复习天数已常驻显示于顶部导航栏 `AppTopBar`）。
+  - **国际化与质量验证**：
+    - 在 `apps/web/lib/i18n/dict/dashboard.ts` 中补充新增的翻译键；
+    - 执行 `npm --prefix apps/web run typecheck`（0 报错）；
+    - 执行 `npm --prefix apps/api test`（46 个测试套件，333 个单元测试全部通过）。
+- **为什么**：满足用户关于将记忆健康度重构为根据手绘草图的分支结构（左侧学科平均分，右侧分支到各课题分数，配有 Concept Web 入口）、将优先级队列精简为 Top 5 无 Spidey 的 2 位有效数字复习卡片、并移除底部 Streak 的完整视觉与功能需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**移除新用户指南中的 Watch Video 按钮，并严格限定仅对新用户展示（已有学习数据的老用户不展示）**
+
+- **做了什么**：
+  - **移除 Watch Video / Tour 按钮**：
+    - 在 `apps/web/features/dashboard/spidey-welcome-storyboard.tsx` 中，彻底移除展开与收起横幅中的「Watch 1-Min Storyboard Tour」与「Watch Tour」播放按钮；
+    - 在 `apps/web/features/dashboard.tsx` 问候栏中移除多余的 `Spidey's Guide` 按钮，保持老用户首页与问候栏整洁纯粹。
+  - **严格限定仅对新用户展示（现有用户完全不展示）**：
+    - 在 `StudentDashboard` 中增加学习活动判定 `hasStudyActivity`（检查各科目专题是否存在 `memoryScore !== null`、测验记录 `quizAttempts > 0` 或复习时间 `lastReviewedAt !== null`）；
+    - 若学生为已有学习活动的老用户，或已标记完成/忽略导览，则 `isNewUser = false`：
+      - 首页指引横幅 `<SpideyHomepageGuideBanner>` 完全不渲染；
+      - 1x 故事板弹窗 `<SpideyWelcomeStoryboardModal>` 完全不弹出；
+    - 仅对 0 学习记录且未曾浏览过的新用户弹出与显示，并在完成或关闭时记录状态。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错；
+    - 后端 `npm --prefix apps/api test` 全量通过（333 测试用例全部通过）。
+- **为什么**：满足用户关于去除「Watch video」按钮、并将新用户导览严格限制为仅新用户可见（现有用户不展现）的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**为新用户新增首页 Spidey 欢迎故事板导览（1x Storyboard）与醒目四步指引横幅**
+
+- **做了什么**：
+  - **新用户 1x 故事板弹窗导览（`SpideyWelcomeStoryboardModal`）**：
+    - 在 `apps/web/features/dashboard/spidey-welcome-storyboard.tsx` 中实现交互式多步骤导览：
+      1. **欢迎介绍**：Spidey 自我介绍与 EduNets 学习机制；
+      2. **从 Smart Quiz 开始测试**：支持按科目、专题甚至细分微专题（sub-topics）展开测验，支持客观题（MCQ）与主观题（Essay）；
+      3. **在 Concept Web 查看记忆分数（Memory Score）**：0~100% 动态掌握度与知识网络可视化；
+      4. **至关重要的复习日期（Next Review Date）提醒**：郑重警告遗忘曲线与记忆衰减，提醒在下一次复习日期前复习，防止 Memory Score 下降；
+      5. **在 Revision Hub 复习错题与快速复习**：粘贴测验 Recap 获取 Spidey 重点指导，并可一键生成核心考点笔记与抽认卡（Flashcards）；
+    - 采用 Framer Motion `AnimatePresence` 平滑换页动画、步骤胶囊索引、跳步点、以及多动作快捷按钮；
+    - 使用 `localStorage.getItem('edunets_storyboard_seen_v1')` 仅在新用户首次访问时自动弹出，支持勾选「不再开机显示」并随时重新播放。
+  - **首页显眼醒目的指引卡片横幅（`SpideyHomepageGuideBanner`）**：
+    - 在 `apps/web/features/dashboard.tsx` 顶部问候卡片下方常驻展示醒目的四步图解学习指引横幅，包含动效 Spidey 头像、4 个快捷跳转卡片（Smart Quiz、Concept Web、Next Review Date 衰减警示、Revision Hub）以及「Watch 1-Min Storyboard Tour」回放按钮；
+    - 在问候栏顶部增加 `Spidey's Guide` 胶囊入口，随时可一键呼出导览故事板。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错；
+    - 后端 `npm --prefix apps/api test` 全量通过。
+- **为什么**：满足用户关于新用户首次进入首页时，由 Spidey 介绍 EduNets、指导从测验（含 sub topics）开始、查看 Concept Web 记忆分、强调 Next Review Date 防止记忆分衰减、以及在 Revision Hub 复习错题或快速复习的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**重命名 Recap 为 Spidey's Quiz Recap、去除 Recap 卡片内冗余 Revision Hub 按钮与底部横幅，并移除测验结束页 Recap 弹窗按钮**
+
+- **做了什么**：
+  - **去除 Recap 卡片内 Revision Hub 按钮与底部横幅**：
+    - 在 `apps/web/components/quiz-recap-card.tsx` 中，依用户第一张图要求移除卡片底部的「Copy and paste to revise on Revision Hub」渐变横幅与 `Revision Hub ->` 按钮；
+    - 依用户第二张图要求，移除 Recap 顶部标题栏右侧的 `Revision Hub ->` 按钮；
+    - 侧边栏主面板保留唯一的 Revision Hub 导航入口，界面更清爽聚焦。
+  - **重命名总结卡片标题为 Spidey's Quiz Recap**：
+    - 将 `apps/web/components/quiz-recap-card.tsx` 与 `apps/web/components/quiz-recap-dialog.tsx` 的标题由 `Spidey AI Quiz Recap` 更新为 `Spidey's Quiz Recap`；
+    - 副标题同步更新为更简练的“Overall recap summary of what to revise”。
+  - **移除 Recap 弹窗按钮与多余弹窗**：
+    - 在 `apps/web/features/quiz.tsx` 中，分别从 `EssayResultsPanel` 与 `ResultsPanel` 移除侧边栏的「View Recap Popup」黄色线框按钮；
+    - 移除不再需要的 `QuizRecapDialog` 与自动弹窗状态，测验结果页直接自然展示顶部的题目回顾及下方的 Spidey's Quiz Recap。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错；
+    - 后端 `npm --prefix apps/api test` 全量通过。
+- **为什么**：满足用户关于去除 Recap 底部横幅与顶部 Revision Hub 按钮、将 Recap 标题命名为 Spidey's Quiz Recap、并移除测验结束页 Recap 弹窗按钮的要求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**Smart Quiz 结束页将题目回顾置于总结卡片上方，并在 Focus Guidance 中合并 1 条实用技巧与共情激励语，呈现 3~10 条全局重点反馈**
+
+- **做了什么**：
+  - **Smart Quiz 结束页布局调整**：
+    - 在 `apps/web/features/quiz.tsx` 中，将 MCQ 模式 `ResultsPanel` 与主观题模式 `EssayResultsPanel` 的题目回顾区域（`Review`、题号指示 `Question X of Y`、题号气泡索引 `Q1..Q10`、题目详情卡片及上/下一题切换按钮）移动至 `<QuizRecapCard>` 上方；
+    - 学生完成测验后，最上方首先呈现题目选项回顾与复习面板，下方承接测验分析总结卡片。
+  - **Focus Guidance 去除定向分块反馈，转为 3~10 条全局重点反馈清单**：
+    - 去除原先单题针对性卡片与优先级（Priority）分类标签；
+    - 生成并展示涵盖考点的 3 至 10 条（min 3, max 10）全局重点反馈清单；
+    - 保留序号索引、清晰建议描述以及「Mark as done / Understood!」打勾标记与进度追踪条。
+  - **Spidey 激励语与实用技巧合二为一**：
+    - 在 Spidey 顶部横幅中，将共情激励语与 1 条核心记忆技巧（`Spidey's Quick Tip`）深度结合；
+    - 针对 0 分或低分自适应展现温暖引导语（“Don't worry, learning takes time! Everyone starts somewhere, and mistakes are simply how we learn.”）；
+    - 在 `apps/api/src/services/quiz-recap.ts` 与 `apps/web/lib/api/capture.ts` 中同步拓展 `quickTip` 与 `feedbacks` 字段支持。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错；
+    - 后端 `npm --prefix apps/api test` 全量测试通过。
+- **为什么**：满足用户关于 Smart Quiz 结束页将题目回顾置于 Recap 卡片上方、Focus Guidance 无需 targeted feedback 而是提供 3~10 条总体反馈、以及将 1 条 Quick Tip 与共情支持语合并的要求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**移除 Add to Notes 按钮、去除 Focus Guidance 优先级标签并重构结构化反馈，以及根据测验成绩自适应 Spidey 鼓励语（0 分关怀式引导）**
+
+- **做了什么**：
+  - **彻底移除「Add to Notes」按钮**：
+    - 从 `apps/web/features/capture-hub.tsx` 的 Typed Notes 区域彻底移除「Add to Notes」按钮，并将 textarea 输入即时双向同步至 `extractedContent`；
+    - 学生在粘贴测验回顾或输入笔记后直接点击「Get focus guidance」，省去冗余添加步骤，界面更纯净。
+  - **Focus Guidance 移除优先级提及并重构清晰结构**：
+    - 依用户要求彻底去除了「Focus on this first / High Priority / Medium Priority」等优先级徽章与文本，不再提及 Priority；
+    - 将反馈统一重构为规整有序的两层结构：
+      1. **序号与考点标题**（如 `1. Linear Graphs`）；
+      2. **How to improve**：短小清晰、适合中学生的具体提升建议；
+      3. **Quick Tip**：易记的做题技巧或公式提醒；
+    - 保留「Mark as done / Understood!」打勾标记与进度追踪条。
+  - **Spidey 鼓励语自适应测验成绩（0 分低分温暖关怀）**：
+    - 针对测验得 0 分或低分场景，彻底杜绝出现违和的「Good job」或「Awesome effort」；
+    - 在后端 `apps/api/src/services/quiz-recap.ts` 与前端 `apps/web/features/capture/quiz-revision-guidance.tsx` 增加成绩自适应评级：
+      - 得 0 分或低分（<=35%）：替换为温和且极具共情力的关怀引导语：“Don't worry, learning takes time! Everyone starts somewhere, and mistakes are simply how we learn. Here are clear tips on what to focus on:”，鼓励语调整为循序渐进的“Take it step by step! Review these tips, practice, and you'll definitely see improvement on your next quiz.”；
+      - 中等分数（40%-75%）：给出进阶鼓励（“You're on the right track! A few tricky spots tripped you up... ”）；
+      - 高分（>=80%）：给出冲刺满分建议（“Great work on your quiz! Here are quick tips to polish up to full marks”）。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过；
+    - 后端 `npm --prefix apps/api test` 全量 46 个测试套件（333 个用例全部通过，包含新增的 0 分关怀鼓励语测试）。
+- **为什么**：满足用户移除「Add to Notes」按钮、在 Focus Guidance 中移除优先级标签并重构结构化反馈、以及在学生得 0 分时以“Don't worry, learning takes time...”给予温暖鼓励的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**精简 Focus Guidance 为简短易懂的复习与改进提示，并支持 Smart Quiz 与各功能间页面切换进度持久化**
+
+- **做了什么**：
+  - **Focus Guidance 轻量化与易读性优化**：
+    - **API 提示词与响应模型适配**：在 `apps/api/src/services/quiz-recap.ts` 与 `apps/web/lib/api/capture.ts` 中新增短小精悍的 `howToImprove`（1-2 句通俗易懂的提分与改进要点）与 `tip`（1 句好记的记忆口诀或规则技巧），并简化兜底解析；
+    - **卡片展示界面精炼**：重构 `apps/web/features/capture/quiz-revision-guidance.tsx`，彻底移除原先冗长的大段题目错因解析（"How to look at this concept"），专一呈现三大关键要点：
+      1. 🎯 **What to focus on**：考点名称与优先级徽章（Focus on this first / Medium Priority / Good Progress）；
+      2. 🚀 **How to improve**：短小清晰、适合中学生的具体提升建议；
+      3. 💡 **Quick Tip**：好记的记忆技巧与做题口诀；
+    - 语言更轻快，卡片视觉更紧凑，保留已复习（Understood!）一键打勾与进度条。
+  - **跨功能切换进度保存（Smart Quiz & Multi-Feature Progress Retention）**：
+    - **Smart Quiz 进度保留**：在 `apps/web/features/quiz.tsx` 中引入 `sessionStorage` 状态持久化机制。
+      - 当学生在测验过程中切换至 Revision Hub、Study Squad 或其它功能时，当前题号 `index`、已选/草稿答案 `answerDrafts`、输入草稿 `answerText`、题目数据集 `session`、模式与学科考点均自动保存；
+      - 当学生切回 Smart Quiz 时自动恢复答题状态，不丢失进度；
+      - 仅在学生明确点击「Abandon」（放弃）、「Retake」（重新开始）、「Complete Corrections」（完成订正）或关闭浏览器标签页时才重置；
+      - 优化查询参数监听，避免带参返回时误触发重开测验覆盖已答进度。
+    - **Revision Hub 进度保留**：在 `apps/web/features/capture-hub.tsx` 中引入 `sessionStorage` 状态持久化机制。
+      - 保存学生的粘贴/输入笔记、Focus Guidance 分析结果、Quiz Recap 错题数据、评估建议及选中的科目考点；
+      - 切换至 Smart Quiz 或其它页面再返回 Revision Hub 时，笔记与指导数据依然完整保留；
+      - 仅在学生主动点击「Clear」或关闭浏览器标签页时清空。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过；
+    - 后端 `npm --prefix apps/api test` 全量 46 个测试套件（332 个用例）全部通过。
+- **为什么**：满足用户对 Focus Guidance 仅展示简短易懂的复习重点、改进方法与技巧的要求，同时彻底解决在 Smart Quiz 与 Revision Hub 等功能间切换时作答进度与笔记反馈被重置丢失的问题。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-26 · uncommitted · Auto
+
+**修复测验总结弹窗（Quiz Recap Popup）：直接从测验答题结果中实时提取所有错题与错因，杜绝“无数据”空状态**
+
+- **做了什么**：
+  - **即时错题提取器（`extractRecapFromSession`）**：
+    - 在 [quiz.ts](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/lib/api/quiz.ts) 中实现并导出了客户端纯函数 `extractRecapFromSession`，直接根据 `AssessmentSessionResponse` 中的答题数据（`session.questions` 和 `session.answers`）分析出学生答错的每一道题：
+      - MCQ 模式：自动过滤出 `isCorrect === false` 的题目，提取学生所选选项（选项字母与文本内容）、正确选项、题目所属概念与知识点（subtopic / concept）、具体错因分析，以及基于解析的重点提示（`takeNoteOf`）；
+      - Essay 模式：自动过滤出未获满分的题目（`marksObtained < maximumMarks`），提取失分部位、阅卷反馈建议以及核心作答要点；
+      - 自动组装标准 Spidey 总结话术：`"You scored X/Y. You mistakenly answered questions regarding [topics]."`；
+      - 生成一键复制用的完整复习文本与 Revision Hub 积极引导参数。
+  - **弹窗与卡片双重容灾联动**：
+    - 更新 [quiz-recap-dialog.tsx](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/components/quiz-recap-dialog.tsx) 与 [quiz-recap-card.tsx](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/components/quiz-recap-card.tsx)，接收 `session` 参数并在无远端 recap 数据时自动执行 `extractRecapFromSession(session)`；
+    - 彻底消除了原先出现 `"No recap data is available for this assessment session."` 的空白等待状态，测验一结束弹窗立即展示完整的错题分析与复习指导；
+    - 在 [quiz.tsx](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/web/features/quiz.tsx) 的 `ResultsPanel` 与 `EssayResultsPanel` 中将 `session` 传递给弹窗与卡片。
+  - **后端查询容错增强**：
+    - 在 [assessment-quiz.ts](file:///c:/Users/beatrice/OneDrive/Documents/GitHub/Edunet/apps/api/src/services/assessment-quiz.ts) 中使 `generateAndSaveAttemptRecap` 支持同时匹配 `submissionId` 与 `id`，防止由于主键与提交标识不匹配导致的 404 错误。
+  - **质量验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过；
+    - 后端 `npm --prefix apps/api test` 全量 46 个套件 332 个单元与集成测试全部通过。
+- **为什么**：解决用户在完成测验后，Recap 弹窗显示“No recap data is available for this assessment session”的问题，确保弹窗无论在任何网络或接口状态下，都能 100% 可靠地实时提取并展示学生答错的所有题目与核心注意点。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**测验结束自动弹出错题 Recap 弹窗图层（Quiz Recap Dialog），支持一键复制与直达 Revision Hub**
+
+- **做了什么**：
+  - **测验结束弹窗图层（Popup Layer）**：
+    - 新增 `apps/web/components/quiz-recap-dialog.tsx` 独立弹窗组件：
+      - 当学生完成测验到达结果页时，自动弹出浮层展示 Spidey 的错题表现点评与失分题目清单；
+      - 结构化显示学生答错的每一题、具体错因/误区以及“📌 Take note: What to take note of”；
+      - 弹窗顶部设有 **"Copy Recap Summary"** 复制按钮，一键将整理好的错题总结直接复制到剪贴板；
+      - 弹窗底部提供 **"Revise at Revision Hub"** 快捷按钮（点击自动复制总结到剪贴板、写入 sessionStorage 并跳转至 Revision Hub 打字笔记区）；
+      - 提供 **"Review Questions"** 按钮，便于学生随时关闭弹窗查看原题答题卡。
+  - **在 MCQ 与 Essay 结算页联动**：
+    - 在 `apps/web/features/quiz.tsx` 的 `ResultsPanel`（MCQ）与 `EssayResultsPanel`（Essay）中集成 `QuizRecapDialog`；
+    - 侧边栏新增 **"View Recap Popup"** 按钮，允许学生在关闭弹窗后随时再次唤起弹窗复查总结。
+  - **全量测试与验证**：
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过；
+    - 后端 `npm --prefix apps/api test` 全量 46 个测试套件（332 个用例全部通过）。
+- **为什么**：满足用户需求：在测验结束时添加弹窗图层（pop up layer），展示学生答错题目的 Recap 总结，便于学生一键复制并直接带到 Revision Hub（Capture Hub）复习改进。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**测验错题全局可复制 Recap 总结、移除逐题解释、替换完成订正按钮为 Revision Hub 及打字笔记积极重点指引**
+
+- **做了什么**：
+  - **移除逐题解释与生成整体错题 Recap**：
+    - 在 `apps/web/features/quiz.tsx` 的 `McqReviewCard` 中移除了每题的“Reveal explanation / 展开解释”折叠与逐题解释文案；在 `EssayPartReview` 中移除了逐题的 `part.explanation`；
+    - 在 `apps/web/components/quiz-recap-card.tsx` 中移除逐题明细卡片（`RecapItemCard`），改为**整体错题总结（Overall Recap Summary）**：直观汇总整套测验失分的知识点、错因剖析与核心注意点（Take note of）；
+    - 新增 **"Copy Recap Summary"**（复制总结）一键复制按钮与反馈提示，方便学生随时复制到剪贴板。
+  - **侧边栏按钮调整**：
+    - 移除 MCQ 与 Essay 结算侧边栏的 `Complete corrections`（完成订正）按钮；
+    - 新增文案提示：`"Copy and paste to revise on Revision Hub"`；
+    - 替换为主操作按钮 **"Revision Hub"**，点击自动携带当前科目与课题导航至 Revision Hub。
+  - **Revision Hub 打字笔记专属积极重点指引（Focus Guidance）**：
+    - 在 `apps/api/src/services/quiz-recap.ts` 中新增 `generateFocusGuidance`，并在 `apps/api/src/routes/api-v1.ts` 暴露 `POST /api/v1/me/capture/focus-guidance` 接口；
+    - 当学生在 Revision Hub 的打字笔记区粘贴错题总结或点击 **"Get focus guidance"** 时，Spidey 以非常**积极、鼓舞人心**的语气进行点评，肯定学生的付出与复习意识；
+    - 智能分析并按优先级明确告诉学生**需要优先主攻哪个知识点**（`Focus On This First` / `Medium Priority`），对错处进行积极正向的剖析，并提供核心规则与记忆口诀（Memory Tip）；
+    - 提供交互式复习打勾清单与 **"Back to Smart Quiz to Re-test"** 快速重测通道；
+    - 彻底区分了拍照上传笔记的教材引用大纲评测与打字错题复习的积极重点指引。
+  - **全量测试与验证**：
+    - `apps/api/tests/quiz-recap.test.ts` 包含生成正向重点指引单元测试，全部 3 个测试用例通过；
+    - 后端 46 个测试套件全量通过；
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过。
+- **为什么**：满足用户需求：不再需要逐题解释，而是为错题生成整体的、可一键复制的 Recap 总结；移除 Complete corrections 按钮并添加 `"copy and paste to revise on Revision Hub"` 提示与 Revision Hub 按钮；在 Revision Hub 粘贴后获取积极正向、聚焦攻克重难点的反馈指导。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**测验结算 Recap 一键前往 Revision Hub 复习与打字笔记专用简明指引（Take Note Of）**
+
+- **做了什么**：
+  - **测验 Recap 格式优化**：
+    - 在 `apps/api/src/services/quiz-recap.ts` 中根据用户要求规范 Spidey 总结发言格式为：“You scored X/Y. You mistakenly answered questions regarding [所有失分考点]”（若满分则为满分鼓励与核心要点）；
+    - 结构化返回 `takeNoteOf`（学生需要注意的事项列表）、`wrongConcepts`、`guidance` 及可以直接带入打字笔记的 Markdown 内容 `typedNotesText`。
+  - **一键导入 Revision Hub 打字笔记区**：
+    - 在测验结算页 `apps/web/components/quiz-recap-card.tsx` 中新增 **"Revise at Revision Hub"（前往复习中心）** 按钮；
+    - 点击后自动将结构化 Recap 存入 `sessionStorage`，并导航至 `/capture-hub?subject=...&topic=...&recap=true`；
+    - 在 `apps/web/features/capture-hub.tsx` 中自动识别测验 Recap，预填充到打字笔记（Typed Notes）区域，并自动选中对应的科目与课题，同时展示 `Quiz Recap Loaded` 状态徽章与快捷操作按钮。
+  - **打字笔记专属简明指引（区别于拍照上传讲义评估）**：
+    - 新增 `apps/web/features/capture/quiz-revision-guidance.tsx` 独立组件：
+      - 呈现 Spidey 的总结与针对本次错题的简明指引（"What you need to take note of"）；
+      - 提供可交互勾选的复习清单（"Mark as noted" / "Noted"）；
+      - 底部提供 **"Back to Smart Quiz to Re-test"** 按钮，方便学生在牢记注意事项后立刻回测验重测。
+    - 在 `apps/web/features/capture-hub.tsx` 的评估弹窗中，当检测到是测验带入的打字笔记时，主按钮切换为 **"Get guidance on what to take note of"**，弹窗内展示简明针对性复习指引，而非针对拍照讲义的大纲引用评分。
+  - **全量测试与类型检查验证**：
+    - `npm --prefix apps/web run typecheck` 0 报错通过；
+    - `npm --prefix apps/api test` 全量 46 个测试套件（331 个测试用例全部通过）。
+- **为什么**：满足用户需求：无论 MCQ 还是 Essay，测验结束时 Spidey 都给出清晰的表现总结（如得分及失分知识点），并提供按钮一键将总结带入 Revision Hub 的打字笔记部分获取改进指引；该指引区别于手写笔记评估，专为错题要点提供简明清晰的注意事项指导。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**集成 Gemini API 为学生每次完成测验（MCQ 与 Essay）生成智能智能 Recap 总结**
+
+- **做了什么**：
+  - **后端智能 Recap 服务与生成逻辑**：
+    - 新增 `apps/api/src/services/quiz-recap.ts`，集成 Gemini API 对学生完成的测验生成定制化总结；
+    - **MCQ 模式**：精准针对学生回答错误的题目，详细分析学生「错在哪里」（所选干扰项的认知陷阱或概念混淆），并给出针对性的科学概念订正与记忆法则；若满分则表扬并提炼核心概念；
+    - **Essay 问答模式**：深入剖析失分题目中的「具体误区（Misconception）」或回答欠缺之处（如混淆概念、遗漏得分关键术语、未满足标准答案得分点），并给出符合大纲规范的标准解答与修正技巧；
+    - 配备健壮的离线/备用解析回退机制，确保在任何网络环境下均稳定返回高质量结构化总结。
+  - **测验完成时自动生成与存储**：
+    - 在 `apps/api/src/services/assessment-quiz.ts` 中的 `finishAssessmentSession` 完成流程中，测验提交后自动触发 `generateAndSaveAttemptRecap` 生成 Recap 并存入 `quizAttempts.calculationTrace` 中；
+    - `loadAssessmentSession` 自动附加 `recap` 返回给前端；
+    - 在 `apps/api/src/routes/api-v1.ts` 中新增 `GET` 及 `POST /api/v1/me/quiz-attempts/:submissionId/recap` 端点供前端独立读取或按需重试。
+  - **前端交互呈现与组件**：
+    - 新增 `apps/web/components/quiz-recap-card.tsx` 吉祥物 Spidey AI 总结卡片：
+      - 显示 Spidey 对整套测验的点评，附带 Gemini 标识与表现徽章；
+      - **MCQ 错题复盘**：清晰列出选择答案与标准答案比对、错因剖析与核心订正，并提供「Review QX」快速跳转按钮，直达对应的题目详情；
+      - **Essay 误区剖析**：分题呈现误区诊断、失分原因与满分答题示范，支持一键定位题目；
+      - 底部提供 Spidey 提炼的关键要点（Key Takeaways）与下一步行动建议；
+    - 在 `apps/web/features/quiz.tsx` 的 `ResultsPanel`（MCQ 结果页）与 `EssayResultsPanel`（Essay 结果页）中同时嵌入 `QuizRecapCard`，支持实时加载状态和即时题号联动。
+  - **全量测试与验证**：
+    - 新增 `apps/api/tests/quiz-recap.test.ts`，全量 46 个后端测试套件（331 个用例）全部通过（包含真实 Gemini API 调用）；
+    - 前端 `npm --prefix apps/web run typecheck` 0 报错通过。
+- **为什么**：满足用户需求：学生每次完成测验（MCQ 和 Essay）时，调用 Gemini API 给出 Recap；MCQ 指出学生错在哪里，Essay 指出误区或回答错误之处。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**将侧边栏收起/展开按钮样式改为扁平小矩形并居中移至侧边栏中段**
+
+- **做了什么**：
+  - 在 `apps/web/components/app-sidebar.tsx` 中，将侧边栏边缘收起/展开触发器从顶部的圆形按钮（`top-5`、`rounded-full`、`h-8 w-8`）修改为侧边栏垂直中段位置（`top-1/2 -translate-y-1/2`）的小扁平矩形（`h-10 w-5`、`rounded-md`、`border border-sidebar-border bg-card`、`shadow-sm`）；
+  - 内部保留清晰的方向箭头（展开时显示向左箭头 `ChevronLeft`，收起时显示向右箭头 `ChevronRight`），带平滑旋转与缩放交互；
+  - 运行 `npm --prefix apps/web run typecheck` 验证通过（0 报错）。
+- **为什么**：根据用户设计要求，将侧边栏关闭按钮移至中段，并由圆球造型改为精巧扁平的矩形箭头手柄。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**修复点击 Back to Smart Quiz 跳转 404 问题并支持双路由兼容**
+
+- **做了什么**：
+  - 将 `apps/web/features/capture-hub.tsx` 中的跳转路由由未注册的 `/smart-quiz` 修正为系统的真实 Smart Quiz 路由 `/quiz`（支持携带 `?subject=...&topic=...` 参数）；
+  - 新增 `apps/web/app/(app)/smart-quiz/page.tsx` 路由别名直连 `QuizPage`，使得无论通过 `/quiz` 还是 `/smart-quiz` 访问均能 100% 正确加载 Smart Quiz 界面，彻底杜绝 404；
+  - 经自动化网络探测验证 `http://localhost:3000/quiz` 和 `http://localhost:3000/smart-quiz` 均返回 HTTP 200，TypeScript 检查 0 报错。
+- **为什么**：此前导航硬编码了 `/smart-quiz`，而系统原注册路由为 `/quiz`，导致学生点击跳转后命中 Next.js「404 Page Not Found」错误。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Revision Hub 移除复选框与底部按钮，并在反馈后由 Spidey 建议学生前往 Smart Quiz 检验记忆**
+
+- **做了什么**：
+  - **移除复选框与底部按钮**：从 `apps/web/features/capture-hub.tsx` 中彻底移除「Generate Quiz」和「Summarise into Key Points」两个卡片复选框，以及底部的处理按钮（「Generate Quiz & Summarise」）；
+  - **精简笔记上传表单**：将「Get feedback」提升为表单唯一的原色主操作按钮，在选择科目与添加内容后直接一键发起大纲比对与建议评估；
+  - **反馈后 Spidey 推荐与 Smart Quiz 跳转**：
+    - 在 `apps/web/features/capture/evaluation-next-steps.tsx` 的反馈弹窗底部加入 Spidey 推荐卡片（Spidey 头像 + 建议气泡），鼓励学生在查看笔记短板后立即检验知识掌握情况；
+    - 提供高亮操作按钮「Back to Smart Quiz」，点击后自动携带当前科目与考点参数（`?subject=...&topic=...`）一键直达 Smart Quiz，即时加载对应考题；
+    - 在 Revision Hub 页面上方放置完成反馈后的 Spidey 提醒条，方便学生关闭弹窗后随时前往测验。
+- **为什么**：满足用户简化 Revision Hub 操作流程（移除冗余复选框与底部按钮），并在反馈后由吉祥物 Spidey 建议学生回到 Smart Quiz 再次测试知识的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**移除 Materials Library 并在 Get feedback 中精准定位学生上传笔记的改进位置**
+
+- **做了什么**：
+  - **精准定位笔记改进位置**：
+    - 在后端 `apps/api/src/services/note-evaluation.ts` 的评分提示词中，指导考官严格针对学生上传文本摘取原文引用（`quote`），指出错误或不严谨之处并给出具体修改方案（`correction`）；在解析器中将含引用的 `partial` 评价同样收集到 `incorrect`（待改进项）中，保留真实引用；
+    - 在前端 `apps/web/features/capture/evaluation-next-steps.tsx` 中新增「Where your notes can be improved」区块，以 blockquote 形式呈现学生笔记中的原句（`"In your notes: ..."`）及具体指导建议（`"How to improve: ..."`）；同时呈现缺失考点（`Key concepts to add to notes`）与准确要点（`What your notes got right`）；
+    - 在 `apps/web/features/capture-hub.tsx` 中向 `<EvaluationNextSteps>` 完整传递 `incorrect`、`correct` 和 `missing` 属性。
+  - **彻底移除 Materials Library**：
+    - 移除 `NotesLibraryLayer` 中的 Materials Library 标签页、`DisplayCards` 堆叠卡片、学科筛选器及保存资料卡片网格，仅保留「Textbook Notes (Provided by EduNets)」课本笔记生成与阅读功能；
+    - 顶部导航按钮由「Notes Library」更名为「Textbook Notes」；
+    - 移除笔记上传底部的「Save to Materials Library」按钮，替换为即时行动按钮（「Continue to Smart Quiz」/「Summarise into Key Points」/「Generate Quiz & Summarise」/「Process Notes」）；
+    - 移除已废弃的 materials library 状态（`materials`、`libraryFilter`、`libraryCards`、`noteMaterial` 及 Read note 弹窗），总结弹窗改由纯净数据驱动；
+    - 解决 Next.js 页面与 TypeScript 编译 0 报错，全量 45 个后端测试套件（329 个用例）全部通过。
+- **为什么**：满足用户彻底移除 Materials Library，并在反馈（Get feedback）中向学生明确指出其上传的笔记中具体哪句话/哪个位置存在不足以及如何改进的需求。
+- **影响面**：Revision Hub 不再渲染 Materials Library 列表，改用即时生成与直接跳转；无破坏性 API 变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Revision Hub 移除 Evaluation 百分比并更名为 Get feedback**
+
+- **做了什么**：
+  - 修改 `apps/web/features/capture/evaluation-next-steps.tsx`：移除百分比（`percentage`）圆环展示与计算，改为鼓励式「Feedback」卡片，保留下一步改进清单与打勾完成进度；
+  - 修改 `apps/web/features/capture-hub.tsx`：
+    - 将「📊 Evaluate summary against the syllabus」操作按钮替换为「✨ Get feedback」；
+    - 将资料库卡片与下拉菜单中的「Evaluation summary」替换为「Get feedback」；
+    - 将弹窗标题与说明从分数导向转为「Get feedback」与改进建议提示；
+    - 相应更新相关 toast、debug 日志与提示文案中的 evaluation 用词为 feedback。
+- **为什么**：满足用户移除评估百分比计算/显示并将 evaluation 统一更名为「Get feedback」的需求。
+- **影响面**：无破坏性变更。
+
+## 2026-09-25 · uncommitted · Auto
+
+**导航栏重命名与功能栏顺序调整：Homepage 及六项功能排序**
+
+- **做了什么**：
+  - 修改 `apps/web/lib/i18n/dict/nav.ts`：将 `nav.dashboard` 与 `nav.dashboard.short` 显示文案由「Dashboard」更新为「Homepage / 首页」，短标题为「Home / 首页」；
+  - 修改 `apps/web/components/app-sidebar.tsx`：重排侧边栏与移动端底栏的功能项顺序为：`homepage` (`/dashboard`) -> `smart quiz` (`/quiz`) -> `concept web` (`/concept-web`) -> `revision hub` (`/capture-hub`) -> `study squad` (`/study-squad`) -> `ask teacher` (`/ask-teacher`)；并将首页图标替换为直观贴切的 `Home` 图标；
+  - 修改 `apps/web/components/app-top-bar.tsx`：同步对齐 `TITLE_RULES` 路由映射规则顺序；
+  - 修改 `apps/web/features/mascot/global-mascot.tsx`：将吉祥物对主页的提示语更新为「Homepage is your hub」。
+- **为什么**：满足用户将 Dashboard 重命名为 Homepage 以及对功能导航栏顺序定制的需求。
+- **影响面**：无破坏性变更。
+
+## 2026-09-25 · uncommitted · Auto
+
+**Study Squad 页面紧凑化重构：一屏尽览 Concept Relay 与 Your squad**
+
+- **做了什么**：修改 `apps/web/features/study-squad.tsx`：
+  - 精简页面外层与卡片间距（`p-3 sm:p-4 lg:p-5`，`space-y-3.5`）；
+  - 压缩「Your squad」卡片头部排版、图标尺寸与内边距，小队信息与同学搜索目录调整为紧凑排版（目录最大高度收敛至 `max-h-36` 并适配小行高紧凑条目）；
+  - 将「Group streak」打卡数据与 5 次月度恢复指示条合一并列，精简高度；
+  - 紧凑化「Concept Relay」卡片头部与「What to expect」4 步卡片尺寸，使双卡片总高度收敛在约 570px 左右。
+- **为什么**：满足用户无需大幅向下滚动即可在同一页面视野中同时看到 Concept Relay 与 Keep your squad learning 的设计需求。
+- **影响面**：无破坏性变更。
+
+## 2026-09-25 · uncommitted · Auto
+
+**Study Squad 页面布局重构：合并卡片消除重复并置顶 Your squad**
+
+- **做了什么**：修改 `apps/web/features/study-squad.tsx`：
+  - 将「Your squad」卡片移动到页面顶部，卡片头部融合「Keep your squad learning together」标题与描述副文案；卡片内部左侧为小队成员与同校邀请，右侧为「Group streak」连续打卡与 5 次恢复额度；
+  - 将原来的第 2 张卡片（CTA 引导卡片）与第 3 张卡片（Concept Relay 概念接力卡片）合并为单一卡片，置于「Your squad」下方；在头部整合「Start Concept Relay」与「Join with code」操作按钮，下方展示「What to expect」4 步玩法，彻底消除视觉与文案重复。
+- **为什么**：满足用户对去除冗余重复卡片、提升页面层级与信息紧凑度的设计需求。
+- **影响面**：无破坏性变更。
+
+## 2026-09-25 · uncommitted · Auto
+
+**Study Squad 合并 Group Streak 至 Your squad 卡片**
+
+- **做了什么**：修改 `apps/web/features/study-squad.tsx`：
+  - 将原「Your real squad」卡片重命名为「Your squad」；
+  - 将「小队连续打卡（Group streak）」模块整合至「Your squad」卡片内部，桌面端采用左侧小队成员/同学邀请、右侧连续打卡与 5 次恢复额度双栏并列排版；
+  - 顶部「Keep your squad learning together」卡片恢复为独立首屏横幅，仅在此横幅保留「Start Concept Relay」与「Join with code」操作按钮。
+- **为什么**：满足用户对小队卡片命名的规范以及将连续打卡与小队信息紧密整合的需求。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Study Squad 头部排版调整与按钮去重**
+
+- **做了什么**：修改 `apps/web/features/study-squad.tsx`：
+  - 将「小队连续打卡（Group streak）」卡片移至头部「Keep your squad learning together」卡片右侧，桌面端采用并列双栏栅格布局（`lg:grid-cols-[1.2fr_0.8fr]`）；
+  - 移除了「概念接力（Concept Relay）」玩法介绍卡片中多余重复的「Start Concept Relay」和「Join with code」操作按钮，所有按钮仅保留在「Keep your squad learning together」卡片中；
+  - 「你的小队（Your real squad）」卡片独立置于下方区域，保持布局清爽舒展。
+- **为什么**：响应用户排版调整需求，将打卡数据收纳进头部并列展示，并消除概念接力按钮在页面上的重复冗余。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Study Squad 页面精简与结构优化**
+
+- **做了什么**：修改 `apps/web/features/study-squad.tsx`：
+  - 保留「概念接力（Concept Relay）」游戏入口与专有玩法介绍卡片（包含画、传、讲、揭晓 4 步玩法一览与开始/加入按钮）；
+  - 保留「你的小队（Your real squad）」卡片：支持创建小队、查看成员名单与身份、同校同学检索与发送邀请、以及待处理邀请列表；
+  - 保留「小队连续打卡（Group streak）」卡片：清晰展示当前连续天数、今日打卡状态、每月 5 次恢复次数上限进度（5 段指示条与使用统计）及恢复打卡操作；
+  - 移除了排行榜（Leaderboard）、记忆回顾总结卡片及故事分享对话框（Memory recap / Wrapped）、薄弱概念救援板块及弹窗（Where your squad struggle / Rescue Nudge）、以及所有通往 Concept Web 和 Revision Room 的跳转入口。
+- **为什么**：根据用户需求聚焦 Study Squad 核心互动与协作玩法（概念接力游戏、真实小队组队、以及每月 5 次恢复额度的小队连续打卡），去除多余冗杂模块。
+- **影响面**：无破坏性变更。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**Smart Quiz 页面右侧滚动条全页滚动支持**
+
+- **做了什么**：修改 `apps/web/features/quiz.tsx`：
+  - 移除了 Setup 阶段固定视口高度限制（`h-[min(690px,...)]`、`max-h-[calc(100dvh-4.5rem)]`）及外层容器的 `overflow-hidden`，保证配置面板在不同分辨率或缩放时均可顺畅纵向滚动；
+  - 移除了答题中（Active Question）主容器的高度锁定与 Essay 结构化题目卡片的 `overflow-y-auto`，消除内嵌局部滚动条，题目和选项按自然高度撑开，交由页面右侧滚动条整体滚动；
+  - 答题题号导航（`AvailableQuestionsNav`）与结果页总览侧边栏（Summary rail）桌面端改为 `sticky top-20` 吸顶，整体页面向下滚动时依然保持常驻视口；
+  - 结果页（ResultsPanel / EssayResultsPanel）移除双栏内嵌独立滚动条（`edunets-scrollbar lg:overflow-y-auto`），全面统一使用右侧页面滚动条。
+- **为什么**：用户需要能够使用页面右侧滚动条统一滚动 Smart Quiz，此前的固定视口高度与内嵌滚动条限制阻碍了整页的顺畅浏览体验。
+- **影响面**：无破坏性变更。
+- **坑**：吸顶元素需配置 `top-20` 以保证处于 sticky `AppTopBar` 下方，避免互相覆盖。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**配置 Question Bank 题库环境变量**
+
+- **做了什么**：将外部 Question Bank 数据库连接 `QUESTION_BANK_DATABASE_URL`、Supabase 存储 URL `QUESTION_BANK_SUPABASE_URL`、密钥 `QUESTION_BANK_SUPABASE_KEY` 及题干资源桶 `QUESTION_BANK_QUESTIONS_BUCKET=questions` 写入根目录 `.env.local`。
+- **为什么**：Chemistry Smart Assessment 需要直连外部题库项目拉取已审核（APPROVED）真实考题和题干图资源。
+- **影响面**：无破坏性变更。未配置或题量不足时会自动回退本地 `quiz_questions` 种子题库。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**修复前端本地开发请求 404 导致 Account service unavailable 弹窗**
+
+- **做了什么**：
+  - 修复 `apps/web/lib/api/client.ts` 中的 `resolveDefaultApiBaseUrl` 兜底逻辑：在浏览器本地环境（`localhost` / `127.0.0.1`）下默认指向 API 端口 `http://localhost:8787`，而非错误的 `window.location.origin`（Next.js 端口 3000）。
+  - 创建 `apps/web/.env.local` 配置 `NEXT_PUBLIC_EDUNETS_API_URL=http://localhost:8787`，确保 `cd apps/web && npm run dev` 能够读取环境变量。
+  - 在 `scripts/run-web.mjs` 中添加根目录 `.env.local` 加载逻辑，保证经由根目录脚本启动也能透传环境变量。
+- **为什么**：当前端未注入 `NEXT_PUBLIC_EDUNETS_API_URL` 且在本地运行在 `:3000` 时，旧代码 `DEFAULT_API_BASE_URL` 会在浏览器端落回 `window.location.origin`（即 `http://localhost:3000`）。所有 `/api/v1/me` 请求都被打给了 Next.js 静态/前端服务返回 404，触发 `AuthFailure` 提示「Account service unavailable EduNets could not complete this request (404)」。
+- **影响面**：无破坏性变更。线上生产环境（Vercel）维持走同源 rewrite 规则。
+
+---
+
+## 2026-09-25 · uncommitted · Auto
+
+**修复 API 启动缺失 @supabase/supabase-js 与单测路径失效**
+
+- **做了什么**：
+  - 在 `apps/api/package.json` 添加缺失的 `@supabase/supabase-js` 依赖，并执行根目录 `npm install` 补齐安装。
+  - 修复 `apps/api/tests/concept-web-layout.test.ts` 与 `apps/api/tests/embeddings.test.ts` 中指向旧移动前路径的相对引用（分别指回 `apps/web/features` 与 `packages/database`）。
+  - 修复 `apps/api/tests/database.test.ts` 中编码混乱的 emoji（恢复为 `📐` 与 `⚗️`）。
+  - 修复 `apps/api/src/routes/api-v1.ts`、`apps/api/src/lib/external-question-bank.ts` 与 `api/serverless.ts` 中的 eslint 告警与类型标注。
+- **为什么**：Study Relay 引入了 `@supabase/supabase-js`，但未在 `apps/api/package.json` 声明且本地未执行 `npm install`，导致 `npm run dev` 启动 API 时报 `ERR_MODULE_NOT_FOUND` 闪退；同时部分单测引用路径过时导致测试失败。
+- **影响面**：无破坏性变更。`apps/api` 本地启动与测试 45 个 suite 全部通过。
+
+---
+
 ## 2026-09-25 · uncommitted · Auto
 
 **Smart Quiz 答题页去掉多余滚动条**

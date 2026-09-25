@@ -84,3 +84,39 @@ export function generateFlashcards(input: {
     body: JSON.stringify(input),
   });
 }
+
+export type FocusGuidanceArea = {
+  concept: string;
+  priority: 'High Priority' | 'Medium Priority' | 'Good Progress';
+  howToImprove?: string;
+  tip?: string;
+  whatWasWrongPositive?: string;
+  takeNoteOf?: string;
+  memoryTip?: string;
+};
+
+export type FocusGuidanceResult = {
+  spideyGreeting: string;
+  overallSummary: string;
+  focusAreas: FocusGuidanceArea[];
+  positiveEncouragement: string;
+  quickTip?: string;
+  feedbacks?: string[];
+};
+
+export function getFocusGuidance(input: {
+  text: string;
+  topicId?: string;
+  topicName?: string;
+  subjectId?: string;
+}) {
+  return apiRequest<{ available: boolean; guidance: FocusGuidanceResult | null; failure: CaptureFailure | null }>(
+    '/api/v1/me/capture/focus-guidance',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+}
+

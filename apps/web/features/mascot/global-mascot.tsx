@@ -262,7 +262,7 @@ function configForPath(pathname: string): RouteMascotConfig {
   if (matchesRoute(pathname, '/dashboard')) {
     return {
       scene: 'study',
-      message: 'Dashboard is your hub — start with the weakest topic for today.',
+      message: 'Homepage is your hub — start with the weakest topic for today.',
       appRoute: true,
     };
   }

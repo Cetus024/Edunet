@@ -6,8 +6,8 @@ import type { Dictionary } from '../types';
  * `nav.*.short` carries a deliberately short form for that bar instead.
  */
 export const navDict = {
-  'nav.dashboard': { en: 'Dashboard', zh: '学习总览' },
-  'nav.dashboard.short': { en: 'Dashboard', zh: '总览' },
+  'nav.dashboard': { en: 'Homepage', zh: '首页' },
+  'nav.dashboard.short': { en: 'Home', zh: '首页' },
   'nav.teacherHome': { en: 'Teacher Home', zh: '教师主页' },
   'nav.teacherHome.short': { en: 'Teacher', zh: '主页' },
   'nav.smartQuiz': { en: 'Smart Quiz', zh: '智能测验' },

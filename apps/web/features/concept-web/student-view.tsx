@@ -84,11 +84,14 @@ export default function StudentConceptWebView() {
             name: seed.name,
             description: seed.description,
             keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topicData.name}.` },
-            // Detail nodes inherit the authenticated parent topic score — there
-            // is no separate real per-subtopic score to track.
-            memoryScore: topicData.memoryScore,
+            // Subtopic scores are independent from the parent topic score.
+            // Quizzes are tracked at topic level; subtopics have no separate
+            // memory score unless a subtopic-specific quiz has been taken.
+            // Show null (grey/not-started) so a low topic score does not
+            // incorrectly colour every subtopic node in the concept web.
+            memoryScore: null as number | null,
             recommendedMode: topicData.recommendedMode,
-            reviewNow: topicData.reviewNow,
+            reviewNow: false,
             modeScores: topicData.modeScores,
           })),
         };
