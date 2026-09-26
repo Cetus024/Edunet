@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   extractRecapFromSession,
+  cleanWhereWrongPhrasing,
   type QuizRecap,
   type AssessmentSessionResponse,
 } from '@/lib/api/quiz';
@@ -84,7 +85,7 @@ export function QuizRecapCard({
     '',
     hasWrong
       ? `Things Scored Wrongly & Concepts to Revise:\n` +
-        activeRecap.items.map((it) => `• ${it.concept}: ${it.whereWrongOrMisconception}\n  Take note: ${it.takeNoteOf}`).join('\n\n')
+        activeRecap.items.map((it) => `• ${it.concept}: ${cleanWhereWrongPhrasing(it.whereWrongOrMisconception)}\n  Take note: ${it.takeNoteOf}`).join('\n\n')
       : `All questions answered correctly! Full conceptual mastery demonstrated.`,
     '',
     activeRecap.keyTakeaways && activeRecap.keyTakeaways.length > 0
@@ -253,7 +254,7 @@ export function QuizRecapCard({
                         <span>{it.concept}</span>
                       </div>
                       <p className="text-xs text-rose-950 pl-7 font-medium">
-                        {it.whereWrongOrMisconception}
+                        {cleanWhereWrongPhrasing(it.whereWrongOrMisconception)}
                       </p>
                       <p className="text-xs text-amber-950 font-semibold pl-7 bg-amber-50/70 rounded-md py-1 px-2 border border-amber-200/60 mt-1">
                         📌 <span className="font-bold">Take note:</span> {it.takeNoteOf}

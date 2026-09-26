@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Flame, Loader2, Search, Sparkles, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -127,11 +128,48 @@ export default function StudySquadPage() {
                   Team up with classmates, build your group streak, and play Concept Relay games together.
                 </p>
               </div>
-              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs sm:flex">
-                <Users className="h-6 w-6" />
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-[var(--edunets-yellow)]/35 p-1.5 border-2 border-amber-300 shadow-2xs sm:h-16 sm:w-16">
+                  <Image
+                    src="/branding/spidey-icon.png"
+                    alt="Spidey Squad Coach"
+                    width={64}
+                    height={64}
+                    className="h-full w-full object-contain"
+                  />
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground shadow-xs" title="Squad Mascot">
+                    👥
+                  </span>
+                </div>
               </div>
             </div>
           </CardHeader>
+
+          {/* Spidey Squad Coach Banner */}
+          <div className="mx-4 mb-3 sm:mx-5 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50/90 via-[#FFFDF8] to-amber-50/60 p-3 shadow-2xs flex items-center gap-3">
+            <div className="relative h-10 w-10 shrink-0 rounded-xl bg-amber-100/90 p-1 border border-amber-300/70 flex items-center justify-center shadow-2xs">
+              <Image
+                src="/branding/spidey-icon.png"
+                alt="Spidey Coach"
+                width={40}
+                height={40}
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-900">
+                  Spidey's Squad Boost
+                </span>
+                <Badge variant="outline" className="border-amber-300 bg-amber-100/70 text-[10px] font-bold text-amber-950 py-0 px-1.5">
+                  Squad Coach
+                </Badge>
+              </div>
+              <p className="text-xs text-amber-950/90 font-medium leading-snug mt-0.5">
+                Squads that revise together retain concepts 2.5x longer! Complete a quick quiz or pass the baton in Concept Relay to build your team streak.
+              </p>
+            </div>
+          </div>
 
           <CardContent className="space-y-4 px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
             {squadQuery.isPending ? (
@@ -351,6 +389,22 @@ export default function StudySquadPage() {
                       </div>
                     </div>
 
+                    {/* Spidey Streak Cheer */}
+                    <div className="flex items-center gap-2 rounded-xl bg-amber-50/80 border border-amber-200/70 p-2 text-xs text-amber-950 shadow-2xs">
+                      <Image
+                        src="/branding/spidey-icon.png"
+                        alt="Spidey"
+                        width={24}
+                        height={24}
+                        className="h-6 w-6 shrink-0 object-contain"
+                      />
+                      <span className="text-[11px] font-semibold leading-tight">
+                        {squad.streak.activeToday
+                          ? "Spidey's cheer: Your squad streak is active today! Keep it burning!"
+                          : "Spidey's tip: Complete 1 quiz today to maintain the group flame!"}
+                      </span>
+                    </div>
+
                     <div className="rounded-xl border border-border bg-card p-2.5 shadow-2xs">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-foreground">Monthly Restores</span>
@@ -401,18 +455,29 @@ export default function StudySquadPage() {
         {/* Card 2: Concept Relay (combined with Start Concept Relay and Join with code buttons) */}
         <Card className="card-shadow border-border bg-card text-card-foreground">
           <CardHeader className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pb-3">
-            <div className="max-w-xl">
-              <div className="mb-1 flex items-center gap-2">
-                <Badge className="w-fit rounded-full border-0 bg-secondary text-secondary-foreground text-xs">
-                  {t('squad.relay.badge')}
-                </Badge>
-                <CardTitle className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
-                  {t('squad.relay.title')}
-                </CardTitle>
+            <div className="flex items-center gap-3">
+              <div className="relative hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-amber-200/80 p-1 border border-amber-300/70 shadow-2xs">
+                <Image
+                  src="/branding/spidey-icon.png"
+                  alt="Spidey Relay"
+                  width={44}
+                  height={44}
+                  className="h-full w-full object-contain"
+                />
               </div>
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                {t('squad.relay.blurb')}
-              </p>
+              <div className="max-w-xl">
+                <div className="mb-1 flex items-center gap-2">
+                  <Badge className="w-fit rounded-full border-0 bg-secondary text-secondary-foreground text-xs">
+                    {t('squad.relay.badge')}
+                  </Badge>
+                  <CardTitle className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                    {t('squad.relay.title')}
+                  </CardTitle>
+                </div>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  {t('squad.relay.blurb')}
+                </p>
+              </div>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2 pt-1 sm:pt-0">
               <Button

@@ -152,12 +152,6 @@ function describeRequestError(error: unknown, operation: string): string {
   return `${operation} failed because of an unexpected client error.`;
 }
 
-function debugStatusClass(status: DebugLogStatus): string {
-  if (status === 'success') return 'bg-emerald-500';
-  if (status === 'warning') return 'bg-amber-500';
-  if (status === 'error') return 'bg-red-500';
-  return 'bg-blue-500 animate-pulse';
-}
 
 function UploadTile({
   icon: Icon,
@@ -372,7 +366,7 @@ type StoredCaptureProgress = {
   evaluation: NoteEvaluation | null;
   evaluationSummaryPoints: string[];
   isTextReviewExpanded: boolean;
-  hubView: 'home' | 'notes-library';
+  hubView?: 'home' | 'notes-library';
   flashcardSubject: string;
   flashcardTopic: string;
   flashcardSubtopicId: string;
@@ -411,7 +405,6 @@ export default function CaptureHubPage() {
   const uploadBusyRef = useRef(false);
   const [ocrTranscript, setOcrTranscript] = useState('');
   const [isTextReviewExpanded, setIsTextReviewExpanded] = useState(() => initialCaptureProgress?.isTextReviewExpanded ?? false);
-  const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
 
   // Processing state
   const [extractedContent, setExtractedContent] = useState(() => initialCaptureProgress?.extractedContent ?? '');
@@ -444,7 +437,6 @@ export default function CaptureHubPage() {
   const [quizRecapData, setQuizRecapData] = useState<QuizRecap | null>(() => initialCaptureProgress?.quizRecapData ?? null);
   const [focusGuidanceData, setFocusGuidanceData] = useState<FocusGuidanceResult | null>(() => initialCaptureProgress?.focusGuidanceData ?? null);
   const [isGettingGuidance, setIsGettingGuidance] = useState(false);
-  const [hubView, setHubView] = useState<'home' | 'notes-library'>(() => initialCaptureProgress?.hubView ?? 'home');
   const [flashcardSubject, setFlashcardSubject] = useState(() => initialCaptureProgress?.flashcardSubject ?? '');
   const [flashcardTopic, setFlashcardTopic] = useState(() => initialCaptureProgress?.flashcardTopic ?? '');
   /** Empty string = whole topic; otherwise a curriculum subtopic id. */
@@ -479,7 +471,6 @@ export default function CaptureHubPage() {
         evaluation,
         evaluationSummaryPoints,
         isTextReviewExpanded,
-        hubView,
         flashcardSubject,
         flashcardTopic,
         flashcardSubtopicId,
@@ -500,7 +491,6 @@ export default function CaptureHubPage() {
     evaluation,
     evaluationSummaryPoints,
     isTextReviewExpanded,
-    hubView,
     flashcardSubject,
     flashcardTopic,
     flashcardSubtopicId,
@@ -549,19 +539,7 @@ export default function CaptureHubPage() {
   }, [searchParams]);
 
   const appendDebugLog = useCallback(
-    (stage: string, status: DebugLogStatus, message: string) => {
-      const now = new Date();
-      setDebugLog((current) => [
-        {
-          id: `${now.getTime()}-${Math.random().toString(16).slice(2)}`,
-          time: format(now, 'HH:mm:ss'),
-          stage,
-          status,
-          message,
-        },
-        ...current,
-      ].slice(0, 20));
-    },
+    (_stage: string, _status: DebugLogStatus, _message: string) => {},
     [],
   );
 
@@ -949,58 +927,18 @@ export default function CaptureHubPage() {
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex flex-wrap items-center gap-3 mb-2">
           <div className="w-12 h-12 rounded-2xl bg-[#6486B5] flex items-center justify-center">
-            {hubView === 'notes-library' ? <BookOpen className="w-6 h-6 text-white" /> : <Upload className="w-6 h-6 text-white" />}
+            <Upload className="w-6 h-6 text-white" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl lg:text-3xl font-bold text-studynow-dark">
-              {hubView === 'notes-library' ? 'Textbook Notes' : 'Revision Hub'}
+              Revision Hub
             </h1>
             <p className="text-muted-foreground text-sm">
-              {hubView === 'notes-library'
-                ? 'Textbook notes from EduNets grounded in the Singapore Cambridge O-Level syllabus'
-                : 'Upload handwritten notes to evaluate them, or generate flashcards from the textbook'}
+              Upload handwritten notes to evaluate them, generate flashcards, or study textbook notes
             </p>
           </div>
-          {hubView === 'home' ? (
-            <Button
-              type="button"
-              onClick={() => setHubView('notes-library')}
-              className="rounded-xl bg-[#6486B5] hover:bg-[#6486B5]/90"
-            >
-              <BookOpen className="mr-2 h-4 w-4" />
-              Textbook Notes
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setHubView('home')}
-              className="rounded-xl"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Revision Hub
-            </Button>
-          )}
         </div>
       </motion.div>
-
-      {hubView === 'notes-library' ? (
-        <NotesLibraryLayer
-          notesGenSubject={notesGenSubject}
-          setNotesGenSubject={setNotesGenSubject}
-          notesGenTopic={notesGenTopic}
-          setNotesGenTopic={setNotesGenTopic}
-          notesGenTopics={notesGenTopics}
-          resolvedNotesGenTopicId={resolvedNotesGenTopicId}
-          isGeneratingNotes={isGeneratingNotes}
-          onGenerateNotes={() => void handleGenerateNotes()}
-          libraryNotes={libraryNotes}
-          isEditingGeneratedNotes={isEditingGeneratedNotes}
-          setIsEditingGeneratedNotes={setIsEditingGeneratedNotes}
-          setLibraryNotes={setLibraryNotes}
-        />
-      ) : (
-        <>
       {/* Phone-first: upload & evaluate, or generate flashcards. */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -1122,7 +1060,8 @@ export default function CaptureHubPage() {
                   setExtractedContent(e.target.value);
                 }}
                 placeholder="Type or paste extra notes. They combine with any OCR text…"
-                className="min-h-[110px] rounded-xl resize-none text-xs sm:text-sm font-mono leading-relaxed"
+                style={{ fieldSizing: 'fixed', height: '140px', maxHeight: '140px' } as React.CSSProperties}
+                className="h-[140px] max-h-[140px] [field-sizing:fixed] overflow-y-auto rounded-xl resize-none text-xs sm:text-sm font-mono leading-relaxed"
               />
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button
@@ -1294,49 +1233,23 @@ export default function CaptureHubPage() {
         </UploadTile>
       </motion.div>
 
-      <Card className="mb-8 overflow-hidden rounded-2xl border border-[#6486B5]/25 bg-white/80 card-shadow">
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-bold text-studynow-dark">Capture Debug Log</h2>
-              <p className="text-xs text-muted-foreground">
-                Live connection, OCR, summary, and syllabus-analysis status. No credentials are shown.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDebugLog([])}
-              disabled={debugLog.length === 0}
-            >
-              Clear log
-            </Button>
-          </div>
-
-          <div className="mt-4 max-h-52 space-y-2 overflow-y-auto" aria-live="polite">
-            {debugLog.length === 0 ? (
-              <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                No capture or analysis request has run yet.
-              </p>
-            ) : (
-              debugLog.map((entry) => (
-                <div key={entry.id} className="flex gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
-                  <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${debugStatusClass(entry.status)}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2">
-                      <span className="font-bold text-studynow-dark">{entry.stage}</span>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{entry.status}</span>
-                      <span className="ml-auto font-mono text-xs text-muted-foreground">{entry.time}</span>
-                    </div>
-                    <p className="mt-0.5 break-words text-muted-foreground">{entry.message}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Textbook Notes (Provided by EduNets) */}
+      <div className="mb-8">
+        <NotesLibraryLayer
+          notesGenSubject={notesGenSubject}
+          setNotesGenSubject={setNotesGenSubject}
+          notesGenTopic={notesGenTopic}
+          setNotesGenTopic={setNotesGenTopic}
+          notesGenTopics={notesGenTopics}
+          resolvedNotesGenTopicId={resolvedNotesGenTopicId}
+          isGeneratingNotes={isGeneratingNotes}
+          onGenerateNotes={() => void handleGenerateNotes()}
+          libraryNotes={libraryNotes}
+          isEditingGeneratedNotes={isEditingGeneratedNotes}
+          setIsEditingGeneratedNotes={setIsEditingGeneratedNotes}
+          setLibraryNotes={setLibraryNotes}
+        />
+      </div>
 
       {/* Process My Material Section */}
       <AnimatePresence>
@@ -1584,8 +1497,6 @@ export default function CaptureHubPage() {
           </motion.section>
         )}
       </AnimatePresence>
-        </>
-      )}
 
       {/* Short motivational next-steps checklist; scoring still runs in the backend. */}
       <Dialog

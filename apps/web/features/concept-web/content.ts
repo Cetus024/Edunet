@@ -6,6 +6,8 @@ export type SubconceptSeed = {
   name: string;
   description: string;
   keyConnectionTopic: string;
+  /** Official syllabus description of the linked topic — used to explain the connection. */
+  keyConnectionDescription: string;
 };
 
 export function buildSubconceptSeeds(topic: {
@@ -17,15 +19,21 @@ export function buildSubconceptSeeds(topic: {
     description: string;
   }>;
 }): SubconceptSeed[] {
-  return topic.subtopics.map((child, index) => ({
-    id: child.id,
-    // Keep the official code as metadata for syllabus/question linking, but
-    // Conceptual Hub node labels intentionally contain the title only.
-    syllabusCode: child.syllabusCode,
-    name: child.name,
-    description: child.description,
-    keyConnectionTopic: topic.subtopics[(index + 1) % topic.subtopics.length]?.name ?? topic.name,
-  }));
+  return topic.subtopics.map((child, index) => {
+    const linked = topic.subtopics[(index + 1) % topic.subtopics.length];
+    return {
+      id: child.id,
+      // Keep the official code as metadata for syllabus/question linking, but
+      // Conceptual Hub node labels intentionally contain the title only.
+      syllabusCode: child.syllabusCode,
+      name: child.name,
+      description: child.description,
+      keyConnectionTopic: linked?.name ?? topic.name,
+      // Carry the linked subtopic's official description so the popup can show
+      // a meaningful "why" instead of a generic template sentence.
+      keyConnectionDescription: linked?.description ?? '',
+    };
+  });
 }
 
 /** Only official syllabus Subtopics. Unsplit Chemistry Topics stay leaf nodes. */
@@ -49,6 +57,7 @@ export const topicRubricFacets: Record<string, SubconceptSeed[]> = Object.fromEn
       name,
       description: `${name} is assessed within ${topic.name} learning outcomes.`,
       keyConnectionTopic: facets[(index + 1) % facets.length] ?? topic.name,
+      keyConnectionDescription: 'Connects key syllabus learning outcomes within this topic.',
     }))];
   }),
 );

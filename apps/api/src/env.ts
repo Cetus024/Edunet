@@ -77,13 +77,19 @@ function parseOrigins(value: string): string[] {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
-    .map((origin) => {
+    .flatMap((origin) => {
       if (origin === '*') throw new Error('CORS_ORIGINS must not contain a wildcard');
       const url = new URL(origin);
       if (url.origin !== origin || (url.protocol !== 'http:' && url.protocol !== 'https:')) {
         throw new Error(`CORS origin must be an exact HTTP(S) origin: ${origin}`);
       }
-      return url.origin;
+      const list = [url.origin];
+      if (url.hostname === 'localhost') {
+        const portSuffix = url.port ? `:${url.port}` : '';
+        list.push(`${url.protocol}//127.0.0.1${portSuffix}`);
+        list.push(`${url.protocol}//[::1]${portSuffix}`);
+      }
+      return list;
     });
 
   if (origins.length === 0) throw new Error('CORS_ORIGINS must contain at least one origin');

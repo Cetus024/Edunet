@@ -51,10 +51,9 @@ const readableText = (fill: string) => {
 /**
  * Shared 0–100 Knowledge Model colour scale.
  *
- * 0–29: grey → red
- * 30–49: red → yellow
- * 50–79: yellow → green
- * 80–100: fixed bright green
+ * < 50%: red
+ * 50%–70%: yellow
+ * > 70%: bright green
  */
 export function getKnowledgeScoreColor(score: number | null): KnowledgeScoreColor {
   if (score === null || !Number.isFinite(score)) {
@@ -71,17 +70,14 @@ export function getKnowledgeScoreColor(score: number | null): KnowledgeScoreColo
   let fill: string;
   let label: KnowledgeScoreColor['label'];
 
-  if (normalized >= 80) {
+  if (normalized > 70) {
     fill = KNOWLEDGE_SCORE_COLORS.brightGreen;
     label = 'Mastered';
   } else if (normalized >= 50) {
-    fill = mix(KNOWLEDGE_SCORE_COLORS.yellow, KNOWLEDGE_SCORE_COLORS.brightGreen, (normalized - 50) / 30);
+    fill = KNOWLEDGE_SCORE_COLORS.yellow;
     label = 'Building';
-  } else if (normalized >= 30) {
-    fill = mix(KNOWLEDGE_SCORE_COLORS.red, KNOWLEDGE_SCORE_COLORS.yellow, (normalized - 30) / 20);
-    label = 'Review Needed';
   } else {
-    fill = mix(KNOWLEDGE_SCORE_COLORS.grey, KNOWLEDGE_SCORE_COLORS.red, normalized / 30);
+    fill = KNOWLEDGE_SCORE_COLORS.red;
     label = 'At Risk';
   }
 

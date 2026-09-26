@@ -982,9 +982,9 @@ api.post('/me/capture/focus-guidance', loadSession, requireSession, async (conte
   try {
     const guidance = await generateFocusGuidance({
       text: input.text,
-      topicId: input.topicId,
-      topicName: input.topicName,
-      subjectId: input.subjectId,
+      ...(input.topicId ? { topicId: input.topicId } : {}),
+      ...(input.topicName ? { topicName: input.topicName } : {}),
+      ...(input.subjectId ? { subjectId: input.subjectId } : {}),
     });
     return context.json({
       available: true,

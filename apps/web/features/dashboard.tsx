@@ -1,42 +1,33 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useAtomValue } from 'jotai';
 import {
   ChevronRight,
-  Clock,
-  Inbox,
-  Calendar,
+  ChevronLeft,
+  CheckSquare,
   Share2,
-  ArrowRight,
+  BookOpen,
+  Camera,
+  Users,
 } from 'lucide-react';
 import { useNavigate } from '@/lib/navigation';
 import { motion } from 'motion/react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrentAccount } from '@/lib/api/me';
 import { isTeachingRole } from '@/lib/roles';
 import { getKnowledgeScoreColor } from '@/lib/score-color';
-import { useSubjectName, useTranslation, type TranslationKey } from '@/lib/i18n';
 import TeacherDashboardPage from '@/features/teacher-dashboard';
 import {
   subjectSummariesAtom,
-  priorityQueueAtom,
   estimateReviewTime,
   getEffectiveScore,
   getDaysUntilReview,
-  atRiskTopicsAtom,
   subjectsAtom,
-  type SubjectSummary,
-  type PriorityQueueItem,
   type TopicData,
 } from '@/lib/study-data';
-import {
-  SpideyWelcomeStoryboardModal,
-  SpideyHomepageGuideBanner,
-  STORYBOARD_STORAGE_KEY,
-} from '@/features/dashboard/spidey-welcome-storyboard';
 
 // Format numbers strictly to 2 significant figures (e.g. 2.089...% -> 2.1%, 6.06...% -> 6.1%, 17.4% -> 17%)
 export function formatTo2SF(val: number | null | undefined): string {
@@ -47,65 +38,30 @@ export function formatTo2SF(val: number | null | undefined): string {
   return `${num}%`;
 }
 
-// Compute friendly reminder for when the next review is due
-export function getNextReviewReminder(topic: TopicData, effectiveScore: number | null) {
-  const days = getDaysUntilReview(topic.nextReviewAt);
-  if (effectiveScore === null) {
-    return { label: 'Not started', isUrgent: false, days: null };
-  }
-  if (days === null) {
-    if (effectiveScore < 40) {
-      return { label: 'Review Due: Today ⚠️', isUrgent: true, days: 0 };
-    }
-    return { label: 'Review Due: in 2 days', isUrgent: false, days: 2 };
-  }
-  if (days <= 0) {
-    return { label: 'Review Due: Today ⚠️', isUrgent: true, days: 0 };
-  }
-  if (days === 1) {
-    return { label: 'Review Due: Tomorrow', isUrgent: false, days: 1 };
-  }
-  return { label: `Review Due: in ${days} days`, isUrgent: false, days };
-}
-
-// Get greeting based on time of day
-function getGreetingKey(): TranslationKey {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'dashboard.greeting.morning';
-  if (hour < 17) return 'dashboard.greeting.afternoon';
-  return 'dashboard.greeting.evening';
-}
-
-// At-risk topic info for priority queue
-export interface AtRiskTopicInfo {
-  topic: TopicData;
-  subjectName: string;
-  subjectIcon: string;
-  effectiveScore: number;
-}
-
 /**
- * Circular gauge uses continuous score scale and renders score in 2 s.f.
+ * Circular progress gauge for the Overall Memory card (enlarged & prominent)
  */
-export function CircularGauge({ score, size = 80 }: { score: number | null; size?: number }) {
-  const { t } = useTranslation();
-  const radius = (size - 12) / 2;
+export function OverallMemoryGauge({ score, size = 132 }: { score: number | null; size?: number }) {
+  const radius = (size - 18) / 2;
   const circumference = 2 * Math.PI * radius;
   const displayScore = score ?? 0;
-  const strokeDashoffset = circumference - (displayScore / 100) * circumference;
+  const strokeDashoffset = score !== null ? circumference - (displayScore / 100) * circumference : circumference;
   const color = getKnowledgeScoreColor(score);
   const formattedScore = formatTo2SF(score);
 
+  const statusLabel =
+    score === null ? 'Not started' : score < 40 ? 'At risk' : score < 70 ? 'Needs review' : 'Healthy';
+
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div className="relative shrink-0 flex flex-col items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="rotate-[-90deg]">
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={color.background}
-          strokeWidth={8}
+          stroke="#F4EDCF"
+          strokeWidth={9}
         />
         {score !== null && (
           <motion.circle
@@ -114,7 +70,7 @@ export function CircularGauge({ score, size = 80 }: { score: number | null; size
             r={radius}
             fill="none"
             stroke={color.fill}
-            strokeWidth={8}
+            strokeWidth={9}
             strokeLinecap="round"
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
@@ -124,425 +80,39 @@ export function CircularGauge({ score, size = 80 }: { score: number | null; size
         )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        {score !== null ? (
-          <motion.span
-            className="text-lg lg:text-xl font-black"
-            style={{ color: color.fill }}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            {formattedScore}
-          </motion.span>
-        ) : (
-          <motion.span
-            className="text-[9px] font-bold text-muted-foreground text-center px-1 leading-tight"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            {t('dashboard.notStarted')}
-          </motion.span>
-        )}
+        <span className="text-2xl sm:text-3xl font-black text-[#17233A] tracking-tight">
+          {formattedScore}
+        </span>
+        <span
+          className="text-xs font-bold mt-0.5 tracking-tight"
+          style={{ color: score !== null ? color.fill : '#8C9AA8' }}
+        >
+          {statusLabel}
+        </span>
       </div>
     </div>
   );
 }
 
-/**
- * Concise Subject Memory Health Card (Stacked Layout):
- * - Header: subject name, status badge, Concept Web button
- * - Body: LEFT center hub with bigger gauge → SVG bezier branches → RIGHT compact topic rows
- * - Sorted stacked: most at-risk first (ascending avgScore)
- */
-export function MemoryHealthSubjectBranchCard({
-  subject,
-  index,
-}: {
-  subject: SubjectSummary;
-  index: number;
-}) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const avgScore = subject.avgScore;
-  const isAtRisk = avgScore !== null && avgScore < 30;
-  const needsReview = avgScore !== null && avgScore >= 30 && avgScore < 60;
-  const isOnTrack = avgScore !== null && avgScore >= 60;
-
-  const weakestTopic = useMemo(() => {
-    if (!subject.topics || subject.topics.length === 0) return null;
-    const scored = [...subject.topics].filter((tp) => tp.memoryScore !== null);
-    if (scored.length === 0) return subject.topics[0];
-    scored.sort((a, b) => (getEffectiveScore(a) ?? 0) - (getEffectiveScore(b) ?? 0));
-    return scored[0];
-  }, [subject.topics]);
-
-  const handleReviewWeakest = () => {
-    if (!weakestTopic) return;
-    const score = getEffectiveScore(weakestTopic);
-    const scoreParam = score === null ? '' : `&score=${score}`;
-    navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(weakestTopic.name)}${scoreParam}&mode=${weakestTopic.recommendedMode ?? 'mcq'}`);
-  };
-
-  const handleGoToConceptWeb = () => navigate(`/concept-web?subject=${encodeURIComponent(subject.name)}`);
-
-  const getLastReviewedText = () => {
-    if (avgScore === null) return t('dashboard.notStartedCount', { count: subject.notStartedCount });
-    if (subject.lastReviewed === null) return t('dashboard.lastReviewed.none');
-    if (subject.lastReviewed <= 0) return t('dashboard.lastReviewed.today');
-    if (subject.lastReviewed === 1) return t('dashboard.lastReviewed.yesterday');
-    return t('dashboard.lastReviewed.days', { days: subject.lastReviewed });
-  };
-
-  const topicCount = subject.topics.length;
-  // Each topic row is ~44px tall + 6px gap; min height ensures SVG has room to spread
-  const rowHeight = 44;
-  const rowGap = 6;
-  const bodyHeight = Math.max(144, topicCount * rowHeight + (topicCount - 1) * rowGap);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 + index * 0.08, duration: 0.38 }}
-    >
-      <Card className="rounded-[1.75rem] border border-border/80 bg-card text-card-foreground shadow-[0_10px_28px_rgba(29,58,98,0.06)] hover:shadow-[0_16px_40px_rgba(29,58,98,0.10)] transition-all duration-300">
-        <CardContent className="p-5 lg:p-6">
-
-          {/* ── Header ─────────────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-3 pb-4 mb-5 border-b border-border/60">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-2xl p-2 rounded-xl bg-secondary/30 shrink-0">{subject.icon}</span>
-              <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-base lg:text-lg font-black text-foreground tracking-tight">{subject.name}</h3>
-                  {subject.syllabusCode && (
-                    <Badge variant="outline" className="text-[10px] font-semibold text-muted-foreground border-border/60 px-1.5 py-0">
-                      {subject.syllabusCode}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {isAtRisk    && <span className="text-[10px] font-bold text-destructive flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-destructive animate-ping inline-block" />At Risk</span>}
-                  {needsReview && <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />Needs Review</span>}
-                  {isOnTrack   && <span className="text-[10px] font-bold text-primary flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />Memory Healthy</span>}
-                  {avgScore === null && <span className="text-[10px] text-muted-foreground">Not started yet</span>}
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="outline" size="sm"
-              onClick={handleGoToConceptWeb}
-              className="rounded-full font-bold border-primary/30 hover:border-primary text-primary hover:bg-primary/10 text-[11px] px-3 h-7 flex items-center gap-1 shrink-0"
-            >
-              <Share2 className="w-3 h-3" />
-              Concept Web
-              <ArrowRight className="w-3 h-3" />
-            </Button>
-          </div>
-
-          {/* ── Body: Hub (left) → SVG branches → Topic rows (right) ── */}
-          <div className="flex items-stretch gap-0" style={{ height: `${bodyHeight}px` }}>
-
-            {/* LEFT: Center Average Score Hub (bigger, vertically centered) */}
-            <div className="flex flex-col items-center justify-center gap-2 shrink-0" style={{ width: '152px' }}>
-              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                Subject Average
-              </span>
-              {/* Bigger gauge — 112px */}
-              <CircularGauge score={avgScore} size={112} />
-              <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2 px-2">
-                {getLastReviewedText()}
-              </p>
-              <Button
-                size="sm"
-                onClick={handleReviewWeakest}
-                className="w-full bg-primary hover:bg-accent text-primary-foreground font-black rounded-lg h-7 text-[11px] flex items-center justify-center gap-1"
-              >
-                Review <ChevronRight className="w-3 h-3" />
-              </Button>
-            </div>
-
-            {/* MIDDLE: SVG branching lines
-                The SVG fills the exact body height. viewBox is always 0 0 100 100.
-                The hub dot sits at (2, 50) which maps to the vertical center.
-                Each branch bezier fans from (2,50) to (98, targetY) where targetY
-                is evenly spaced between 8% and 92% so the end dots align with topic rows. */}
-            <div className="relative shrink-0" style={{ width: '60px', height: '100%' }}>
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-              >
-                <defs>
-                  <linearGradient id={`bg-${subject.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.75" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.2" />
-                  </linearGradient>
-                </defs>
-
-                {/* Central hub dot at left-center */}
-                <circle cx="2" cy="50" r="5.5" className="fill-primary" />
-
-                {subject.topics.map((tp, idx) => {
-                  const tScore = getEffectiveScore(tp);
-                  const tColor = getKnowledgeScoreColor(tScore);
-                  // Spread branches evenly: margin 8% from edges so dots align with row centres
-                  const margin = topicCount === 1 ? 0 : 8;
-                  const span = 100 - margin * 2;
-                  const targetY = topicCount === 1
-                    ? 50
-                    : margin + (idx / (topicCount - 1)) * span;
-
-                  return (
-                    <g key={tp.id}>
-                      {/* Bezier: hub center-left → topic row right-side */}
-                      <path
-                        d={`M 2 50 C 38 50, 62 ${targetY}, 98 ${targetY}`}
-                        fill="none"
-                        stroke={`url(#bg-${subject.id})`}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeDasharray={tScore === null ? '4 3' : undefined}
-                      />
-                      {/* Terminal dot coloured by topic health */}
-                      <circle cx="98" cy={targetY} r="4.5" style={{ fill: tColor.fill }} />
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-
-            {/* RIGHT: Topic rows, distributed evenly across the body height */}
-            <div className="flex-1 flex flex-col justify-around gap-1.5 min-w-0 py-0.5">
-              {subject.topics.map((topic, topicIdx) => {
-                const topicScore = getEffectiveScore(topic);
-                const topicScoreColor = getKnowledgeScoreColor(topicScore);
-                const topicReminder = getNextReviewReminder(topic, topicScore);
-
-                const handleTopicReview = () => {
-                  const scoreParam = topicScore === null ? '' : `&score=${topicScore}`;
-                  navigate(`/quiz?subject=${encodeURIComponent(subject.name)}&topic=${encodeURIComponent(topic.name)}${scoreParam}&mode=${topic.recommendedMode ?? 'mcq'}`);
-                };
-
-                return (
-                  <motion.div
-                    key={topic.id}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + topicIdx * 0.04 }}
-                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-all cursor-default"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: topicScoreColor.fill }} />
-                        <h4 className="font-bold text-foreground text-[12px] lg:text-[13px] leading-tight truncate">
-                          {topic.name}
-                        </h4>
-                      </div>
-                      {topicReminder.isUrgent && (
-                        <span className="mt-0.5 ml-3.5 text-[9px] font-bold text-destructive flex items-center gap-0.5">
-                          <Calendar className="w-2.5 h-2.5" />{topicReminder.label}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span
-                        className="text-[11px] font-black px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: `${topicScoreColor.fill}18`, color: topicScoreColor.fill }}
-                      >
-                        {formatTo2SF(topicScore)}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={handleTopicReview}
-                        className="font-bold rounded-lg h-7 px-2.5 text-[11px] bg-primary hover:bg-accent text-primary-foreground transition-all hover:-translate-y-0.5"
-                      >
-                        {topicScore === null ? t('dashboard.startArrow') : t('dashboard.reviewNowArrow')}
-                      </Button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-/**
- * Priority Item Row component:
- * - Implements the row list format shown in user screenshot
- * - Number circle on left (1, 2, 3...)
- * - Topic name + Subject pill badge
- * - Memory score in 2 s.f.
- * - Recovery duration (~12 mins)
- * - Next review date reminder
- * - "Start →" button pre-filling Smart Quiz
- */
-export function PriorityItemRow({
-  item,
-  rank,
-  index,
-}: {
-  item: AtRiskTopicInfo;
-  rank: number;
-  index: number;
-}) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const reviewTime = estimateReviewTime(item.effectiveScore);
-  const scoreColor = getKnowledgeScoreColor(item.effectiveScore);
-  const reminder = getNextReviewReminder(item.topic, item.effectiveScore);
-  const formattedScore = formatTo2SF(item.effectiveScore);
-
-  const handleStart = () => {
-    navigate(
-      `/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(item.topic.name)}&score=${item.effectiveScore}&mode=${item.topic.recommendedMode ?? 'mcq'}`
-    );
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.15 + index * 0.05 }}
-      className="flex items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-[1.35rem] bg-card text-card-foreground border border-border/70 floaty-card shadow-[0_8px_24px_rgba(29,58,98,0.06)] hover:shadow-[0_12px_32px_rgba(29,58,98,0.12)] transition-all hover:-translate-y-0.5"
-    >
-      {/* Rank circle */}
-      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 shadow-md">
-        <span className="font-black text-base sm:text-lg">{rank}</span>
-      </div>
-
-      {/* Middle: Topic details & score */}
-      <div className="flex-1 min-w-0">
-        {/* Top line: status dot + topic name + subject badge */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="h-2 w-2 flex-shrink-0 rounded-full"
-            style={{ backgroundColor: scoreColor.fill }}
-          />
-          <span className="font-black text-foreground text-xs sm:text-sm lg:text-base uppercase tracking-tight truncate max-w-[280px] sm:max-w-none">
-            {item.topic.name}
-          </span>
-          <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border-0 text-[11px] font-bold shrink-0">
-            {item.subjectIcon} {item.subjectName}
-          </Badge>
-        </div>
-
-        {/* Bottom line: Memory score pill + duration + review reminder */}
-        <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-          <span className="text-muted-foreground font-medium">
-            {t('dashboard.memoryScoreColon')}
-          </span>
-          <Badge
-            className="border-0 text-xs font-black px-2.5 py-0.5 rounded-full"
-            style={{ backgroundColor: scoreColor.fill, color: scoreColor.text }}
-          >
-            {formattedScore}
-          </Badge>
-          <span className="text-muted-foreground flex items-center gap-1 font-medium">
-            <Clock className="w-3.5 h-3.5" />
-            ~{reviewTime} mins
-          </span>
-          <span
-            className={`font-bold flex items-center gap-1 ${
-              reminder.isUrgent ? 'text-destructive font-black' : 'text-muted-foreground'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            {reminder.label}
-          </span>
-        </div>
-      </div>
-
-      {/* Right: Start button */}
-      <Button
-        size="sm"
-        onClick={handleStart}
-        className="font-bold rounded-full shrink-0 bg-primary hover:bg-accent text-primary-foreground px-4 sm:px-5 h-8 sm:h-9 text-xs shadow-sm transition-all hover:-translate-y-0.5"
-      >
-        {t('dashboard.startArrow')}
-      </Button>
-    </motion.div>
-  );
-}
-
-// Generate dynamic insight message
-function getDynamicInsight(
-  priorityQueue: PriorityQueueItem[],
-  subjectSummaries: SubjectSummary[],
-  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
-  subjectName: (name: string) => string,
-): string {
-  const atRiskSubjects = subjectSummaries.filter((s) => s.avgScore !== null && s.avgScore < 40);
-  const warningSubjects = subjectSummaries.filter(
-    (s) => s.avgScore !== null && s.avgScore >= 40 && s.avgScore < 70,
-  );
-
-  if (atRiskSubjects.length > 0) {
-    const worstSubject = atRiskSubjects.reduce((a, b) =>
-      (a.avgScore ?? 0) < (b.avgScore ?? 0) ? a : b,
-    );
-    const recoveryTime = estimateReviewTime(worstSubject.avgScore ?? 0);
-    return t('dashboard.insight.dropped', {
-      subject: subjectName(worstSubject.name),
-      score: worstSubject.avgScore ?? 0,
-      minutes: recoveryTime,
-    });
-  }
-
-  if (warningSubjects.length > 0) {
-    const needsAttention = warningSubjects[0];
-    const timeSinceReview = needsAttention.lastReviewed ?? 0;
-    if (timeSinceReview >= 2) {
-      return t('dashboard.insight.stale', {
-        subject: subjectName(needsAttention.name),
-        score: needsAttention.avgScore ?? 0,
-        days: timeSinceReview,
-      });
-    }
-  }
-
-  if (priorityQueue.length > 0) {
-    const topPriority = priorityQueue[0];
-    return t('dashboard.insight.priority', {
-      topic: topPriority.topic.name,
-      subject: subjectName(topPriority.subjectName),
-      score: topPriority.effectiveScore,
-      minutes: estimateReviewTime(topPriority.effectiveScore),
-    });
-  }
-
-  const totalTopics = subjectSummaries.reduce((sum, subject) => sum + subject.topics.length, 0);
-  const notStartedTopics = subjectSummaries.reduce(
-    (sum, subject) => sum + subject.notStartedCount,
-    0,
-  );
-  if (notStartedTopics > 0) {
-    return t('dashboard.insight.firstPath', {
-      started: totalTopics - notStartedTopics,
-      total: totalTopics,
-    });
-  }
-
-  return t('dashboard.insight.allGood');
-}
-
 function StudentDashboard() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
-  const localizeSubjectName = useSubjectName();
   const { data: account } = useCurrentAccount();
   const firstName = account?.user.name.split(/\s+/)[0] || 'Student';
 
-  // Get data from atoms
+  // Get data from study atoms
   const subjectSummaries = useAtomValue(subjectSummariesAtom);
-  const priorityQueue = useAtomValue(priorityQueueAtom);
-  const atRiskTopics = useAtomValue(atRiskTopicsAtom);
   const subjects = useAtomValue(subjectsAtom);
+
+  // Carousel ref and scroll handler
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const cardWidth = 340;
+    carouselRef.current.scrollBy({
+      left: direction === 'left' ? -cardWidth : cardWidth,
+      behavior: 'smooth',
+    });
+  };
 
   // Determine if student is a new user (no existing topic memory scores, quiz attempts, or reviews)
   const hasStudyActivity = useMemo(() => {
@@ -556,211 +126,517 @@ function StudentDashboard() {
       );
   }, [subjects]);
 
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [showStoryboard, setShowStoryboard] = useState(false);
 
-  useEffect(() => {
-    if (hasStudyActivity) {
-      setIsNewUser(false);
-      setShowStoryboard(false);
-      return;
+  // Overall Memory stats
+  const startedSubjects = useMemo(
+    () => subjectSummaries.filter((s) => s.avgScore !== null),
+    [subjectSummaries],
+  );
+  const overallScore = useMemo(() => {
+    if (startedSubjects.length === 0) return null;
+    const total = startedSubjects.reduce((sum, s) => sum + (s.avgScore ?? 0), 0);
+    return Math.round(total / startedSubjects.length);
+  }, [startedSubjects]);
+
+  // Topics due today count
+  const dueTopicsCount = useMemo(() => {
+    return subjects
+      .flatMap((s) => s.topics)
+      .filter((t) => {
+        if (t.memoryScore === null) return false;
+        const days = getDaysUntilReview(t.nextReviewAt);
+        const effective = getEffectiveScore(t) ?? t.memoryScore;
+        return effective < 40 || (days !== null && days <= 0);
+      }).length;
+  }, [subjects]);
+
+  // Priority Queue: top 5 topics (urgent / at risk first, then next unstarted topics)
+  const priorityQueue5 = useMemo(() => {
+    const scoredTopics: Array<{
+      topic: TopicData;
+      subjectName: string;
+      subjectIcon: string;
+      effectiveScore: number;
+      daysUntilReview: number | null;
+      isReviewDue: boolean;
+      subtext: string;
+    }> = [];
+
+    const unstartedTopics: Array<{
+      topic: TopicData;
+      subjectName: string;
+      subjectIcon: string;
+      effectiveScore: null;
+      daysUntilReview: null;
+      isReviewDue: boolean;
+      subtext: string;
+    }> = [];
+
+    for (const subject of subjects) {
+      subject.topics.forEach((topic, idx) => {
+        const score = topic.memoryScore;
+        const days = getDaysUntilReview(topic.nextReviewAt);
+        if (score !== null) {
+          const effectiveScore = getEffectiveScore(topic) ?? score;
+          const isReviewDue = effectiveScore < 40 || (days !== null && days <= 0);
+          scoredTopics.push({
+            topic,
+            subjectName: subject.name,
+            subjectIcon: subject.icon,
+            effectiveScore,
+            daysUntilReview: days,
+            isReviewDue,
+            subtext: isReviewDue ? 'Review due today · memory dropping' : `Review due: in ${days ?? 2} days`,
+          });
+        } else {
+          const prevTopic = idx > 0 ? subject.topics[idx - 1] : null;
+          const subtext =
+            idx === 0
+              ? `First topic in ${subject.name}`
+              : prevTopic && prevTopic.memoryScore !== null
+                ? `Next topic in ${subject.name}`
+                : idx === subject.topics.length - 1
+                  ? `Completes your ${subject.name} set`
+                  : `Next topic in ${subject.name}`;
+          unstartedTopics.push({
+            topic,
+            subjectName: subject.name,
+            subjectIcon: subject.icon,
+            effectiveScore: null,
+            daysUntilReview: null,
+            isReviewDue: false,
+            subtext,
+          });
+        }
+      });
     }
 
-    try {
-      const seen = localStorage.getItem(STORYBOARD_STORAGE_KEY);
-      if (!seen) {
-        setIsNewUser(true);
-        setShowStoryboard(true);
-      } else {
-        setIsNewUser(false);
-        setShowStoryboard(false);
-      }
-    } catch {
-      setIsNewUser(false);
-      setShowStoryboard(false);
-    }
-  }, [hasStudyActivity]);
+    scoredTopics.sort((a, b) => {
+      if (a.isReviewDue && !b.isReviewDue) return -1;
+      if (!a.isReviewDue && b.isReviewDue) return 1;
+      return a.effectiveScore - b.effectiveScore;
+    });
 
-  const visibleSubjectSummaries = useMemo(() => {
-    return [...subjectSummaries].sort(
-      (firstSubject, secondSubject) =>
-        (firstSubject.avgScore ?? Number.POSITIVE_INFINITY) -
-        (secondSubject.avgScore ?? Number.POSITIVE_INFINITY),
-    );
-  }, [subjectSummaries]);
+    return [...scoredTopics, ...unstartedTopics].slice(0, 5);
+  }, [subjects]);
 
-  // At-risk topic info with subject details
-  const atRiskTopicsWithInfo: AtRiskTopicInfo[] = useMemo(() => {
-    return atRiskTopics
-      .map((topic: TopicData) => {
-        const subject = subjects.find((s: { id: string }) => s.id === topic.subjectId);
-        return {
-          topic,
-          subjectName: subject?.name ?? '',
-          subjectIcon: subject?.icon ?? '',
-          effectiveScore: getEffectiveScore(topic) ?? 0,
-        };
-      })
-      .sort((a: AtRiskTopicInfo, b: AtRiskTopicInfo) => a.effectiveScore - b.effectiveScore);
-  }, [atRiskTopics, subjects]);
-
-  // Strictly take top 5 most at-risk topics to avoid overwhelming students
-  const top5PriorityTopics = useMemo(() => {
-    return atRiskTopicsWithInfo.slice(0, 5);
-  }, [atRiskTopicsWithInfo]);
-
-  // Dynamic insight
-  const insightMessage = getDynamicInsight(priorityQueue, subjectSummaries, t, localizeSubjectName);
+  // Welcome headline text based on user state
+  const welcomeHeadline = !hasStudyActivity
+    ? `Welcome to EduNets ${firstName}, ready to start revising?`
+    : `Welcome back to EduNets ${firstName}, continue where you previously left off!`;
 
   return (
-    <div className="p-5 lg:p-10 pattern-overlay">
-      {/* TOP SECTION — Greeting Banner */}
+    <div className="p-5 lg:p-10 pattern-overlay max-w-7xl mx-auto space-y-8">
+      {/* ─────────────────────────────────────────────────────────────
+          TOP SECTION: Study Pulse & Overall Memory (Combined Unified Card)
+      ───────────────────────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative mb-8 overflow-hidden rounded-[2rem] edunets-gradient px-6 py-8 lg:px-10 lg:py-12 shadow-[0_28px_80px_rgba(29,58,98,0.14)]"
+        transition={{ duration: 0.35 }}
+        className="relative overflow-hidden rounded-[2rem] edunets-gradient border border-border/70 p-6 sm:p-8 lg:p-10 shadow-[0_20px_60px_rgba(29,58,98,0.12)] flex flex-col md:flex-row items-center md:items-stretch justify-between gap-8"
       >
-        <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-accent blob-soft" />
-        <div className="absolute -bottom-14 left-1/3 h-40 w-40 rounded-full bg-secondary blob-soft" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
-          <div className="min-w-0 max-w-4xl">
-            <Badge className="mb-4 rounded-full border-0 bg-primary text-primary-foreground px-4 py-1.5 font-bold">
-              {t('dashboard.pulse')}
-            </Badge>
-            <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.05em] text-primary mb-4 leading-[0.95]">
-              {t(getGreetingKey())}, {firstName}.<br />{t('dashboard.subtitle')}
-            </h1>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="text-foreground leading-relaxed max-w-2xl text-base lg:text-lg font-medium"
-            >
-              {insightMessage}
-            </motion.p>
-          </div>
+        <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-accent blob-soft pointer-events-none" />
+        <div className="absolute -bottom-14 left-1/3 h-40 w-40 rounded-full bg-secondary blob-soft pointer-events-none" />
 
-          {/* Capture Hub shortcut */}
-          <motion.button
-            type="button"
-            onClick={() => navigate('/capture-hub')}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="group flex w-full shrink-0 items-center gap-3 rounded-2xl border border-primary/15 bg-card/80 px-5 py-4 text-left shadow-[0_12px_32px_rgba(29,58,98,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_44px_rgba(29,58,98,0.18)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto lg:w-60"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Inbox className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-black text-primary">{t('nav.captureHub')}</span>
-              <span className="block text-xs font-semibold text-muted-foreground">{t('dashboard.captureCta')}</span>
-            </span>
-            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-primary transition group-hover:translate-x-0.5" aria-hidden="true" />
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* SPIDEY HOMEPAGE GUIDE BANNER (ONLY FOR NEW USERS) */}
-      {isNewUser && (
-        <SpideyHomepageGuideBanner
-          onDismiss={() => {
-            setIsNewUser(false);
-            try {
-              localStorage.setItem(STORYBOARD_STORAGE_KEY, 'true');
-            } catch {}
-          }}
-        />
-      )}
-
-      {/* SECTION 1: MEMORY HEALTH — By Subject & By Topics */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="mb-10"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-8 bg-secondary rounded-full -rotate-6" />
-            <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary">
-              {t('dashboard.memoryHealth')}
-            </h2>
-          </div>
-          <span className="text-xs text-muted-foreground font-semibold">
-            Average memory score → topic breakdown • Concept Web for full analysis
-          </span>
-        </div>
-
-        {/* Stacked layout: chemistry first, then mathematics (sorted by avgScore asc = most at risk first) */}
-        <div className="space-y-5">
-          {visibleSubjectSummaries.map((subject: SubjectSummary, index: number) => (
-            <MemoryHealthSubjectBranchCard
-              key={subject.id}
-              subject={subject}
-              index={index}
-            />
-          ))}
-        </div>
-      </motion.section>
-
-      {/* SECTION 2: TODAY'S PRIORITY QUEUE (Row Format, Moved Below Memory Health) */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="mb-10"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-8 bg-destructive rounded-full rotate-6" />
-            <h2 className="text-2xl lg:text-3xl font-black tracking-tight text-primary">
-              {t('dashboard.priorityQueue')}
-            </h2>
-            <Badge className="bg-destructive/15 text-destructive border-0 text-xs font-black px-2.5 py-0.5 rounded-full">
-              {t('dashboard.top5AtRisk')}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground font-semibold">
-            {t('dashboard.priorityQueue.sorted')}
+        {/* Left Side: Welcome Headline */}
+        <div className="relative flex-1 min-w-0 flex flex-col justify-center text-center md:text-left">
+          <Badge className="mb-3.5 rounded-full border-0 bg-primary text-primary-foreground px-3.5 py-1 font-bold text-xs shadow-xs w-fit mx-auto md:mx-0">
+            EduNets study pulse
+          </Badge>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-primary tracking-tight leading-tight max-w-2xl">
+            {welcomeHeadline}
+          </h1>
+          <p className="text-foreground leading-relaxed mt-3 max-w-xl text-sm sm:text-base font-medium">
+            Track your memory retention across subjects, test concepts with smart quizzes, and collaborate with your squad.
           </p>
         </div>
 
-        {top5PriorityTopics.length > 0 ? (
-          <div className="space-y-3">
-            {top5PriorityTopics.map((item, index) => (
-              <PriorityItemRow
-                key={item.topic.id}
-                item={item}
-                rank={index + 1}
-                index={index}
-              />
-            ))}
+        {/* Right Side: Overall Memory Gauge & Stats (White Background Card) */}
+        <div className="relative shrink-0 flex flex-col items-center justify-center text-center bg-white rounded-2xl sm:rounded-[1.5rem] p-5 sm:p-6 shadow-[0_8px_24px_rgba(29,58,98,0.06)] border border-[#1D3A62]/10 min-w-[210px] sm:min-w-[230px]">
+          <span className="text-[11px] font-black uppercase tracking-wider text-[#1D3A62]/75 block mb-2.5">
+            OVERALL MEMORY
+          </span>
+          <div className="py-1">
+            <OverallMemoryGauge score={overallScore} size={132} />
           </div>
-        ) : (
-          <div className="rounded-[1.5rem] border border-border/80 bg-card p-6 text-sm font-semibold text-muted-foreground shadow-xs text-center flex flex-col items-center justify-center gap-2">
-            <span className="text-2xl">🎉</span>
-            <p className="font-bold text-foreground">All caught up!</p>
-            <p className="text-xs max-w-md">{t('dashboard.priorityQueue.empty')}</p>
+          <div className="space-y-0.5 mt-3 text-center">
+            <p className="text-xs text-[#1D3A62]/80 font-semibold">
+              {startedSubjects.length} of {subjectSummaries.length} subjects started
+            </p>
+            <p className="text-xs text-muted-foreground font-medium">
+              {dueTopicsCount === 0
+                ? 'No topics due today'
+                : dueTopicsCount === 1
+                  ? '1 topic due today'
+                  : `${dueTopicsCount} topics due today`}
+            </p>
           </div>
-        )}
+        </div>
+      </motion.div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MIDDLE SECTION: What would you like to do? (Carousel Mode)
+      ───────────────────────────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-7 sm:w-3 sm:h-8 bg-secondary rounded-full -rotate-6 shrink-0" />
+            <h2 className="text-2xl font-black tracking-tight text-primary">
+              What would you like to do?
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline text-xs font-semibold text-muted-foreground mr-1">
+              Test → See → Fix → Collab
+            </span>
+            <button
+              type="button"
+              onClick={() => scrollCarousel('left')}
+              aria-label="Previous card"
+              className="w-8 h-8 rounded-full border border-border/80 flex items-center justify-center bg-white hover:bg-muted/50 transition text-muted-foreground hover:text-foreground shadow-xs"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollCarousel('right')}
+              aria-label="Next card"
+              className="w-8 h-8 rounded-full border border-border/80 flex items-center justify-center bg-white hover:bg-muted/50 transition text-muted-foreground hover:text-foreground shadow-xs"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Carousel track */}
+        <div
+          ref={carouselRef}
+          className="flex items-stretch gap-5 overflow-x-auto pb-4 pt-1 px-1 scroll-smooth snap-x snap-mandatory no-scrollbar"
+        >
+          {/* CARD 1: Smart Quiz (Navy theme) */}
+          <div className="snap-start min-w-[280px] sm:min-w-[320px] max-w-[360px] flex-1 rounded-[1.75rem] bg-[#1D3A62] text-white p-6 shadow-md flex flex-col justify-between relative overflow-hidden group">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#FFE38F] flex items-center justify-center text-[#17233A] shadow-xs">
+                  <CheckSquare className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold tracking-wider text-white/60 uppercase">
+                  01 · TEST
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Smart Quiz</h3>
+              <p className="text-xs text-white/80 leading-relaxed mb-4">
+                Check your current memory score. Questions adapt to what you know and update your scores.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-6">
+                <button
+                  type="button"
+                  onClick={() => navigate('/quiz?subject=Mathematics')}
+                  className="text-xs font-bold px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+                >
+                  Mathematics
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/quiz?subject=Chemistry')}
+                  className="text-xs font-bold px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+                >
+                  Chemistry
+                </button>
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate('/quiz')}
+              className="w-full rounded-xl bg-[#FFE38F] hover:bg-[#FFE38F]/90 text-[#17233A] font-black py-3 text-sm transition shadow-sm"
+            >
+              Test my knowledge
+            </Button>
+          </div>
+
+          {/* CARD 2: Concept Web */}
+          <div className="snap-start min-w-[280px] sm:min-w-[320px] max-w-[360px] flex-1 rounded-[1.75rem] border border-border/80 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-[#6486B5]/40 transition group">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#6486B5]/15 flex items-center justify-center text-[#6486B5] shadow-xs">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                  02 · SEE
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-[#17233A] mb-2">Concept Web</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                See how your topics connect and where your memory is strong or fading.
+              </p>
+              {/* Miniature Concept Web visual */}
+              <div className="h-16 w-full flex items-center justify-center my-2 rounded-xl bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/60 p-1 relative overflow-hidden">
+                <svg width="100%" height="56" viewBox="0 0 220 56" className="overflow-visible">
+                  <ellipse cx="110" cy="28" rx="88" ry="24" fill="none" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="3 3" />
+                  <ellipse cx="110" cy="28" rx="50" ry="15" fill="none" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="3 3" />
+                  <line x1="110" y1="28" x2="42" y2="18" stroke="#6486B5" strokeWidth="1.5" strokeOpacity="0.6" />
+                  <line x1="110" y1="28" x2="72" y2="44" stroke="#6486B5" strokeWidth="1.5" strokeOpacity="0.6" />
+                  <line x1="110" y1="28" x2="178" y2="16" stroke="#6486B5" strokeWidth="1.5" strokeOpacity="0.6" />
+                  <line x1="110" y1="28" x2="152" y2="42" stroke="#6486B5" strokeWidth="1.5" strokeOpacity="0.6" />
+                  <line x1="42" y1="18" x2="72" y2="44" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="2 2" />
+                  <line x1="178" y1="16" x2="152" y2="42" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="2 2" />
+                  <circle cx="110" cy="28" r="11" fill="#1D3A62" stroke="#FFE38F" strokeWidth="1.5" />
+                  <text x="110" y="31" textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#FFFFFF">MATH</text>
+                  <circle cx="42" cy="18" r="8" fill="#E8735F" stroke="#FFFFFF" strokeWidth="1.5" />
+                  <text x="42" y="21" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#FFFFFF">7%</text>
+                  <text x="42" y="8" textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#17233A">Algebra</text>
+                  <circle cx="72" cy="44" r="7.5" fill="#186636" stroke="#FFFFFF" strokeWidth="1.5" />
+                  <text x="72" y="46.5" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#FFFFFF">85%</text>
+                  <circle cx="178" cy="16" r="8" fill="#EAA93C" stroke="#FFFFFF" strokeWidth="1.5" />
+                  <text x="178" y="18.5" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#FFFFFF">54%</text>
+                  <text x="178" y="6" textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#17233A">Geometry</text>
+                  <circle cx="152" cy="42" r="7.5" fill="#6486B5" stroke="#FFFFFF" strokeWidth="1.5" />
+                  <text x="152" y="44.5" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#FFFFFF">68%</text>
+                  <circle cx="16" cy="32" r="3" fill="#E8735F" opacity="0.6" />
+                  <line x1="42" y1="18" x2="16" y2="32" stroke="#E8735F" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.6" />
+                  <circle cx="204" cy="32" r="3" fill="#6486B5" opacity="0.6" />
+                  <line x1="178" y1="16" x2="204" y2="32" stroke="#6486B5" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.6" />
+                </svg>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/concept-web')}
+              className="w-full rounded-xl border border-border/80 hover:bg-muted/40 text-[#17233A] font-bold py-3 text-sm transition"
+            >
+              Open Concept Web
+            </Button>
+          </div>
+
+          {/* CARD 3: Revision Hub */}
+          <div className="snap-start min-w-[280px] sm:min-w-[320px] max-w-[360px] flex-1 rounded-[1.75rem] border border-border/80 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-[#E8735F]/40 transition group">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#FEEBE7] flex items-center justify-center text-[#E8735F] shadow-xs">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                  03 · FIX
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-[#17233A] mb-2">Revision Hub</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                Snap or paste your own notes. We&apos;ll spot the learning gaps and turn them into practice.
+              </p>
+              {/* Spidey giving tips visual */}
+              <div className="h-16 w-full flex items-center justify-center gap-2.5 my-2 rounded-xl bg-[#FEEBE7]/70 border border-[#E8735F]/25 px-2.5 py-1.5 overflow-hidden">
+                <div className="relative w-11 h-11 shrink-0">
+                  <Image
+                    src="/mascots/mascot6.webp"
+                    alt="Spidey giving tips"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10.5px] font-bold text-[#D95D39] leading-tight">
+                    💡 &quot;Review notes to spot &amp; patch learning gaps before your next quiz!&quot;
+                  </p>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/capture-hub')}
+              className="w-full rounded-xl border border-border/80 hover:bg-muted/40 text-[#17233A] font-bold py-3 text-sm transition"
+            >
+              Check learning gaps
+            </Button>
+          </div>
+
+          {/* CARD 4: Study Squad */}
+          <div className="snap-start min-w-[280px] sm:min-w-[320px] max-w-[360px] flex-1 rounded-[1.75rem] border border-border/80 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-[#2D8A4E]/40 transition group">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#EAF5EF] flex items-center justify-center text-[#2D8A4E] shadow-xs">
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                  04 · COLLAB
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-[#17233A] mb-2">Study Squad</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                Study together with classmates, share quizzes, and rescue friends on tough topics.
+              </p>
+              {/* Multiple Spidey Study Squad visual */}
+              <div className="h-16 w-full relative rounded-xl overflow-hidden my-2 border border-border/70 shadow-2xs bg-[#FBF8F1]">
+                <Image
+                  src="/branding/spidey-study-squad.jpg"
+                  alt="Multiple Spideys studying together in Study Squad"
+                  fill
+                  className="object-cover object-center"
+                />
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/study-squad')}
+              className="w-full rounded-xl border border-border/80 hover:bg-muted/40 text-[#17233A] font-bold py-3 text-sm transition"
+            >
+              Learn with squad
+            </Button>
+          </div>
+        </div>
       </motion.section>
 
-      {/* SPIDEY WELCOME STORYBOARD MODAL (1X ONBOARDING TOUR ONLY FOR NEW USERS) */}
-      {isNewUser && (
-        <SpideyWelcomeStoryboardModal
-          open={showStoryboard}
-          onOpenChange={(open) => {
-            setShowStoryboard(open);
-            if (!open) {
-              setIsNewUser(false);
-              try {
-                localStorage.setItem(STORYBOARD_STORAGE_KEY, 'true');
-              } catch {}
+      {/* ─────────────────────────────────────────────────────────────
+          BOTTOM SECTION: Today's priority queue
+      ───────────────────────────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.22 }}
+        className="rounded-[1.75rem] border border-border/80 bg-white p-6 lg:p-8 shadow-[0_8px_24px_rgba(29,58,98,0.06)]"
+      >
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-7 sm:w-3 sm:h-8 bg-secondary rounded-full -rotate-6 shrink-0" />
+            <div>
+              <h2 className="text-xl lg:text-2xl font-black tracking-tight text-primary">
+                Today&apos;s priority queue
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The 5 topics to tackle next, picked from your memory scores and what you haven&apos;t started.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/concept-web')}
+            className="text-xs font-bold text-primary hover:underline flex items-center gap-1 shrink-0"
+          >
+            See all subjects <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Priority Queue 5 Rows */}
+        <div className="space-y-3">
+          {priorityQueue5.map((item, index) => {
+            const rank = index + 1;
+            const reviewTime = item.effectiveScore !== null ? estimateReviewTime(item.effectiveScore) : 12;
+            const scoreColor = item.effectiveScore !== null ? getKnowledgeScoreColor(item.effectiveScore) : null;
+
+            const handleAction = () => {
+              const scoreParam = item.effectiveScore !== null ? `&score=${item.effectiveScore}` : '';
+              navigate(
+                `/quiz?subject=${encodeURIComponent(item.subjectName)}&topic=${encodeURIComponent(
+                  item.topic.name,
+                )}${scoreParam}&mode=${item.topic.recommendedMode ?? 'mcq'}`,
+              );
+            };
+
+            if (item.isReviewDue && item.effectiveScore !== null) {
+              return (
+                <div
+                  key={item.topic.id}
+                  className="flex items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl bg-[#FFF3EE] border border-[#F0CFC4]/80 shadow-2xs transition hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-[#D95D39] text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
+                      {rank}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-sm sm:text-base text-[#17233A] truncate">
+                          {item.topic.name}
+                        </h4>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] bg-white font-semibold text-muted-foreground border-border/60 px-2 py-0"
+                        >
+                          {item.subjectName}
+                        </Badge>
+                      </div>
+                      <p className="text-xs font-semibold text-[#D95D39] mt-0.5">
+                        {item.subtext}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="hidden sm:block w-16 h-1.5 rounded-full bg-black/10 overflow-hidden relative">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.max(5, item.effectiveScore)}%`,
+                            backgroundColor: scoreColor?.fill ?? '#D95D39',
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-[#17233A]">
+                        {formatTo2SF(item.effectiveScore)}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-medium hidden xs:inline">
+                        ~{reviewTime} min
+                      </span>
+                    </div>
+                    <Button
+                      onClick={handleAction}
+                      className="rounded-xl bg-[#1D3A62] hover:bg-[#1D3A62]/90 text-white font-bold px-4 sm:px-5 h-9 text-xs shadow-xs transition hover:-translate-y-0.5"
+                    >
+                      Review now
+                    </Button>
+                  </div>
+                </div>
+              );
             }
-          }}
-        />
-      )}
+
+            return (
+              <div
+                key={item.topic.id}
+                className="flex items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl bg-muted/20 border border-border/60 transition hover:bg-muted/30 hover:-translate-y-0.5"
+              >
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-full bg-[#E5E9F0] text-[#17233A] font-bold text-sm flex items-center justify-center shrink-0">
+                    {rank}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-sm sm:text-base text-[#17233A] truncate">
+                        {item.topic.name}
+                      </h4>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-white font-semibold text-muted-foreground border-border/60 px-2 py-0"
+                      >
+                        {item.subjectName}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {item.subtext}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+                  <span className="text-xs text-muted-foreground font-medium hidden sm:inline">
+                    Not started &nbsp;·&nbsp; Quiz
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={handleAction}
+                    className="rounded-xl border border-border/80 bg-white hover:bg-muted/50 text-[#17233A] font-bold px-5 sm:px-6 h-9 text-xs transition hover:-translate-y-0.5 shadow-xs"
+                  >
+                    Start
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </motion.section>
+
     </div>
   );
 }

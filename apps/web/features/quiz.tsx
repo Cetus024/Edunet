@@ -1850,18 +1850,17 @@ function EssayResultsPanel({
               <MarkScoreHero obtained={obtained} maximum={maximum} grade={grade} compact />
             </div>
 
-            <div className="grid shrink-0 grid-cols-3 gap-2">
+            <div className="grid shrink-0 grid-cols-2 gap-2">
               {[
-                ['Mastery', formatModelPercent(calculation.currentMastery)],
-                ['Mode', modeMemory ? formatPercentageValue(modeMemory.memoryScore) : '—'],
-                ['Concept', conceptScore === null ? '—' : formatPercentageValue(conceptScore)],
+                ['Previous Memory Score', formatModelPercent(calculation.previousMastery ?? session.model.previousMastery ?? 0)],
+                ['New Memory Score', formatModelPercent(calculation.currentMastery)],
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="rounded-2xl border border-[#1D3A62]/08 bg-white/75 px-2.5 py-3 text-center"
+                  className="rounded-2xl border border-[#1D3A62]/08 bg-white/75 px-2.5 py-3 text-center shadow-2xs"
                 >
-                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#1D3A62]/40">{label}</p>
-                  <p className="mt-1 text-sm font-black tabular-nums text-[#1D3A62]">{value}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.06em] text-[#1D3A62]/45 leading-tight">{label}</p>
+                  <p className="mt-1 text-base font-black tabular-nums text-[#1D3A62]">{value}</p>
                 </div>
               ))}
             </div>
@@ -2152,15 +2151,14 @@ function ResultsPanel({ session, busy, onCompleteFeedback, onRetake, onConceptWe
               <MarkScoreHero obtained={obtained} maximum={maximum} grade={grade} compact />
             </div>
 
-            <div className="grid shrink-0 grid-cols-3 gap-2">
+            <div className="grid shrink-0 grid-cols-2 gap-2">
               {[
-                ['Mastery', formatModelPercent(calculation.currentMastery)],
-                ['Mode', modeMemory ? formatPercentageValue(modeMemory.memoryScore) : '—'],
-                ['Concept', conceptScore === null ? '—' : formatPercentageValue(conceptScore)],
+                ['Previous Memory Score', formatModelPercent(calculation.previousMastery ?? session.model.previousMastery ?? 0)],
+                ['New Memory Score', formatModelPercent(calculation.currentMastery)],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-[#1D3A62]/08 bg-white/75 px-2.5 py-3 text-center">
-                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#1D3A62]/40">{label}</p>
-                  <p className="mt-1 text-sm font-black tabular-nums text-[#1D3A62]">{value}</p>
+                <div key={label} className="rounded-2xl border border-[#1D3A62]/08 bg-white/75 px-2.5 py-3 text-center shadow-2xs">
+                  <p className="text-[9px] font-black uppercase tracking-[0.06em] text-[#1D3A62]/45 leading-tight">{label}</p>
+                  <p className="mt-1 text-base font-black tabular-nums text-[#1D3A62]">{value}</p>
                 </div>
               ))}
             </div>

@@ -8,5 +8,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12"
   }
 }

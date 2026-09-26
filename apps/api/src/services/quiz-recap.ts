@@ -6,9 +6,9 @@ export type QuizRecapItem = {
   questionKey: string;
   concept: string;
   isCorrect: boolean;
-  scoreDisplay?: string;
-  studentAnswerText?: string;
-  correctAnswerText?: string;
+  scoreDisplay?: string | undefined;
+  studentAnswerText?: string | undefined;
+  correctAnswerText?: string | undefined;
   whereWrongOrMisconception: string;
   takeNoteOf: string;
   adviceOrCorrection: string;
@@ -24,14 +24,14 @@ export type QuizRecapGuidanceItem = {
 export type QuizRecap = {
   summary: string;
   mode: 'mcq' | 'essay';
-  subjectId?: string;
-  subjectName?: string;
-  topicId?: string;
+  subjectId?: string | undefined;
+  subjectName?: string | undefined;
+  topicId?: string | undefined;
   topicName: string;
   totalQuestions: number;
   correctCount: number;
-  totalMarksObtained?: number;
-  totalMaximumMarks?: number;
+  totalMarksObtained?: number | undefined;
+  totalMaximumMarks?: number | undefined;
   percentage: number;
   wrongCount: number;
   wrongConcepts: string[];
@@ -94,11 +94,68 @@ function extractMcqOptionText(options: unknown, index: number): string {
   return list[index] ?? `Option ${String.fromCharCode(65 + index)}`;
 }
 
+/**
+ * Returns true when the stored explanation is just a bare answer letter
+ * (e.g. "A", "B", "c", "D.") rather than a real sentence — meaning Gemini
+ * must generate its own explanation.
+ */
+function isBareLetterExplanation(explanation: string): boolean {
+  return /^\s*[A-Da-d]\.?\s*$/.test(explanation);
+}
+
 function formatListWithAnd(items: string[]): string {
   if (items.length === 0) return '';
   if (items.length === 1) return items[0]!;
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+export function parseOptionIndex(value: unknown, optionsList: string[] = []): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return parseInt(trimmed, 10);
+    }
+    if (/^[A-Za-z]$/.test(trimmed)) {
+      const idx = trimmed.toUpperCase().charCodeAt(0) - 65;
+      if (idx >= 0 && (optionsList.length === 0 || idx < optionsList.length)) {
+        return idx;
+      }
+    }
+    if (optionsList.length > 0) {
+      const lower = trimmed.toLowerCase();
+      const matchIdx = optionsList.findIndex((opt) => opt.trim().toLowerCase() === lower);
+      if (matchIdx >= 0) return matchIdx;
+    }
+  }
+  return -1;
+}
+
+export function cleanWhereWrongPhrasing(text: string): string {
+  if (!text) return '';
+  let cleaned = text
+    // "You didn't provide an answer, but the main challenge..." -> "Your answer was incorrect: the main challenge..."
+    .replace(/^You (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*but\s*/i, 'Your answer was incorrect: ')
+    // "You didn't answer. This question tests..." -> "Your answer was incorrect. This question tests..."
+    .replace(/^You (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*/i, 'Your answer was incorrect. ')
+    // Embedded occurrences
+    .replace(/\bYou (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*but\s*/gi, 'your answer was incorrect: ')
+    .replace(/\bYou (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*/gi, 'your answer was incorrect. ')
+    // "No answer was provided / given"
+    .replace(/^No answer was (provided|given|submitted)[,\.]?\s*(but\s*)?/i, 'Your answer was incorrect: ')
+    .replace(/\bNo answer was (provided|given|submitted)[,\.]?\s*(but\s*)?/gi, 'your answer was incorrect: ')
+    // "Question was left unanswered"
+    .replace(/^Question was left unanswered[,\.]?\s*/i, 'Your answer was incorrect. ')
+    .replace(/\bQuestion was left unanswered[,\.]?\s*/gi, 'your answer was incorrect. ')
+    .trim();
+
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned;
 }
 
 function buildMcqPrompt(
@@ -113,7 +170,9 @@ function buildMcqPrompt(
     correctOptionLetter: string;
     correctOptionText: string;
     explanation: string;
+    explanationForPrompt: string;
     linkedConcept: string;
+    takeNoteOf: string;
   }>,
   score: { obtained: number; maximum: number; percent: number },
   conceptsPhrase: string,
@@ -128,9 +187,14 @@ function buildMcqPrompt(
       ? `1. "summary": MUST state: "You scored ${score.obtained}/${score.maximum}! Amazing job — you mastered all questions with zero mistakes!"`
       : `1. "summary": MUST follow this exact style: "You scored ${score.obtained}/${score.maximum}. You mistakenly answered questions regarding ${conceptsPhrase}." (Mentioning all topics/concepts of the questions they scored wrongly).`,
     '2. For EACH question the student scored wrongly:',
-    '   - "whereWrongOrMisconception": Describe where they scored wrongly based on the option they chose.',
+    '   - "whereWrongOrMisconception": Describe why their chosen answer was incorrect or the misconception behind it.',
+    '     CRITICAL PHRASING RULE: The student attempted all questions and answered WRONGLY. They did NOT leave questions blank.',
+    '     NEVER say "You didn\'t answer", "You didn\'t provide an answer", "No answer was given", or similar phrasing.',
+    '     Always address their incorrect choice or mistake (e.g., "Your answer was incorrect because...", "You mistakenly chose...", or explain the scientific misunderstanding).',
     '   - "takeNoteOf": Clear, simple guidance on what they need to take note of (1-2 sentences).',
-    '   - "adviceOrCorrection": Concise correction and key rule to remember.',
+    '   - "adviceOrCorrection": 1-2 sentence explanation of WHY the correct answer is correct.',
+    '     IMPORTANT: If "Official explanation" below is marked as "[GENERATE]", you MUST write your own',
+    '     concise explanation — do not reference the marking scheme or say "see mark scheme".',
     '3. Provide 2-3 "keyTakeaways" and a "nextSteps" suggestion to revise at Revision Hub.',
     '',
     'DATA OF QUESTIONS SCORED WRONGLY:',
@@ -140,9 +204,12 @@ function buildMcqPrompt(
         `Question #${item.questionIndex + 1} (${item.questionKey})`,
         `Concept: ${item.linkedConcept}`,
         `Question: ${item.questionText}`,
-        `Student picked: Option ${item.studentOptionLetter} ("${item.studentOptionText}")`,
+        `Options: ${item.options.map((opt, i) => `${String.fromCharCode(65 + i)}) ${opt}`).join(' | ')}`,
+        item.studentOptionLetter
+          ? `Student picked: Option ${item.studentOptionLetter} ("${item.studentOptionText}")`
+          : `Student picked answer: "${item.studentOptionText}"`,
         `Correct answer: Option ${item.correctOptionLetter} ("${item.correctOptionText}")`,
-        `Official explanation: ${item.explanation}`,
+        `Official explanation: ${item.explanationForPrompt}`,
         '---',
       ].join('\n'))),
     '',
@@ -154,9 +221,9 @@ function buildMcqPrompt(
     '      "questionNumber": 1,',
     '      "questionKey": "string",',
     '      "concept": "Concept name",',
-    '      "whereWrongOrMisconception": "Where the student scored wrongly",',
+    '      "whereWrongOrMisconception": "Explanation of misconception or why their chosen option was incorrect (NEVER say they did not answer)",',
     '      "takeNoteOf": "Simple guidance on what they need to take note of",',
-    '      "adviceOrCorrection": "Core correction"',
+    '      "adviceOrCorrection": "1-2 sentence explanation of why the correct answer is correct"',
     '    }',
     '  ],',
     '  "keyTakeaways": ["Takeaway 1", "Takeaway 2"],',
@@ -195,6 +262,8 @@ function buildEssayPrompt(
       : `1. "summary": MUST follow this exact style: "You scored ${score.obtained}/${score.maximum} marks. You mistakenly answered or had misconceptions on questions regarding ${conceptsPhrase}." (Mentioning the concepts where marks were lost).`,
     '2. For EACH question with lost marks:',
     '   - "whereWrongOrMisconception": Specifically identify the misconception or where they answered wrongly.',
+    '     CRITICAL PHRASING RULE: The student submitted an answer and was graded. NEVER say "You didn\'t answer" or "You didn\'t provide an answer".',
+    '     Clearly point out what concept was confused or what step/keyword was missed.',
     '   - "takeNoteOf": Simple guidance on what they need to take note of (e.g. keywords, definitions, conditions).',
     '   - "adviceOrCorrection": Model phrasing required to achieve full credit.',
     '3. Provide 2-3 "keyTakeaways" and a "nextSteps" suggestion to revise at Revision Hub.',
@@ -221,7 +290,7 @@ function buildEssayPrompt(
     '      "questionNumber": 1,',
     '      "questionKey": "string",',
     '      "concept": "Concept name",',
-    '      "whereWrongOrMisconception": "Misconception or where they answered wrongly",',
+    '      "whereWrongOrMisconception": "Misconception or where they answered wrongly (NEVER say they did not answer)",',
     '      "takeNoteOf": "Simple guidance on what they need to take note of",',
     '      "adviceOrCorrection": "Model phrasing advice"',
     '    }',
@@ -247,6 +316,8 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
       correctOptionLetter: string;
       correctOptionText: string;
       explanation: string;
+      /** What is actually sent to Gemini — either the real explanation or a [GENERATE] signal. */
+      explanationForPrompt: string;
       linkedConcept: string;
       takeNoteOf: string;
     }> = [];
@@ -258,24 +329,49 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
       if (isCorrect) {
         correctCount += 1;
       } else {
-        const studentIndex = typeof a?.submittedAnswer === 'number' ? a.submittedAnswer : -1;
-        const correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : -1;
         const parsed = parseQuizOptionsSnapshot(q.options);
         const optionsList = parsed.options ?? [];
+        const studentIndex = parseOptionIndex(a?.submittedAnswer, optionsList);
+        const correctIndex = parseOptionIndex(q.correctAnswer, optionsList);
         const concept = q.linkedConcept || q.topic || input.topicName;
+
+        const studentOptionLetter = studentIndex >= 0
+          ? String.fromCharCode(65 + studentIndex)
+          : (typeof a?.submittedAnswer === 'string' && /^[A-Za-z]$/.test(a.submittedAnswer.trim())
+            ? a.submittedAnswer.trim().toUpperCase()
+            : '');
+        const studentOptionText = studentIndex >= 0
+          ? extractMcqOptionText(q.options, studentIndex)
+          : (a?.submittedAnswer !== undefined && a?.submittedAnswer !== null && String(a.submittedAnswer).trim()
+            ? String(a.submittedAnswer).trim()
+            : 'Your chosen answer');
+
+        const correctOptionLetter = correctIndex >= 0
+          ? String.fromCharCode(65 + correctIndex)
+          : (typeof q.correctAnswer === 'string' && /^[A-Za-z]$/.test(q.correctAnswer.trim())
+            ? q.correctAnswer.trim().toUpperCase()
+            : 'A');
+        const correctOptionText = correctIndex >= 0
+          ? extractMcqOptionText(q.options, correctIndex)
+          : (q.correctAnswer ? String(q.correctAnswer) : 'Correct answer');
 
         wrongList.push({
           questionIndex: q.questionIndex,
           questionKey: q.questionKey,
           questionText: q.text,
           options: optionsList,
-          studentOptionLetter: studentIndex >= 0 ? String.fromCharCode(65 + studentIndex) : '?',
-          studentOptionText: studentIndex >= 0 ? extractMcqOptionText(q.options, studentIndex) : 'No answer',
-          correctOptionLetter: correctIndex >= 0 ? String.fromCharCode(65 + correctIndex) : '?',
-          correctOptionText: correctIndex >= 0 ? extractMcqOptionText(q.options, correctIndex) : 'Correct answer',
+          studentOptionLetter,
+          studentOptionText,
+          correctOptionLetter,
+          correctOptionText,
           explanation: q.explanation || '',
+          // If the stored explanation is just a bare letter (A/B/C/D), signal
+          // Gemini to generate its own explanation instead.
+          explanationForPrompt: (q.explanation && !isBareLetterExplanation(q.explanation))
+            ? q.explanation
+            : '[GENERATE] No explanation was stored — write 1-2 sentences explaining why the correct answer is correct, based on the question and options above.',
           linkedConcept: concept,
-          takeNoteOf: q.explanation
+          takeNoteOf: (q.explanation && !isBareLetterExplanation(q.explanation))
             ? `Take note that ${q.explanation}`
             : `Take note of the core rule for ${concept}.`,
         });
@@ -298,11 +394,19 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
       concept: wrong.linkedConcept,
       isCorrect: false,
       scoreDisplay: '0/1',
-      studentAnswerText: `Option ${wrong.studentOptionLetter}: ${wrong.studentOptionText}`,
+      studentAnswerText: wrong.studentOptionLetter
+        ? `Option ${wrong.studentOptionLetter}: ${wrong.studentOptionText}`
+        : wrong.studentOptionText,
       correctAnswerText: `Option ${wrong.correctOptionLetter}: ${wrong.correctOptionText}`,
-      whereWrongOrMisconception: `You selected Option ${wrong.studentOptionLetter} ("${wrong.studentOptionText}"), but the question requires Option ${wrong.correctOptionLetter}.`,
+      whereWrongOrMisconception: wrong.studentOptionLetter
+        ? `You selected Option ${wrong.studentOptionLetter} ("${wrong.studentOptionText}"), but the question requires Option ${wrong.correctOptionLetter}.`
+        : `Your answer was incorrect. The question requires Option ${wrong.correctOptionLetter} ("${wrong.correctOptionText}").`,
       takeNoteOf: wrong.takeNoteOf,
-      adviceOrCorrection: wrong.explanation || `Option ${wrong.correctOptionLetter} is the correct answer.`,
+      // If the stored explanation is just a bare letter, show a helpful
+      // fallback sentence rather than the useless letter itself.
+      adviceOrCorrection: (wrong.explanation && !isBareLetterExplanation(wrong.explanation))
+        ? wrong.explanation
+        : `Option ${wrong.correctOptionLetter} ("${wrong.correctOptionText}") is correct for this question. Review the ${wrong.linkedConcept} concept to understand why.`,
     }));
 
     let keyTakeaways = [
@@ -338,11 +442,17 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
               concept: String(match?.concept || wrong.linkedConcept),
               isCorrect: false,
               scoreDisplay: '0/1',
-              studentAnswerText: `Option ${wrong.studentOptionLetter}: ${wrong.studentOptionText}`,
+              studentAnswerText: wrong.studentOptionLetter
+                ? `Option ${wrong.studentOptionLetter}: ${wrong.studentOptionText}`
+                : wrong.studentOptionText,
               correctAnswerText: `Option ${wrong.correctOptionLetter}: ${wrong.correctOptionText}`,
-              whereWrongOrMisconception: String(
-                match?.whereWrongOrMisconception ||
-                `You chose Option ${wrong.studentOptionLetter} which was incorrect for ${wrong.linkedConcept}.`
+              whereWrongOrMisconception: cleanWhereWrongPhrasing(
+                String(
+                  match?.whereWrongOrMisconception ||
+                  (wrong.studentOptionLetter
+                    ? `You chose Option ${wrong.studentOptionLetter} which was incorrect for ${wrong.linkedConcept}.`
+                    : `Your answer was incorrect for ${wrong.linkedConcept}.`)
+                )
               ),
               takeNoteOf: String(
                 match?.takeNoteOf ||
@@ -454,9 +564,9 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
     : `You scored ${score.obtained}/${score.maximum} marks. You mistakenly answered or had misconceptions on questions regarding ${conceptsPhrase}.`;
 
   let items: QuizRecapItem[] = lostMarksQuestions.map((q) => {
-    const partErrors = q.parts.filter((p) => p.verdict !== 'correct');
+    const partErrors = q.parts.filter((p: any) => p.verdict !== 'correct');
     const misconceptionDetail = partErrors.length > 0
-      ? partErrors.map((p) => `Part (${p.label}): ${p.feedback}`).join(' · ')
+      ? partErrors.map((p: any) => `Part (${p.label}): ${p.feedback}`).join(' · ')
       : (q.gradingSummary || 'Your response did not fully align with the required mark scheme points.');
     const takeNoteOf = partErrors.length > 0
       ? `Take note of the criteria for Part (${partErrors[0]?.label}): ensure you include the required scientific reasoning.`
@@ -511,10 +621,12 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
             scoreDisplay: `${q.marksObtained}/${q.maximumMarks}`,
             studentAnswerText: q.studentAnswerText.slice(0, 300),
             correctAnswerText: q.markScheme.slice(0, 300),
-            whereWrongOrMisconception: String(
-              match?.whereWrongOrMisconception ||
-              q.gradingSummary ||
-              'Answer missed key criteria required by the official mark scheme.'
+            whereWrongOrMisconception: cleanWhereWrongPhrasing(
+              String(
+                match?.whereWrongOrMisconception ||
+                q.gradingSummary ||
+                'Answer missed key criteria required by the official mark scheme.'
+              )
             ),
             takeNoteOf: String(
               match?.takeNoteOf ||
@@ -522,7 +634,7 @@ export async function generateQuizRecap(input: GenerateRecapInput): Promise<Quiz
             ),
             adviceOrCorrection: String(
               match?.adviceOrCorrection ||
-              q.parts.find((p) => p.verdict !== 'correct')?.feedback ||
+              q.parts.find((p: any) => p.verdict !== 'correct')?.feedback ||
               'Ensure all required conditions and terms are stated.'
             ),
           };

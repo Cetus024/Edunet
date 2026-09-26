@@ -98,8 +98,10 @@ export function formatFormulaNumber(value: number): string {
   return value.toFixed(4);
 }
 
-export function elapsedDaysBetween(previous: Date, current: Date): number {
-  return Math.max(0, current.getTime() - previous.getTime()) / 86_400_000;
+export function elapsedDaysBetween(previous: Date | string | number, current: Date | string | number): number {
+  const prevTime = previous instanceof Date ? previous.getTime() : new Date(previous).getTime();
+  const currTime = current instanceof Date ? current.getTime() : new Date(current).getTime();
+  return Math.max(0, (Number.isNaN(currTime) ? 0 : currTime) - (Number.isNaN(prevTime) ? 0 : prevTime)) / 86_400_000;
 }
 
 export function decayMastery(previousMastery: number, elapsedDays: number): number {

@@ -38,8 +38,15 @@ export const exactOriginGuard = createMiddleware<AppEnv>(async (context, next) =
 
 export const corsMiddleware = cors({
   origin: (origin) => allowedOrigins.has(origin) ? origin : '',
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Study-Relay-Token'],
-  allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+  allowHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Accept-Language',
+    'X-Request-Id',
+    'X-Study-Relay-Token',
+  ],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   exposeHeaders: ['Content-Length', 'X-Request-Id'],
   maxAge: 600,
   credentials: true,

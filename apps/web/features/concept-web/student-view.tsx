@@ -32,6 +32,11 @@ import { subjectsAtom, type SubjectData, type TopicData } from '@/lib/study-data
 import { getKnowledgeScoreColor } from '@/lib/score-color';
 import { resolveCurriculumTopic } from '@/lib/curriculum';
 
+/** Formats a number to 2 significant figures, returned as a string (e.g. 29.07 → "29", 5.23 → "5.2"). */
+function to2sf(value: number): string {
+  return Number(value.toPrecision(2)).toString();
+}
+
 type KeyConnection = { topic: string; explanation: string };
 type SubConcept = { id: string; name: string; memoryScore: number | null; description: string; keyConnection: KeyConnection; recommendedMode?: 'mcq' | 'essay' | null; reviewNow?: boolean; modeScores?: TopicData['modeScores'] };
 type Topic = SubConcept & { subConcepts: SubConcept[] };
@@ -65,10 +70,52 @@ export default function StudentConceptWebView() {
         const subconceptSeeds = buildSubconceptSeeds(topicData);
         const nextTopic = subjectData.topics[(topicIndex + 1) % subjectData.topics.length] ?? topicData;
 
+        // Subtopics calculate/receive their individual memory scores
+        const subConcepts: SubConcept[] = subconceptSeeds.map((seed: SubconceptSeed) => {
+          const matchedSubtopic = topicData.subtopics?.find(
+            (candidate) =>
+              candidate.id === seed.id
+              || candidate.name.toLowerCase() === seed.name.toLowerCase()
+              || candidate.syllabusCode === seed.syllabusCode
+              || `${topicData.id}-${candidate.id}` === `${topicData.id}-${seed.id}`,
+          );
+          const subtopicScore = matchedSubtopic?.memoryScore ?? null;
+
+          return {
+            id: `${topicData.id}-${seed.id}`,
+            name: seed.name,
+            description: seed.description,
+            keyConnection: {
+              topic: seed.keyConnectionTopic,
+              // Use the linked subtopic's official syllabus description to
+              // explain WHY the two concepts are connected, rather than a
+              // generic template sentence.
+              explanation: seed.keyConnectionDescription
+                ? `Mastering ${seed.name} leads into ${seed.keyConnectionTopic}: ${seed.keyConnectionDescription}`
+                : `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topicData.name}.`,
+            },
+            memoryScore: subtopicScore,
+            recommendedMode: topicData.recommendedMode,
+            reviewNow: false,
+            modeScores: topicData.modeScores,
+          };
+        });
+
+        // Themes take the average memory score from the subtopics:
+        // A topic with no quiz attempts can have memoryScore=0 from the API,
+        // which ?? null would pass through as 0 and render red. Use || null
+        // so that both null and 0 resolve to the "Not Started" grey state.
+        const startedSubScores = subConcepts
+          .map((sc) => sc.memoryScore)
+          .filter((score): score is number => score !== null && score > 0);
+        const themeMemoryScore = startedSubScores.length > 0
+          ? Math.round(startedSubScores.reduce((sum, score) => sum + score, 0) / startedSubScores.length)
+          : (topicData.memoryScore || null);
+
         return {
           id: topicData.id,
           name: topicData.name,
-          memoryScore: topicData.memoryScore,
+          memoryScore: themeMemoryScore,
           recommendedMode: topicData.recommendedMode,
           reviewNow: topicData.reviewNow,
           modeScores: topicData.modeScores,
@@ -79,21 +126,7 @@ export default function StudentConceptWebView() {
             topic: nextTopic.name,
             explanation: `${topicData.name} and ${nextTopic.name} are neighbouring branches in your ${subjectData.name} revision map.`,
           },
-          subConcepts: subconceptSeeds.map((seed: SubconceptSeed) => ({
-            id: `${topicData.id}-${seed.id}`,
-            name: seed.name,
-            description: seed.description,
-            keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topicData.name}.` },
-            // Subtopic scores are independent from the parent topic score.
-            // Quizzes are tracked at topic level; subtopics have no separate
-            // memory score unless a subtopic-specific quiz has been taken.
-            // Show null (grey/not-started) so a low topic score does not
-            // incorrectly colour every subtopic node in the concept web.
-            memoryScore: null as number | null,
-            recommendedMode: topicData.recommendedMode,
-            reviewNow: false,
-            modeScores: topicData.modeScores,
-          })),
+          subConcepts,
         };
       });
 
@@ -483,7 +516,7 @@ export default function StudentConceptWebView() {
               <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
             ))}
             {graph.nodes.map((node: GraphNode) => {
-              const due = node.reviewNow ?? (node.memoryScore !== null && node.memoryScore <= 60);
+              const due = node.reviewNow ?? (node.memoryScore !== null && node.memoryScore <= 70);
               const greyed = weakOnly && node.kind !== 'subject' && !due;
               const tier = getKnowledgeScoreColor(node.memoryScore);
               const scoreLabel = node.memoryScore === null ? 'Not Started' : `memory score ${node.memoryScore}%`;
@@ -508,7 +541,6 @@ export default function StudentConceptWebView() {
                   <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
                   {node.kind === 'subject' && <text x={node.x} y={node.y - node.r * 0.3} textAnchor="middle" fontSize="34">{subjectsData[subject]?.icon ?? '🧠'}</text>}
                   {lines.map((line: string, lineIndex: number) => <text key={`${line}-${lineIndex}`} x={node.x} y={node.y + (node.kind === 'subject' ? node.r * 0.22 : 0) + (lineIndex - (lines.length - 1) / 2) * typography.lineHeight} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={typography.fontSize}>{line}</text>)}
-                  {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   {node.kind !== 'subject' && friendMarkers.length > 0 && inViewport && (
                     <ConceptNodeFriendMarkers
                       nodeId={node.id}
@@ -544,9 +576,9 @@ export default function StudentConceptWebView() {
             <div className="space-y-4 p-5">
               <p className="text-sm leading-relaxed text-muted-foreground">{popup.node.description}</p>
               <div className="rounded-2xl bg-muted p-4">
-                <div className="flex items-center justify-between"><span className="font-bold">Memory score</span><span className="rounded-full px-3 py-1 text-sm font-black" style={{ backgroundColor: selectedPopupTier.fill, color: selectedPopupTier.text }}>{popup.node.memoryScore === null ? 'Not Started' : `${popup.node.memoryScore}%`}</span></div>
+                <div className="flex items-center justify-between"><span className="font-bold">Memory score</span><span className="rounded-full px-3 py-1 text-sm font-black" style={{ backgroundColor: selectedPopupTier.fill, color: selectedPopupTier.text }}>{popup.node.memoryScore === null ? 'Not Started' : `${to2sf(popup.node.memoryScore)}%`}</span></div>
                 <p className="mt-2 text-sm font-semibold text-muted-foreground">Risk label: {selectedPopupTier.label}</p>
-                {popup.node.modeScores && <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">MCQ Memory</span><strong className="mt-1 block">{popup.node.modeScores.mcq ? `${popup.node.modeScores.mcq.memoryScore.toFixed(2)}%` : 'Not attempted'}</strong></div><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">Essay Memory</span><strong className="mt-1 block">{popup.node.modeScores.essay ? `${popup.node.modeScores.essay.memoryScore.toFixed(2)}%` : 'Not attempted'}</strong></div></div>}
+                {popup.node.modeScores && <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">MCQ Memory</span><strong className="mt-1 block">{popup.node.modeScores.mcq ? `${to2sf(popup.node.modeScores.mcq.memoryScore)}%` : 'Not attempted'}</strong></div><div className="rounded-xl bg-card p-2"><span className="text-muted-foreground">Essay Memory</span><strong className="mt-1 block">{popup.node.modeScores.essay ? `${to2sf(popup.node.modeScores.essay.memoryScore)}%` : 'Not attempted'}</strong></div></div>}
                 {popup.node.recommendedMode && <p className="mt-2 text-sm font-bold">Recommended practice: {popup.node.recommendedMode.toUpperCase()}</p>}
               </div>
               <div className="rounded-2xl border border-[#EAA93C] bg-gradient-to-br from-[#FFF3C4] to-white p-4 text-[#17233A]">

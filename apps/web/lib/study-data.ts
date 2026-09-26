@@ -9,6 +9,7 @@ export interface TopicSubtopicData {
   syllabusCode: string;
   name: string;
   description: string;
+  memoryScore?: number | null;
 }
 
 export interface TopicData {
@@ -74,7 +75,7 @@ export function isAtRisk(topic: TopicData): boolean {
   const score = getEffectiveScore(topic);
   if (score === null) return false;
   if (typeof topic.reviewNow === 'boolean') return topic.reviewNow;
-  return score <= 60 || (topic.nextReviewAt !== null && new Date(topic.nextReviewAt) <= new Date());
+  return score < 50 || (topic.nextReviewAt !== null && new Date(topic.nextReviewAt) <= new Date());
 }
 
 export function getDaysUntilReview(nextReviewAt: string | null): number | null {

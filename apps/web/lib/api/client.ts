@@ -1,20 +1,21 @@
 function resolveDefaultApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_EDUNETS_API_URL) {
-    return process.env.NEXT_PUBLIC_EDUNETS_API_URL;
-  }
   if (typeof window !== 'undefined') {
-    // In local development, the Next.js frontend runs on :3000 while Hono API runs on :8787.
-    // On production (e.g. Vercel deployment), rewrites serve the API under the same origin.
+    // In local development, align API host with frontend host (localhost, 127.0.0.1, ::1)
+    // so credentials/cookies and CORS remain consistent.
     const isLocalhost =
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]' ||
       window.location.hostname.endsWith('.local');
     if (isLocalhost) {
       return `http://${window.location.hostname}:8787`;
     }
+    if (process.env.NEXT_PUBLIC_EDUNETS_API_URL) {
+      return process.env.NEXT_PUBLIC_EDUNETS_API_URL;
+    }
     return window.location.origin;
   }
-  return 'http://localhost:8787';
+  return process.env.NEXT_PUBLIC_EDUNETS_API_URL || 'http://localhost:8787';
 }
 
 function normalizeBaseUrl(value: string) {

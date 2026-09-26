@@ -113,6 +113,8 @@ export type QuizQuestion = {
   source?: string;
   resourceNumber?: string;
   maxMarks?: number;
+  correctAnswer?: string | number | null;
+  explanation?: string | null;
 };
 
 /** Examiner-style mark codes: B = independent, M = method, A = accuracy. */
@@ -280,6 +282,49 @@ export function getQuizRecap(submissionId: string) {
   return apiRequest<QuizRecap>(`/api/v1/me/quiz-attempts/${encodeURIComponent(submissionId)}/recap`);
 }
 
+export function cleanWhereWrongPhrasing(text: string): string {
+  if (!text) return '';
+  let cleaned = text
+    .replace(/^You (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*but\s*/i, 'Your answer was incorrect: ')
+    .replace(/^You (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*/i, 'Your answer was incorrect. ')
+    .replace(/\bYou (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*but\s*/gi, 'your answer was incorrect: ')
+    .replace(/\bYou (didn't|did not) (provide an |give an |write an |submit an )?answer[,\.]?\s*/gi, 'your answer was incorrect. ')
+    .replace(/^No answer was (provided|given|submitted)[,\.]?\s*(but\s*)?/i, 'Your answer was incorrect: ')
+    .replace(/\bNo answer was (provided|given|submitted)[,\.]?\s*(but\s*)?/gi, 'your answer was incorrect: ')
+    .replace(/^Question was left unanswered[,\.]?\s*/i, 'Your answer was incorrect. ')
+    .replace(/\bQuestion was left unanswered[,\.]?\s*/gi, 'your answer was incorrect. ')
+    .trim();
+
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned;
+}
+
+export function parseOptionIndex(value: unknown, optionsList: string[] = []): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return parseInt(trimmed, 10);
+    }
+    if (/^[A-Za-z]$/.test(trimmed)) {
+      const idx = trimmed.toUpperCase().charCodeAt(0) - 65;
+      if (idx >= 0 && (optionsList.length === 0 || idx < optionsList.length)) {
+        return idx;
+      }
+    }
+    if (optionsList.length > 0) {
+      const lower = trimmed.toLowerCase();
+      const matchIdx = optionsList.findIndex((opt) => opt.trim().toLowerCase() === lower);
+      if (matchIdx >= 0) return matchIdx;
+    }
+  }
+  return -1;
+}
+
 function formatListWithAnd(items: string[]): string {
   if (items.length === 0) return '';
   if (items.length === 1) return items[0]!;
@@ -313,40 +358,39 @@ export function extractRecapFromSession(
         correctCount += 1;
       } else {
         const concept = q.subtopic?.name || a?.linkedConcept || q.topic || topicName;
+        const optionsList = q.options ?? [];
 
-        let studentIndex = -1;
-        if (typeof a?.submittedAnswer === 'number') {
-          studentIndex = a.submittedAnswer;
-        } else if (typeof a?.submittedAnswer === 'string' && /^\d+$/.test(a.submittedAnswer)) {
-          studentIndex = parseInt(a.submittedAnswer, 10);
-        }
-
+        const studentIndex = parseOptionIndex(a?.submittedAnswer, optionsList);
         const studentOptionLetter = studentIndex >= 0
           ? String.fromCharCode(65 + studentIndex)
-          : (a?.submittedAnswer ? String(a.submittedAnswer) : '?');
-        const studentOptionText = (studentIndex >= 0 && q.options && q.options[studentIndex])
-          ? q.options[studentIndex]
-          : (studentIndex >= 0 ? `Option ${studentOptionLetter}` : 'No answer submitted');
+          : (typeof a?.submittedAnswer === 'string' && /^[A-Za-z]$/.test(a.submittedAnswer.trim())
+            ? a.submittedAnswer.trim().toUpperCase()
+            : '');
+        const studentOptionText = (studentIndex >= 0 && optionsList[studentIndex])
+          ? optionsList[studentIndex]
+          : (a?.submittedAnswer !== undefined && a?.submittedAnswer !== null && String(a.submittedAnswer).trim()
+            ? String(a.submittedAnswer).trim()
+            : 'Your chosen answer');
 
-        let correctIndex = -1;
-        if (typeof a?.correctAnswer === 'number') {
-          correctIndex = a.correctAnswer;
-        } else if (typeof a?.correctAnswer === 'string' && /^\d+$/.test(a.correctAnswer)) {
-          correctIndex = parseInt(a.correctAnswer, 10);
-        }
-
+        const correctIndex = parseOptionIndex(a?.correctAnswer ?? q.correctAnswer, optionsList);
         const correctOptionLetter = correctIndex >= 0
           ? String.fromCharCode(65 + correctIndex)
-          : (a?.correctAnswer ? String(a.correctAnswer) : 'A');
-        const correctOptionText = (correctIndex >= 0 && q.options && q.options[correctIndex])
-          ? q.options[correctIndex]
-          : (correctIndex >= 0 ? `Option ${correctOptionLetter}` : String(a?.correctAnswer || 'Correct answer'));
+          : (typeof (a?.correctAnswer ?? q.correctAnswer) === 'string' && /^[A-Za-z]$/.test(String(a?.correctAnswer ?? q.correctAnswer).trim())
+            ? String(a?.correctAnswer ?? q.correctAnswer).trim().toUpperCase()
+            : 'A');
+        const correctOptionText = (correctIndex >= 0 && optionsList[correctIndex])
+          ? optionsList[correctIndex]
+          : (correctIndex >= 0 ? `Option ${correctOptionLetter}` : String(a?.correctAnswer ?? q.correctAnswer ?? 'Correct answer'));
 
-        const cleanExplanation = (a?.explanation || '').replace(/^(Explanation:?\s*)/i, '').trim();
+        const cleanExplanation = (a?.explanation || q.explanation || '').replace(/^(Explanation:?\s*)/i, '').trim();
 
-        const whereWrongOrMisconception = studentIndex >= 0
-          ? `You selected Option ${studentOptionLetter} ("${studentOptionText}"), but the question requires Option ${correctOptionLetter} ("${correctOptionText}").`
-          : `Question was left unanswered. The correct answer is Option ${correctOptionLetter} ("${correctOptionText}").`;
+        const whereWrongOrMisconception = cleanWhereWrongPhrasing(
+          studentIndex >= 0
+            ? `You selected Option ${studentOptionLetter} ("${studentOptionText}"), but the question requires Option ${correctOptionLetter} ("${correctOptionText}").`
+            : (studentOptionText && studentOptionText !== 'Your chosen answer'
+              ? `You selected "${studentOptionText}", but the question requires Option ${correctOptionLetter} ("${correctOptionText}").`
+              : `Your answer was incorrect. The correct answer is Option ${correctOptionLetter} ("${correctOptionText}").`)
+        );
 
         const takeNoteOf = cleanExplanation
           ? (cleanExplanation.toLowerCase().startsWith('take note') ? cleanExplanation : `Take note that ${cleanExplanation}`)
@@ -360,7 +404,7 @@ export function extractRecapFromSession(
           concept,
           isCorrect: false,
           scoreDisplay: '0/1',
-          studentAnswerText: `Option ${studentOptionLetter}: ${studentOptionText}`,
+          studentAnswerText: studentOptionLetter ? `Option ${studentOptionLetter}: ${studentOptionText}` : studentOptionText,
           correctAnswerText: `Option ${correctOptionLetter}: ${correctOptionText}`,
           whereWrongOrMisconception,
           takeNoteOf,
@@ -476,7 +520,7 @@ export function extractRecapFromSession(
         scoreDisplay: `${marksObtained}/${maximumMarks}`,
         studentAnswerText: typeof a?.submittedAnswer === 'string' ? a.submittedAnswer : '',
         correctAnswerText: a?.explanation || 'Model criteria in mark scheme',
-        whereWrongOrMisconception,
+        whereWrongOrMisconception: cleanWhereWrongPhrasing(whereWrongOrMisconception),
         takeNoteOf,
         adviceOrCorrection: a?.explanation || 'Review the model criteria to achieve full credit.',
       });

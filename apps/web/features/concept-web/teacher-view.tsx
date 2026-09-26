@@ -216,10 +216,44 @@ export default function TeacherConceptWebView() {
     normalizedTopics.forEach((topic, topicIndex) => {
       const angle = -Math.PI / 2 + topicIndex * ((Math.PI * 2) / normalizedTopics.length);
       const subconceptSeeds = topicSubconcepts[topic.id] ?? [];
+      const topicSubtopics = (topic as { subtopics?: Array<{ id: string; name: string; syllabusCode?: string; memoryScore?: number | null }> }).subtopics;
+
+      const subNodes: GraphNode[] = subconceptSeeds.map((seed: SubconceptSeed, conceptIndex: number) => {
+        const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
+        const matched = topicSubtopics?.find(
+          (s) => s.id === seed.id || s.name.toLowerCase() === seed.name.toLowerCase() || s.syllabusCode === seed.syllabusCode || `${topic.id}-${s.id}` === `${topic.id}-${seed.id}`,
+        );
+        const subtopicScore = matched?.memoryScore !== undefined ? matched.memoryScore : topic.memoryScore;
+        return {
+          id: `${topic.id}-${seed.id}`,
+          name: seed.name,
+          memoryScore: subtopicScore,
+          participatingStudents: topic.participatingStudents,
+          quizAttempts: topic.quizAttempts,
+          lastReviewedAt: topic.lastReviewedAt,
+          nextReviewAt: topic.nextReviewAt,
+          description: seed.description,
+          keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topic.name}.` },
+          kind: 'subconcept' as const,
+          parentId: topic.id,
+          x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
+          r: CONCEPT_WEB_LAYOUT.subtopicRadius,
+          index: 0,
+        };
+      });
+
+      const startedSubScores = subNodes
+        .map((sc) => sc.memoryScore)
+        .filter((score): score is number => score !== null);
+      const themeMemoryScore = startedSubScores.length > 0
+        ? Math.round(startedSubScores.reduce((sum, score) => sum + score, 0) / startedSubScores.length)
+        : (subNodes.length === 0 ? topic.memoryScore : null);
+
       const topicNode: GraphNode = {
         id: topic.id,
         name: topic.name,
-        memoryScore: topic.memoryScore,
+        memoryScore: themeMemoryScore,
         participatingStudents: topic.participatingStudents,
         quizAttempts: topic.quizAttempts,
         lastReviewedAt: topic.lastReviewedAt,
@@ -240,28 +274,8 @@ export default function TeacherConceptWebView() {
       nodes.push(topicNode);
       links.push({ from: nodes[0], to: topicNode });
 
-      subconceptSeeds.forEach((seed: SubconceptSeed, conceptIndex: number) => {
-        const subAngle = outerStartAngle + (outerSlotCursor + conceptIndex) * ((Math.PI * 2) / outerSlotCount);
-        // Subconcept nodes inherit their parent topic's real stats - there is
-        // no separate per-subtopic score/quiz history tracked in the data
-        // model, same approach the student concept web uses.
-        const subNode: GraphNode = {
-          id: `${topic.id}-${seed.id}`,
-          name: seed.name,
-          memoryScore: topic.memoryScore,
-          participatingStudents: topic.participatingStudents,
-          quizAttempts: topic.quizAttempts,
-          lastReviewedAt: topic.lastReviewedAt,
-          nextReviewAt: topic.nextReviewAt,
-          description: seed.description,
-          keyConnection: { topic: seed.keyConnectionTopic, explanation: `${seed.name} connects closely to ${seed.keyConnectionTopic} within ${topic.name}.` },
-          kind: 'subconcept',
-          parentId: topic.id,
-          x: roundCoordinate(CONCEPT_WEB_LAYOUT.centerX + Math.cos(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
-          y: roundCoordinate(CONCEPT_WEB_LAYOUT.centerY + Math.sin(subAngle) * CONCEPT_WEB_LAYOUT.subtopicRingRadius),
-          r: CONCEPT_WEB_LAYOUT.subtopicRadius,
-          index: nodes.length,
-        };
+      subNodes.forEach((subNode) => {
+        subNode.index = nodes.length;
         nodes.push(subNode);
         links.push({ from: topicNode, to: subNode });
       });
@@ -290,13 +304,13 @@ export default function TeacherConceptWebView() {
 
   const priorityTopics = useMemo(
     () => [...normalizedTopics]
-      .filter((topic) => topic.memoryScore === null || topic.memoryScore < 80)
+      .filter((topic) => topic.memoryScore === null || topic.memoryScore <= 70)
       .sort((a, b) => (a.memoryScore ?? -1) - (b.memoryScore ?? -1))
       .slice(0, 5),
     [normalizedTopics],
   );
   const improvingTopics = useMemo(
-    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore >= 80),
+    () => normalizedTopics.filter((topic) => topic.memoryScore !== null && topic.memoryScore > 70),
     [normalizedTopics],
   );
   const insightSubjectLabel = selectedStudentId
@@ -569,7 +583,7 @@ export default function TeacherConceptWebView() {
                 <motion.line key={`${link.from.id}-${link.to.id}-${index}`} x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} stroke={link.dashed ? '#EAA93C' : '#C4B9A8'} strokeWidth={link.dashed ? 3 : 2.5} strokeOpacity={link.dashed ? 0.8 : 0.45} strokeDasharray={link.dashed ? '8 5' : undefined} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, delay: index * 0.02, ease: 'easeOut' as const }} />
               ))}
               {graph.nodes.map((node: GraphNode) => {
-                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore >= 80;
+                const greyed = weakOnly && node.kind !== 'subject' && node.memoryScore !== null && node.memoryScore > 70;
                 const tier = getKnowledgeScoreColor(node.memoryScore);
                 const scoreLabel = node.memoryScore === null ? 'not started' : `${node.memoryScore}% mastery`;
                 const highlighted = highlightedId === node.id;
@@ -588,7 +602,6 @@ export default function TeacherConceptWebView() {
                     <ellipse cx={node.x - node.r * 0.25} cy={node.y - node.r * 0.28} rx={node.r * 0.38} ry={node.r * 0.16} fill="#FFFFFF" opacity="0.15" />
                     {node.kind === 'subject' && subjectIcon && <text x={node.x} y={node.y - node.r * 0.3} textAnchor="middle" fontSize="34">{subjectIcon}</text>}
                     {lines.map((line: string, lineIndex: number) => <text key={`${line}-${lineIndex}`} x={node.x} y={node.y + (node.kind === 'subject' ? node.r * 0.22 : 0) + (lineIndex - (lines.length - 1) / 2) * typography.lineHeight} textAnchor="middle" dominantBaseline="middle" fill={tier.text} fontWeight="800" fontSize={typography.fontSize}>{line}</text>)}
-                    {node.memoryScore === null && <text x={node.x} y={node.y + node.r + 16} textAnchor="middle" fill="#6B7280" fontWeight="800" fontSize="11">Not Started</text>}
                   </motion.g>
                 );
               })}

@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   extractRecapFromSession,
+  cleanWhereWrongPhrasing,
   type QuizRecap,
   type AssessmentSessionResponse,
 } from '@/lib/api/quiz';
@@ -73,7 +74,7 @@ export function QuizRecapDialog({
             activeRecap.items
               .map(
                 (it) =>
-                  `• Q${it.questionNumber} (${it.concept}): ${it.whereWrongOrMisconception}\n  Take note: ${it.takeNoteOf}`
+                  `• Q${it.questionNumber} (${it.concept}): ${cleanWhereWrongPhrasing(it.whereWrongOrMisconception)}\n  Take note: ${it.takeNoteOf}`
               )
               .join('\n\n')
           : `All questions answered correctly! Full conceptual mastery demonstrated.`,
@@ -261,7 +262,7 @@ export function QuizRecapDialog({
                             </Badge>
                           </div>
                           <p className="text-xs text-rose-950 font-medium pl-7">
-                            {it.whereWrongOrMisconception}
+                            {cleanWhereWrongPhrasing(it.whereWrongOrMisconception)}
                           </p>
                           <p className="text-xs text-amber-950 font-semibold pl-7 bg-amber-50/70 rounded-md py-1 px-2 border border-amber-200/60 flex items-center gap-1.5">
                             <Lightbulb className="h-3.5 w-3.5 text-amber-700 shrink-0" />

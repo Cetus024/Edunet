@@ -4,9 +4,13 @@ import { pool } from '../../../packages/database/index.js';
 import { app } from './app.js';
 import { env } from './env.js';
 
+// On Windows and Linux, binding to '::' creates a dual-stack socket that
+// accepts both IPv6 (localhost / [::1]) and IPv4 (127.0.0.1 / 0.0.0.0).
+const listenHost = env.host === '0.0.0.0' ? '::' : env.host;
+
 const server = serve({
   fetch: app.fetch,
-  hostname: env.host,
+  hostname: listenHost,
   port: env.port,
 });
 

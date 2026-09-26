@@ -1,5 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { generateQuizRecap, generateFocusGuidance, type GenerateRecapInput } from '../src/services/quiz-recap.js';
+import { generateQuizRecap, generateFocusGuidance, cleanWhereWrongPhrasing, type GenerateRecapInput } from '../src/services/quiz-recap.js';
+
+describe('cleanWhereWrongPhrasing', () => {
+  it('corrects "You didn\'t provide an answer, but..." to indicate wrong answer', () => {
+    const input = "You didn't provide an answer, but the main challenge here is relating the mass of the product (CaO) back to the mass of the element (Ca) in the original sample.";
+    const result = cleanWhereWrongPhrasing(input);
+    expect(result).toBe("Your answer was incorrect: the main challenge here is relating the mass of the product (CaO) back to the mass of the element (Ca) in the original sample.");
+  });
+
+  it('corrects "You didn\'t answer, but..." to indicate wrong answer', () => {
+    const input = "You didn't answer, but the trick is converting both masses into moles before finding the ratio.";
+    const result = cleanWhereWrongPhrasing(input);
+    expect(result).toBe("Your answer was incorrect: the trick is converting both masses into moles before finding the ratio.");
+  });
+
+  it('corrects "You didn\'t answer. ..." to indicate wrong answer', () => {
+    const input = "You didn't answer. This question tests the gas stoichiometry equation 2CO + O2 -> 2CO2.";
+    const result = cleanWhereWrongPhrasing(input);
+    expect(result).toBe("Your answer was incorrect. This question tests the gas stoichiometry equation 2CO + O2 -> 2CO2.");
+  });
+});
 
 describe('generateQuizRecap', () => {
   it('generates an MCQ recap highlighting where the student scored wrongly', async () => {
@@ -63,6 +83,42 @@ describe('generateQuizRecap', () => {
     expect(recap.items[0]?.adviceOrCorrection).toBeDefined();
     expect(recap.summary).toBeDefined();
     expect(recap.keyTakeaways.length).toBeGreaterThan(0);
+  });
+
+  it('correctly parses string submittedAnswer and correctAnswer without saying student did not answer', async () => {
+    const input: GenerateRecapInput = {
+      mode: 'mcq',
+      subjectName: 'Chemistry',
+      topicName: 'The Mole Concept and Stoichiometry',
+      questions: [
+        {
+          questionIndex: 0,
+          questionKey: 'chem-mole-q1',
+          type: 'mcq',
+          topic: 'The Mole Concept and Stoichiometry',
+          text: 'What mass of calcium is in 14g of CaO?',
+          options: ['10g', '7g', '14g', '40g'],
+          correctAnswer: '0',
+          explanation: 'Find the mass of Calcium in the 14g of CaO using relative atomic masses.',
+          linkedConcept: 'The Mole Concept and Stoichiometry',
+        },
+      ],
+      answers: [
+        {
+          questionIndex: 0,
+          questionKey: 'chem-mole-q1',
+          submittedAnswer: '1', // String '1' from database
+          isCorrect: false,
+          marksObtained: 0,
+          maximumMarks: 1,
+        },
+      ],
+    };
+
+    const recap = await generateQuizRecap(input);
+    expect(recap.items[0]?.studentAnswerText).toContain('Option B');
+    expect(recap.items[0]?.whereWrongOrMisconception).not.toContain("didn't answer");
+    expect(recap.items[0]?.whereWrongOrMisconception).toMatch(/Option B|7g/i);
   });
 
   it('generates an Essay recap highlighting misconceptions and where the student answered wrongly', async () => {

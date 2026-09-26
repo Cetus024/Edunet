@@ -693,7 +693,7 @@ export async function generateAndSaveAttemptRecap(userId: string, submissionId: 
   const recap = await generateQuizRecap({
     mode: attempt.mode === 'essay' ? 'essay' : 'mcq',
     subjectId: attempt.subjectId,
-    subjectName: subjectRows[0]?.name,
+    ...(subjectRows[0]?.name ? { subjectName: subjectRows[0].name } : {}),
     topicId: attempt.topicId,
     topicName: topicRows[0]?.name || questionRows[0]?.topic || 'Topic',
     questions: questionRows,
